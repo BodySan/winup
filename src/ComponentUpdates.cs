@@ -164,6 +164,8 @@ namespace WinUp {
             lock(sync) using(var package=Inspect(path)) {
                 var state=State();
                 if(package.Manifest.sequence<=state.highest) throw ComponentPackage.Bad("Этот выпуск уже установлен или старее принятого. Для возврата используйте «Откат».");
+                string previous=null;
+                if(state.active!=null) try { using(var prior=Inspect(PackagePath(state.active))) if(prior.Id==state.active) previous=state.active; } catch { }
                 SafePaths.NoReparseParents(root); Directory.CreateDirectory(root);
                 string target=PackagePath(package.Id); SafePaths.NoReparseParents(target); Directory.CreateDirectory(Path.GetDirectoryName(target));
                 using(var directoryLease=SourceLease.HoldDirectories(Path.GetDirectoryName(target))) {
@@ -173,7 +175,7 @@ namespace WinUp {
                     try { package.CopyTo(temporary); using(var copied=Inspect(temporary)) if(copied.Id!=package.Id) throw ComponentPackage.Bad("Копия пакета повреждена."); File.Move(temporary,target); }
                     finally { if(File.Exists(temporary)) File.Delete(temporary); }
                 }
-                Save(new ComponentState { active=package.Id,previous=state.active,highest=package.Manifest.sequence });
+                Save(new ComponentState { active=package.Id,previous=previous,highest=package.Manifest.sequence });
                 }
             }
         }

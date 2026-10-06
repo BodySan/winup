@@ -1,4 +1,4 @@
-﻿param([string]$Gh='gh',[string]$ProtectedKey,[string]$Repository='BodySan/winup')
+﻿param([string]$Gh='gh',[string]$ProtectedKey,[string]$Repository='BodySan/winup',[switch]$Refresh)
 $ErrorActionPreference='Stop'
 $root=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 if(!$ProtectedKey) { $ProtectedKey=Join-Path $root '.release-private\component-signing.dpapi' }
@@ -15,6 +15,26 @@ try {
         if($process.ExitCode) { throw 'Sign in to GitHub with gh auth login or Git Credential Manager.' }
         $env:GH_TOKEN=($credential -split "`n" | Where-Object { $_.StartsWith('password=') } | Select-Object -First 1).Substring(9).Trim(); $credential=$null; $envSet=$true
     }
+    if($Refresh) {
+        $before=& $Gh run list --repo $Repository --workflow components.yml --branch main --limit 1 --json databaseId | ConvertFrom-Json
+        if($LASTEXITCODE) { throw 'Workflow listing failed.' }
+        $last=if($before) { [long]@($before)[0].databaseId } else { 0 }
+        & $Gh workflow run components.yml --repo $Repository --ref main
+        if($LASTEXITCODE) { throw 'Component checks could not be started.' }
+        Write-Output 'Waiting for fresh GitHub checks. The signing key remains local.'
+        $deadline=[DateTime]::UtcNow.AddMinutes(20); $finished=$false
+        while([DateTime]::UtcNow -lt $deadline) {
+            $current=& $Gh run list --repo $Repository --workflow components.yml --branch main --limit 1 --json databaseId,status,conclusion | ConvertFrom-Json
+            if($LASTEXITCODE) { throw 'Cannot read check status.' }
+            $latest=@($current)[0]
+            if($latest -and [long]$latest.databaseId -gt $last -and $latest.status -eq 'completed') {
+                if($latest.conclusion -ne 'success') { throw 'Fresh checks failed. Nothing was signed or published.' }
+                $finished=$true; break
+            }
+            Start-Sleep -Seconds 10
+        }
+        if(!$finished) { throw 'Check timeout. Nothing was signed or published.' }
+    }
     $runs=& $Gh run list --repo $Repository --workflow components.yml --status success --branch main --limit 1 --json databaseId,number,headSha,event,conclusion | ConvertFrom-Json
     if($LASTEXITCODE -or !$runs) { throw 'No successfully checked component candidate on main.' }
     $run=@($runs)[0]
@@ -28,8 +48,6 @@ try {
     New-Item -ItemType Directory -Force $candidate,$release | Out-Null
     & $Gh run download $run.databaseId --repo $Repository --name tested-source --dir $candidate
     if($LASTEXITCODE) { throw 'Candidate download failed.' }
-    & $Gh run download $run.databaseId --repo $Repository --name tested-executable --dir $release
-    if($LASTEXITCODE) { throw 'Executable download failed.' }
     & "$PSScriptRoot\verify-candidate.ps1" -Candidate $candidate
     # Rebuild the application locally; the CI-provided EXE is not published blindly.
     & "$root\src\build.ps1" -Source $candidate -Output "$release\WinUp.exe"
@@ -37,7 +55,7 @@ try {
     Compress-Archive -Path "$candidate\*" -DestinationPath "$release\src.zip"
     $notes="Комплект №$sequence. Проверки GitHub Actions пройдены; подпись выполнена локально на ПК владельца. Новые совместимые библиотеки и PSL. Cryptomator/Java сохраняются в согласованном runtime. KeePass/WinFsp обновляются отдельными кнопками."
     [IO.File]::WriteAllText("$release\notes.txt",$notes,[Text.UTF8Encoding]::new($false))
-    & $Gh release create "components-$sequence" --repo $Repository --target $run.headSha --title "WinUp: комплект $sequence" --notes-file "$release\notes.txt" "$release\WinUp.exe" "$release\src.zip" "$release\components.wup" "$release\update.json" "$release\update.sig"
+    & $Gh release create "components-$sequence" --repo $Repository --target $run.headSha --title "WinUp: комплект $sequence" --notes-file "$release\notes.txt" "$release\WinUp.exe" "$release\WinUp.exe.sig" "$release\src.zip" "$release\components.wup" "$release\update.json" "$release\update.sig"
     if($LASTEXITCODE) { throw 'Signed release publication failed.' }
     Write-Output "Published verified, locally signed component release $sequence. Restart WinUp after installing it."
 } finally { if($envSet) { Remove-Item Env:GH_TOKEN -ErrorAction SilentlyContinue }; $credential=$null }

@@ -41,5 +41,7 @@ try {
     $feed=[Text.Encoding]::UTF8.GetBytes(($release | ConvertTo-Json))
     [IO.File]::WriteAllBytes((Join-Path $Output 'update.json'),$feed)
     [IO.File]::WriteAllBytes((Join-Path $Output 'update.sig'),$rsa.SignData($feed,'SHA256'))
+    $application=Join-Path $Output 'WinUp.exe'
+    if(Test-Path -LiteralPath $application) { [IO.File]::WriteAllBytes($application+'.sig',$rsa.SignData([IO.File]::ReadAllBytes($application),'SHA256')) }
     Write-Output "Signed component release ${Sequence}: $package"
 } finally { if($privateBytes) { [Array]::Clear($privateBytes,0,$privateBytes.Length) }; $rsa.Dispose() }

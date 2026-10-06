@@ -68,6 +68,10 @@ namespace WinUp {
                 store.Rollback(); using(var selected=store.Selected()) Check("updates-rollback-to-previous",selected.Manifest.sequence==1 && store.State().highest==2,"explicit rollback keeps high water mark");
                 store.Rollback(); Check("updates-rollback-to-embedded",store.Selected()==null && store.State().highest==2,"embedded fallback retained");
                 Check("updates-replay-after-rollback-rejected",Refused(()=>store.Install(good)),"network cannot undo user's rollback");
+                string third=TestPackage(root,TestManifest(3,payload),key,payload); store.Install(third);
+                string damaged=Path.Combine(root,"store","packages",store.State().active+".wup"); File.WriteAllBytes(damaged,new byte[] {0});
+                store.Install(TestPackage(root,TestManifest(4,payload),key,payload)); store.Rollback();
+                Check("updates-corrupt-previous-falls-back-to-embedded",store.Selected()==null && store.State().highest==4,"damaged/incompatible previous package is not retained for rollback");
                 string state=Path.Combine(root,"store","state.json"); File.WriteAllText(state,"{\"active\":\"../outside\"}");
                 Check("updates-state-traversal-rejected",Refused(()=>store.Selected()),"only SHA256 identifiers allowed");
                 Check("updates-version-comparison",!ComponentInventory.Newer("2.1.25156","2.1") && ComponentInventory.Newer("2.6.2","2.7.0"),"version comparison");
