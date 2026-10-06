@@ -1,0 +1,83 @@
+name: Проверить и выпустить компоненты
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '17 5 * * 1'
+permissions:
+  contents: read
+concurrency:
+  group: component-release
+  cancel-in-progress: false
+jobs:
+  test:
+    if: github.ref == 'refs/heads/main'
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Подготовить новые зависимости
+        shell: powershell
+        run: ./src/updates/candidate.ps1 -Output C:/WinUp/candidate/src
+      - name: Прогнать проверки без ключа подписи
+        shell: powershell
+        run: ./qa/security/ci.ps1 -Source C:/WinUp/candidate/src
+      - name: Сохранить проверенный комплект
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: tested-source
+          path: C:/WinUp/candidate/src/
+          retention-days: 7
+      - name: Сохранить проверенное приложение
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: tested-executable
+          path: C:/WinUp/test/ci/candidate/WinUp.exe
+      - name: Сохранить результаты
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: component-test-results
+          path: C:/WinUp/test/ci/candidate/*.txt
+  publish:
+    needs: test
+    if: github.ref == 'refs/heads/main' && vars.ALLOW_CLOUD_SIGNING == 'true'
+    runs-on: windows-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: tested-source
+          path: C:/WinUp/candidate/src
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: tested-executable
+          path: C:/WinUp/release
+      - name: Подписать на отдельном чистом исполнителе
+        shell: powershell
+        env:
+          WINUP_COMPONENT_SIGNING_XML: ${{ secrets.WINUP_COMPONENT_SIGNING_XML }}
+          RELEASE_NUMBER: ${{ github.run_number }}
+        run: |
+          $sequence = 100000 + [long]$env:RELEASE_NUMBER
+          ./src/updates/build-package.ps1 -Sequence $sequence -Source C:/WinUp/candidate/src -Output C:/WinUp/release
+          Compress-Archive -Path C:/WinUp/candidate/src/* -DestinationPath C:/WinUp/release/src.zip
+      - name: Опубликовать проверенный выпуск
+        shell: powershell
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_NUMBER: ${{ github.run_number }}
+          REPOSITORY: ${{ github.repository }}
+          COMMIT: ${{ github.sha }}
+        run: |
+          $sequence = 100000 + [long]$env:RELEASE_NUMBER
+          $notes = "Комплект №$sequence. Проверки безопасности и JS расширения пройдены. Это автоматическая проверка совместимости, а не доказательство отсутствия всех уязвимостей. Cryptomator/Java остаются в согласованном runtime; отдельные новые JAR автоматически не подменяются. KeePass и WinFsp имеют прямое обновление в приложении."
+          [IO.File]::WriteAllText('C:/WinUp/release/notes.txt', $notes, [Text.UTF8Encoding]::new($false))
+          gh release create "components-$sequence" --repo $env:REPOSITORY --target $env:COMMIT --title "WinUp: комплект $sequence" --notes-file C:/WinUp/release/notes.txt C:/WinUp/release/WinUp.exe C:/WinUp/release/src.zip C:/WinUp/release/components.wup C:/WinUp/release/update.json C:/WinUp/release/update.sig
+          if ($LASTEXITCODE) { throw 'Release publication failed.' }

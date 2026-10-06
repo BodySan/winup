@@ -1,0 +1,1056 @@
+using System;
+using System.Collections.Generic;
+using System.Drawing;
+using System.IO;
+using System.Linq;
+using System.Threading;
+using System.Windows.Forms;
+
+namespace WinUp
+{
+    // Окна, в которых набираются или видны секреты (пароли, ключи, коды): закрываются
+    // при блокировке базы ДО затирания секретов. Окна без секретов (поиск установщиков,
+    // мастер, «О программе») остаются открытыми — работа пользователя не теряется.
+    interface ILockableDialog { }
+
+    // Простой диалог «подпись — поле» с кнопками ОК/Отмена.
+    class Dlg : Form
+    {
+        protected readonly TableLayoutPanel Grid;
+        protected readonly Button Ok, Cancel;
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing && this is ILockableDialog) ClearInput(Controls);
+            base.Dispose(disposing);
+        }
+        static void ClearInput(Control.ControlCollection controls)
+        {
+            foreach (Control control in controls)
+            {
+                var text = control as TextBoxBase;
+                if (text != null) text.Clear();
+                ClearInput(control.Controls);
+            }
+        }
+
+        public static string PickFolder(IWin32Window owner, string start)
+        {
+            using (var d = new FolderBrowserDialog { Description = "Папка для резервных копий базы паролей", ShowNewFolderButton = true })
+            {
+                if (!string.IsNullOrEmpty(start) && Directory.Exists(start)) d.SelectedPath = start;
+                return d.ShowDialog(owner) == DialogResult.OK ? d.SelectedPath : null;
+            }
+        }
+
+        // Все диалоги WinUp (пароли, коды, генератор, код восстановления) — вне записи экрана.
+        protected override void OnHandleCreated(EventArgs e)
+        {
+            base.OnHandleCreated(e);
+            Win.ApplyCaptureProtection(this);
+        }
+
+        public Dlg(string title)
+        {
+            Text = title;
+            Font = new Font("Segoe UI", 9f);
+            Icon = AppIcons.Open;
+            FormBorderStyle = FormBorderStyle.FixedDialog;
+            MaximizeBox = MinimizeBox = false;
+            StartPosition = FormStartPosition.CenterParent;
+            AutoSize = true; AutoSizeMode = AutoSizeMode.GrowAndShrink;
+            Padding = new Padding(10);
+            ShowInTaskbar = false;
+
+            Grid = new TableLayoutPanel { ColumnCount = 2, AutoSize = true, Dock = DockStyle.Fill };
+            Grid.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+            Grid.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 400));
+            Controls.Add(Grid);
+
+            Ok = new Button { Text = "ОК", DialogResult = DialogResult.OK, AutoSize = true };
+            Cancel = new Button { Text = "Отмена", DialogResult = DialogResult.Cancel, AutoSize = true };
+            AcceptButton = Ok; CancelButton = Cancel;
+        }
+
+        protected void Row(string label, Control c)
+        {
+            Grid.Controls.Add(new Label { Text = label, AutoSize = true, Anchor = AnchorStyles.Left, Margin = new Padding(3, 7, 8, 3) });
+            c.Dock = DockStyle.Fill;
+            Grid.Controls.Add(c);
+        }
+
+        protected Label Note(string text, Color? color = null)
+        {
+            var l = new Label { Text = text, AutoSize = true, MaximumSize = new Size(580, 0), Margin = new Padding(3, 6, 3, 6) };
+            if (color.HasValue) l.ForeColor = color.Value;
+            Grid.Controls.Add(l);
+            Grid.SetColumnSpan(l, 2);
+            return l;
+        }
+
+        protected FlowLayoutPanel Buttons(params Control[] extraLeft)
+        {
+            var p = new FlowLayoutPanel { FlowDirection = FlowDirection.RightToLeft, AutoSize = true, Dock = DockStyle.Fill, Margin = new Padding(0, 10, 0, 0) };
+            p.Controls.Add(Cancel); p.Controls.Add(Ok);
+            foreach (var c in extraLeft) p.Controls.Add(c);
+            Grid.Controls.Add(p);
+            Grid.SetColumnSpan(p, 2);
+            return p;
+        }
+
+        protected static Panel WithButton(Control main, params Control[] side)
+        {
+            var p = new TableLayoutPanel { ColumnCount = 1 + side.Length, AutoSize = true, Margin = Padding.Empty };
+            p.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            main.Dock = DockStyle.Fill;
+            p.Controls.Add(main, 0, 0);
+            for (int i = 0; i < side.Length; i++)
+            {
+                p.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+                side[i].AutoSize = true;
+                p.Controls.Add(side[i], i + 1, 0);
+            }
+            return p;
+        }
+
+        protected bool Fail(string msg)
+        {
+            MessageBox.Show(this, msg, Text, MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            DialogResult = DialogResult.None;
+            return false;
+        }
+    }
+
+    // Ввод пароля. Если задан forgotText — ссылка «Забыли...?» закрывает диалог с DialogResult.Retry.
+    class PasswordPrompt : Dlg, ILockableDialog
+    {
+        readonly TextBox box = new TextBox { UseSystemPasswordChar = true };
+        readonly TextBox kfBox = new TextBox();
+        public string Value { get { return box.Text; } }
+        public string KeyFile { get { return kfBox.Text.Trim(); } }
+
+        public PasswordPrompt(string title, string label, int attemptsLeft, int max, string forgotText = null, bool masked = true, bool keyFile = false, bool keyFileOptional = false)
+            : base(title)
+        {
+            box.UseSystemPasswordChar = masked;
+            Row(label, box);
+            if (masked) { Grid.Controls.Add(new Label()); Grid.Controls.Add(new KeyboardHint()); }
+            if (keyFile)
+            {
+                var browse = new Button { Text = "Обзор..." };
+                browse.Click += (s, e) =>
+                {
+                    using (var d = new OpenFileDialog { Title = "Ключ-файл базы", Filter = "Ключ-файл (*.key;*.bin)|*.key;*.bin|Все файлы|*.*" })
+                        if (d.ShowDialog(this) == DialogResult.OK) kfBox.Text = d.FileName;
+                };
+                Row("Ключ-файл:", WithButton(kfBox, browse));
+                Note(keyFileOptional
+                    ? "Служебного файла tab.dat нет (база восстановлена из резерва или перенесена одна). Если база закрыта ключ-файлом — укажите его, иначе оставьте поле пустым."
+                    : "База дополнительно закрыта ключ-файлом: без него пароль базы не подходит.", SystemColors.GrayText);
+            }
+            // attemptsLeft < 0 — подтверждение пароля открытой базы: попытки файла не расходуются, база не уничтожается.
+            if (attemptsLeft >= 0)
+                Note("Осталось попыток: " + attemptsLeft + " из " + max + ". После последней неверной попытки база будет уничтожена.",
+                     attemptsLeft <= 1 ? Color.Firebrick : SystemColors.GrayText);
+            else
+                Note("Попытки базы здесь не расходуются. После 5 неверных вводов подряд действия с паролем базы блокируются до повторного входа.",
+                     SystemColors.GrayText);
+            if (forgotText != null)
+            {
+                var forgot = new Button { Text = forgotText, AutoSize = true, Margin = new Padding(3, 0, 3, 6), DialogResult = DialogResult.Retry };
+                Grid.Controls.Add(forgot); Grid.SetColumnSpan(forgot, 2);
+            }
+            Buttons();
+            // Пустое поле — не попытка: случайный Enter не должен приближать уничтожение базы.
+            Ok.Click += (s, e) => { if (box.Text.Length == 0) Fail("Поле «" + label.TrimEnd(':') + "» пустое."); };
+        }
+
+        public void SetKeyFile(string path) { kfBox.Text = path ?? ""; }
+    }
+
+    // Ввод PIN-кода для быстрой разблокировки (попытки файла базы не расходуются).
+    class PinPrompt : Dlg, ILockableDialog
+    {
+        readonly TextBox box = new TextBox { UseSystemPasswordChar = true };
+        public string Value { get { return box.Text; } }
+
+        public PinPrompt(int left, int max) : base("Разблокировка по PIN")
+        {
+            Row("PIN-код:", box);
+            Note("Осталось попыток: " + left + " из " + max + ". После " + max + " неверных PIN потребуется полный вход паролем базы.",
+                 left <= 1 ? Color.Firebrick : SystemColors.GrayText);
+            Buttons();
+            Ok.Click += (s, e) => { if (box.Text.Length == 0) Fail("Введите PIN-код."); };
+        }
+    }
+
+    // Установка/смена PIN: два поля, минимум 4 символа.
+    class PinSetupDialog : Dlg, ILockableDialog
+    {
+        readonly TextBox a = new TextBox { UseSystemPasswordChar = true }, b = new TextBox { UseSystemPasswordChar = true };
+        public string Pin { get { return a.Text; } }
+
+        public PinSetupDialog() : base("PIN-код быстрой разблокировки")
+        {
+            Note("PIN открывает базу вместо пароля — удобно, когда автоблокировка срабатывает часто.\n" +
+                 "Действует до перезапуска WinUp и живёт только в памяти процесса; если база стоит заблокированной\n" +
+                 "дольше " + MainForm.PinSessionMinutes + " минут — PIN отключается до следующего полного входа (защита от анализа памяти).\n" +
+                 "5 неверных вводов — до полного входа паролем базы. Как и у любого быстрого входа, защита слабее полного: " +
+                 "не используйте PIN, совпадающий с паролем базы.");
+            Row("PIN-код:", a);
+            Row("Повтор PIN:", b);
+            Buttons();
+            Ok.Click += (s, e) =>
+            {
+                if (a.Text.Length < 4) { Fail("PIN — не короче 4 символов."); return; }
+                if (a.Text != b.Text) { Fail("PIN и повтор не совпадают."); return; }
+            };
+        }
+    }
+
+    // О программе: версия и контрольный хэш exe для проверки подмены (сверяется со значением вне этого ПК).
+    class AboutDialog : Dlg
+    {
+        public AboutDialog(string sha256, Action<string> log, bool autoCheck = false) : base("О программе")
+        {
+            Note("WinUp " + Application.ProductVersion + " — менеджер паролей и программ.");
+            Note("База паролей — стандартный файл KDBX 4 (Argon2): открывается также в KeePassXC, KeePassDX, Strongbox.");
+            Note("Хранилище и криптография — KeePassLib из KeePass " + KdbxStore.LibVersion() + ", " + CoreLoader.Source + " (© Dominik Reichl, лицензия GPL v2+, keepass.info). " +
+                 "WinUp распространяется вместе с исходным кодом под GPL v3+.", SystemColors.GrayText);
+            Note("Файловый модуль: Cryptomator (AGPL v3). Ключи доступа: KeePassPasskey, KeePassXC-Browser и Bouncy Castle.",SystemColors.GrayText);
+            Note("WinFsp - Windows File System Proxy, Copyright (C) Bill Zissimopoulos\nhttps://github.com/winfsp/winfsp",SystemColors.GrayText);
+            var licenses=new Button { Text="Компоненты и лицензии",AutoSize=true };
+            licenses.Click+=(s,e)=> {
+                try {
+                string folder=Path.Combine(Paths.Data,"licenses"); SafePaths.NoReparseParents(folder); Directory.CreateDirectory(folder);
+                var assembly=System.Reflection.Assembly.GetExecutingAssembly();
+                foreach(string name in assembly.GetManifestResourceNames().Where(n=>n.StartsWith("licenses/") || n=="THIRD-PARTY.md")) {
+                    string path=Path.Combine(folder,Path.GetFileName(name));
+                    SafePaths.NoReparseParents(path);
+                    using(var input=ComponentResources.Open(name)) using(var output=File.Create(path)) input.CopyTo(output);
+                }
+                System.Diagnostics.Process.Start(folder);
+                } catch(Exception ex) { MessageBox.Show(this,"Не удалось открыть лицензии: "+ex.Message,"WinUp"); }
+            };
+            Grid.Controls.Add(licenses); Grid.SetColumnSpan(licenses,2);
+            Note("Обновление крипто-ядра: сверка версии и контрольной суммы с keepass.info, проверка цифровой подписи издателя KeePass. " +
+                 "Проверенное ядро применяется при перезапуске.", SystemColors.GrayText);
+            Row("Папка:", new TextBox { Text = Paths.Root, ReadOnly = true });
+            Note("Контрольная сумма WinUp.exe (SHA-256) — запишите её вне этого компьютера (в телефоне, на бумаге). " +
+                 "Проверять подмену нужно НЕ по этому окну (подменённая программа покажет здесь что угодно), а командой Windows: " +
+                 "certutil -hashfile WinUp.exe SHA256", SystemColors.GrayText);
+            var box = new TextBox { Text = sha256, ReadOnly = true, Font = new Font("Consolas", 9f), Dock = DockStyle.Fill };
+            Grid.Controls.Add(box); Grid.SetColumnSpan(box, 2);
+            var copy = new Button { Text = "Копировать", AutoSize = true };
+            copy.Click += (s, e) => SecureClip.Copy(sha256, 60);
+            var upd = new Button { Text = "Проверить обновление крипто-ядра...", AutoSize = true };
+            upd.Click += (s, e) => RunCoreUpdate(upd, log);
+            var tools = new FlowLayoutPanel { AutoSize = true };
+            tools.Controls.Add(copy);
+            tools.Controls.Add(upd);
+            Grid.Controls.Add(tools); Grid.SetColumnSpan(tools, 2);
+            Buttons();
+            Ok.Text = "Закрыть";
+            Cancel.Visible = false;
+            if (autoCheck) Shown += (s, e) => RunCoreUpdate(upd, log);
+        }
+
+        // Проверка и обновление KeePassLib. Сеть — в фоновом потоке, диалог не замирает.
+        void RunCoreUpdate(Button btn, Action<string> log)
+        {
+            btn.Enabled = false;
+            btn.Text = "Проверяю...";
+            ThreadPool.QueueUserWorkItem(delegate
+            {
+                string error;
+                string latest = CoreUpdate.CheckLatest(out error);
+                Invoke((MethodInvoker)delegate
+                {
+                    if (latest == null)
+                    {
+                        MessageBox.Show(this, error, "WinUp — обновление крипто-ядра", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                        RestoreBtn(btn);
+                        return;
+                    }
+                    Reminder.MarkChecked(); // версия сверена с keepass.info — напоминание сбрасывается
+                    string have = KdbxStore.LibVersion();
+                    if (!CoreUpdate.IsNewer(have, latest))
+                    {
+                        MessageBox.Show(this, "У вас последняя версия крипто-ядра.\n\nKeePassLib " + have + ".",
+                            "WinUp — обновление крипто-ядра", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        RestoreBtn(btn);
+                        return;
+                    }
+                    if (MessageBox.Show(this, "Доступна новая версия крипто-ядра: KeePassLib " + latest +
+                            " (у вас " + have + ").\n\nСкачать и подготовить обновление? Контрольная сумма будет сверена с официальной.",
+                            "WinUp — обновление крипто-ядра", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes)
+                    {
+                        RestoreBtn(btn);
+                        return;
+                    }
+                    btn.Text = "Скачиваю...";
+                    ThreadPool.QueueUserWorkItem(delegate
+                    {
+                        string error2;
+                        bool ok = CoreUpdate.DownloadAndStage(latest,
+                            delegate(string m) { if (log != null) Invoke((MethodInvoker)delegate { log(m); }); },
+                            out error2);
+                        Invoke((MethodInvoker)delegate
+                        {
+                            if (!ok)
+                            {
+                                MessageBox.Show(this, error2, "WinUp — обновление крипто-ядра", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                                RestoreBtn(btn);
+                                return;
+                            }
+                            if (MessageBox.Show(this, "Крипто-ядро " + latest + " скачано и проверено.\n" +
+                                    "Применится при следующем запуске WinUp.\n\nПерезапустить WinUp сейчас?",
+                                    "WinUp — обновление крипто-ядра", MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes)
+                            {
+                                CoreUpdate.RestartPendingFlag = true;
+                                Close();
+                            }
+                            RestoreBtn(btn);
+                        });
+                    });
+                });
+            });
+        }
+
+        static void RestoreBtn(Button btn)
+        {
+            btn.Enabled = true;
+            btn.Text = "Проверить обновление крипто-ядра...";
+        }
+    }
+
+    // Создание базы и смена пароля базы.
+    class KdfDialog : Dlg
+    {
+        readonly NumericUpDown memory;
+        readonly NumericUpDown time;
+        public int MemoryMiB { get { return (int)memory.Value; } }
+        public int TargetMilliseconds { get { return (int)(time.Value * 1000); } }
+        public KdfDialog(int currentMemory, ulong iterations) : base("Защита от подбора пароля")
+        {
+            Note("Сейчас: Argon2, " + currentMemory + " МБ, итераций: " + iterations + ".");
+            Note("Больше памяти и времени замедляют перебор украденной копии базы. На других устройствах открытие тоже станет медленнее.");
+            memory = new NumericUpDown { Minimum = Math.Max(64, currentMemory), Maximum = Math.Max(512, currentMemory), Increment = 64, Value = Math.Max(128, currentMemory) };
+            time = new NumericUpDown { Minimum = 0.5M, Maximum = 5, Increment = 0.5M, DecimalPlaces = 1, Value = 1 };
+            Row("Память, МБ:", memory); Row("Целевое время, секунд:", time);
+            Note("Сначала измерим скорость. Текущая защита не уменьшается; результат можно отменить.");
+            Buttons(); Ok.Text = "Измерить";
+        }
+    }
+
+    class SetupDialog : Dlg, ILockableDialog
+    {
+        readonly TextBox p2 = Pw(), p2b = Pw(), backup = new TextBox(), kfPath = new TextBox();
+        readonly CheckBox kfOn = new CheckBox { Text = "Ключ-файл: без него базу не открыть", AutoSize = true, MaximumSize = new Size(400, 0) };
+        readonly CheckBox show = new CheckBox { Text = "Показать пароль", AutoSize = true };
+        readonly Label strength = new Label { AutoSize = true, MaximumSize = new Size(400, 0), Margin = new Padding(3, 0, 3, 2), ForeColor = SystemColors.GrayText };
+        public string DbPassword { get { return p2.Text; } }
+        public string BackupDir { get { return backup.Text.Trim(); } }
+        public string KeyFile { get { return kfOn.Checked ? kfPath.Text.Trim() : null; } }
+
+        static TextBox Pw() { return new TextBox { UseSystemPasswordChar = true }; }
+
+        public SetupDialog(string title, string backupDir, bool showBackup = true, string currentKeyFile = null) : base(title)
+        {
+            Note("Пароль базы открывает вкладку «Пароли» (или вводится PIN) и шифрует саму базу. " +
+                 "После " + KdbxStore.P2Max + " неверных попыток база уничтожается. " +
+                 "Если забудете его — поможет только код восстановления.");
+            var phraseBtn = new Button { Text = "Придумать фразу..." };
+            phraseBtn.Click += (s, e) =>
+            {
+                using (var g = new GenDialog(true, true))
+                    if (g.ShowDialog(this) == DialogResult.OK && g.Result.Length > 0)
+                    {
+                        p2.Text = p2b.Text = g.Result;
+                        show.Checked = true; // фразу нужно увидеть и запомнить (окно скрыто от записи экрана)
+                    }
+            };
+            Row("Пароль базы:", WithButton(p2, phraseBtn));
+            Row("Повтор пароля:", p2b);
+            Grid.Controls.Add(new Label()); Grid.Controls.Add(strength);
+            Grid.Controls.Add(new Label()); Grid.Controls.Add(new KeyboardHint());
+            Row("", show);
+            show.CheckedChanged += (s, e) => { p2.UseSystemPasswordChar = p2b.UseSystemPasswordChar = !show.Checked; };
+            p2.TextChanged += (s, e) => { Color c; strength.Text = Strength.Describe(p2.Text, out c); strength.ForeColor = c; };
+            strength.Text = "Надёжность: —";
+            var kfCreate = new Button { Text = "Создать..." };
+            kfCreate.Click += (s, e) =>
+            {
+                using (var d = new SaveFileDialog { Title = "Куда сохранить ключ-файл", FileName = "winup.key", Filter = "Ключ-файл (*.key)|*.key|Все файлы|*.*" })
+                    if (d.ShowDialog(this) == DialogResult.OK)
+                    {
+                        var bytes = new byte[32];
+                        using (var rng = System.Security.Cryptography.RandomNumberGenerator.Create()) rng.GetBytes(bytes);
+                        File.WriteAllBytes(d.FileName, bytes);
+                        kfOn.Checked = true;
+                        kfPath.Text = d.FileName;
+                    }
+            };
+            var kfBrowse = new Button { Text = "Обзор..." };
+            kfBrowse.Click += (s, e) =>
+            {
+                using (var d = new OpenFileDialog { Title = "Выбрать ключ-файл", Filter = "Ключ-файл (*.key;*.bin)|*.key;*.bin|Все файлы|*.*" })
+                    if (d.ShowDialog(this) == DialogResult.OK) { kfOn.Checked = true; kfPath.Text = d.FileName; }
+            };
+            Row("", kfOn);
+            Row("Файл:", WithButton(kfPath, kfBrowse, kfCreate));
+            Note("Ключ-файл — фактор обладания: украденной базы без файла мало, потеря файла равна потере пароля базы. " +
+                 "Храните его отдельно от компьютера (флешка) и сделайте копию.", SystemColors.GrayText);
+            if (currentKeyFile != null) { kfPath.Text = currentKeyFile; kfOn.Checked = true; }
+            backup.Text = backupDir;
+            if (showBackup)
+            {
+                var browse = new Button { Text = "Обзор..." };
+                browse.Click += (s, e) => { var d = PickFolder(this, backup.Text); if (d != null) backup.Text = d; };
+                Row("Папка резерва:", WithButton(backup, browse));
+                Note("Сюда после каждого изменения пишется зашифрованная копия базы. " +
+                     "Лучше выбрать место вне папки WinUp: копии здесь не уничтожаются вместе с базой.", SystemColors.GrayText);
+                var cloudNote = Note("", Color.DarkOrange);
+                Action checkCloud = () => { var w = CloudFolder.Warning(backup.Text.Trim(), "Папка"); cloudNote.Text = w ?? ""; cloudNote.Visible = w != null; };
+                backup.TextChanged += (s, e) => checkCloud();
+                checkCloud();
+            }
+            Buttons();
+            Ok.Click += (s, e) =>
+            {
+                if (p2.Text.Length < 8) { Fail("Пароль базы — не короче 8 символов."); return; }
+                var bits = Strength.Bits(p2.Text);
+                if (bits < Strength.MinForVault)
+                {
+                    Fail("Пароль базы слишком простой (≈ " + Math.Round(bits) + " бит, нужно от " + Strength.MinForVault + ").\n\n" +
+                         "Проще всего — фраза из 5–6 слов: кнопка «Придумать фразу...». Её легко запомнить, а подобрать — нет.");
+                    return;
+                }
+                if (p2.Text != p2b.Text) { Fail("Пароль и повтор не совпадают."); return; }
+                if (kfOn.Checked)
+                {
+                    if (kfPath.Text.Trim().Length == 0) { Fail("Укажите файл ключа или снимите галочку."); return; }
+                    if (!File.Exists(kfPath.Text.Trim())) { Fail("Файл ключа не найден: " + kfPath.Text.Trim()); return; }
+                }
+                if (showBackup && (BackupDir.Length == 0 || !Path.IsPathRooted(BackupDir))) { Fail("Укажите полный путь к папке резерва."); return; }
+            };
+        }
+    }
+
+    // Показ нового кода восстановления. Закрыть можно, только подтвердив, что код сохранён.
+    class RecoveryCodeDialog : Dlg, ILockableDialog
+    {
+        public RecoveryCodeDialog(string code) : base("Код восстановления")
+        {
+            ControlBox = false;
+            Note("Код восстановления открывает базу, если пароль базы забыт. " +
+                 "Запишите его на бумагу или сохраните в телефоне — отдельно от этого ПК. Повторно этот код не показать: " +
+                 "можно только создать новый, и тогда этот перестанет работать.");
+            var box = new TextBox { Text = code, ReadOnly = true, Font = new Font("Consolas", 16f), TextAlign = HorizontalAlignment.Center };
+            Grid.Controls.Add(box); Grid.SetColumnSpan(box, 2); box.Dock = DockStyle.Fill;
+            var copy = new Button { Text = "Копировать" };
+            copy.Click += (s, e) => SecureClip.Copy(code, 60);
+            var save = new Button { Text = "Сохранить в файл..." };
+            save.Click += (s, e) =>
+            {
+                using (var d = new SaveFileDialog { FileName = "WinUp — код восстановления.txt", Filter = "Текст (*.txt)|*.txt" })
+                    if (d.ShowDialog(this) == DialogResult.OK)
+                        File.WriteAllText(d.FileName, "Код восстановления WinUp (создан " + DateTime.Now.ToString("dd.MM.yyyy HH:mm") + "):\r\n" + code + "\r\n");
+            };
+            var tools = new FlowLayoutPanel { AutoSize = true };
+            tools.Controls.Add(copy); tools.Controls.Add(save);
+            Grid.Controls.Add(tools); Grid.SetColumnSpan(tools, 2);
+            var confirm = new CheckBox { Text = "Я сохранил код в надёжном месте", AutoSize = true };
+            Grid.Controls.Add(confirm); Grid.SetColumnSpan(confirm, 2);
+            Buttons();
+            Cancel.Visible = false;
+            Ok.Enabled = false;
+            confirm.CheckedChanged += (s, e) => Ok.Enabled = confirm.Checked;
+        }
+    }
+
+    // Окно ввода кода 2FA из телефона во время входа.
+    class CodeDialog : Form, ILockableDialog
+    {
+        readonly TextBox box = new TextBox { Font = new Font("Consolas", 18f), TextAlign = HorizontalAlignment.Center, Width = 220 };
+        readonly Label timerLabel = new Label { AutoSize = true, ForeColor = SystemColors.GrayText };
+        readonly System.Windows.Forms.Timer timer = new System.Windows.Forms.Timer { Interval = 1000 };
+        int seconds = 120;
+        public string Code { get { return box.Text.Replace(" ", "").Trim(); } }
+
+        protected override void OnHandleCreated(EventArgs e)
+        {
+            base.OnHandleCreated(e);
+            Win.ApplyCaptureProtection(this);
+        }
+
+        public CodeDialog(string entryName)
+        {
+            Text = "Код 2FA — " + entryName;
+            Font = new Font("Segoe UI", 9f);
+            FormBorderStyle = FormBorderStyle.FixedDialog;
+            MaximizeBox = MinimizeBox = false;
+            StartPosition = FormStartPosition.CenterScreen;
+            TopMost = true;
+            AutoSize = true; AutoSizeMode = AutoSizeMode.GrowAndShrink;
+            Padding = new Padding(12);
+            var flow = new FlowLayoutPanel { FlowDirection = FlowDirection.TopDown, AutoSize = true, Dock = DockStyle.Fill };
+            flow.Controls.Add(new Label { Text = "Введите код из приложения-аутентификатора (или из SMS)\r\nи нажмите Enter — WinUp вставит его на сайт.", AutoSize = true });
+            flow.Controls.Add(box);
+            flow.Controls.Add(timerLabel);
+            var ok = new Button { Text = "Вставить код", DialogResult = DialogResult.OK, AutoSize = true };
+            var cancel = new Button { Text = "Отмена", DialogResult = DialogResult.Cancel, AutoSize = true };
+            var bar = new FlowLayoutPanel { AutoSize = true };
+            bar.Controls.Add(ok); bar.Controls.Add(cancel);
+            flow.Controls.Add(bar);
+            Controls.Add(flow);
+            AcceptButton = ok; CancelButton = cancel;
+            ok.Click += (s, e) => { if (Code.Length == 0) DialogResult = DialogResult.None; };
+            timer.Tick += (s, e) =>
+            {
+                seconds--;
+                timerLabel.Text = "Окно закроется через " + seconds + " с";
+                if (seconds <= 0) { timer.Stop(); DialogResult = DialogResult.Cancel; Close(); }
+            };
+            timerLabel.Text = "Окно закроется через " + seconds + " с";
+            Shown += (s, e) => { Win.Focus(Handle); Activate(); box.Focus(); timer.Start(); };
+            FormClosed += (s, e) => timer.Dispose();
+        }
+    }
+
+    // Генератор паролей. Настройки запоминаются до закрытия WinUp.
+    // Генератор: пароль из символов (для сайтов) или фраза из слов (легко запомнить — для пароля базы).
+    class GenDialog : Dlg, ILockableDialog
+    {
+        static int sLen = 20, sWords = 6;
+        static bool sUp = true, sLow = true, sDig = true, sSym = true, sNoAmb = true, sCap = false, sWDigit = false;
+        static string sSep = "-";
+
+        readonly RadioButton modePw = new RadioButton { Text = "Пароль из символов", AutoSize = true },
+                             modePhrase = new RadioButton { Text = "Фраза из слов (легко запомнить)", AutoSize = true };
+        readonly NumericUpDown len = new NumericUpDown { Minimum = 8, Maximum = 64, Width = 60 };
+        readonly CheckBox up = Cb("Большие буквы A–Z"), low = Cb("Маленькие буквы a–z"), dig = Cb("Цифры 0–9"),
+                          sym = Cb("Спецсимволы !@#$%..."), noAmb = Cb("Без похожих символов (0/O, 1/l/I)");
+        readonly NumericUpDown words = new NumericUpDown { Minimum = 4, Maximum = 10, Width = 60 };
+        readonly ComboBox sep = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Width = 140 };
+        readonly CheckBox cap = Cb("Слова с заглавной буквы"), wdig = Cb("Добавить цифру");
+        readonly TextBox preview = new TextBox { ReadOnly = true, Font = new Font("Consolas", 12f), Multiline = true, WordWrap = true, Height = 50 };
+        readonly Label strength = new Label { AutoSize = true, Margin = new Padding(3, 0, 3, 6) };
+        readonly Control pwOpts, phraseOpts;
+        public string Result { get { return preview.Text; } }
+
+        static CheckBox Cb(string t) { return new CheckBox { Text = t, AutoSize = true }; }
+        static readonly string[] Seps = { "-", " ", ".", "_" }, SepNames = { "дефис (-)", "пробел", "точка (.)", "подчёркивание (_)" };
+
+        public GenDialog(bool forEntry, bool phrase = false) : base("Генератор паролей")
+        {
+            Grid.ColumnStyles[1].Width = 470; // фраза из 6–10 слов: поле шире и в две строки
+            len.Value = sLen; up.Checked = sUp; low.Checked = sLow; dig.Checked = sDig; sym.Checked = sSym; noAmb.Checked = sNoAmb;
+            words.Value = sWords; cap.Checked = sCap; wdig.Checked = sWDigit;
+            sep.Items.AddRange(SepNames); sep.SelectedIndex = Math.Max(0, Array.IndexOf(Seps, sSep));
+            var modes = new FlowLayoutPanel { FlowDirection = FlowDirection.TopDown, AutoSize = true };
+            modes.Controls.AddRange(new Control[] { modePw, modePhrase });
+            Row("Вид:", modes);
+
+            var p1 = new TableLayoutPanel { ColumnCount = 2, AutoSize = true, Margin = Padding.Empty };
+            p1.Controls.Add(new Label { Text = "Длина:", AutoSize = true, Anchor = AnchorStyles.Left }, 0, 0); p1.Controls.Add(len, 1, 0);
+            var opts = new FlowLayoutPanel { FlowDirection = FlowDirection.TopDown, AutoSize = true };
+            opts.Controls.AddRange(new Control[] { up, low, dig, sym, noAmb });
+            p1.Controls.Add(opts, 0, 1); p1.SetColumnSpan(opts, 2);
+            pwOpts = p1;
+
+            var p2 = new TableLayoutPanel { ColumnCount = 2, AutoSize = true, Margin = Padding.Empty };
+            p2.Controls.Add(new Label { Text = "Слов:", AutoSize = true, Anchor = AnchorStyles.Left }, 0, 0); p2.Controls.Add(words, 1, 0);
+            p2.Controls.Add(new Label { Text = "Между словами:", AutoSize = true, Anchor = AnchorStyles.Left }, 0, 1); p2.Controls.Add(sep, 1, 1);
+            p2.Controls.Add(cap, 0, 2); p2.SetColumnSpan(cap, 2);
+            p2.Controls.Add(wdig, 0, 3); p2.SetColumnSpan(wdig, 2);
+            phraseOpts = p2;
+
+            var both = new Panel { AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Margin = Padding.Empty };
+            both.Controls.Add(pwOpts); both.Controls.Add(phraseOpts);
+            Row("Настройки:", both);
+            var again = new Button { Text = "Другой" };
+            again.Click += (s, e) => Generate();
+            Row("Результат:", WithButton(preview, again));
+            Grid.Controls.Add(new Label()); Grid.Controls.Add(strength);
+            Note("Фраза — русские слова латиницей: набирается в любой раскладке. Для пароля базы берите 5–6 слов и больше. " +
+                 "Если сайт не принимает пароль — уберите спецсимволы или уменьшите длину.", SystemColors.GrayText);
+            var copy = new Button { Text = "Копировать", AutoSize = true };
+            copy.Click += (s, e) => SecureClip.Copy(preview.Text);
+            Buttons(copy);
+            Ok.Text = forEntry ? "Использовать" : "Закрыть";
+            if (!forEntry) Cancel.Visible = false;
+            foreach (var c in new[] { up, low, dig, sym, noAmb, cap, wdig }) c.CheckedChanged += (s, e) => Generate();
+            len.ValueChanged += (s, e) => Generate();
+            words.ValueChanged += (s, e) => Generate();
+            sep.SelectedIndexChanged += (s, e) => Generate();
+            modePw.CheckedChanged += (s, e) => { if (modePw.Checked) Generate(); };
+            modePhrase.CheckedChanged += (s, e) => { if (modePhrase.Checked) Generate(); };
+            (phrase ? modePhrase : modePw).Checked = true;
+            Generate();
+        }
+
+        Label error; // одна строка ошибки на окно: раньше каждое «Другой» без наборов добавляло ещё одну
+
+        void Generate()
+        {
+            bool ph = modePhrase.Checked;
+            pwOpts.Visible = !ph; phraseOpts.Visible = ph;
+            try
+            {
+                double bits;
+                if (ph)
+                {
+                    preview.Text = Passphrase.Make((int)words.Value, Seps[sep.SelectedIndex], cap.Checked, wdig.Checked);
+                    bits = Passphrase.Bits((int)words.Value, wdig.Checked);
+                    sWords = (int)words.Value; sSep = Seps[sep.SelectedIndex]; sCap = cap.Checked; sWDigit = wdig.Checked;
+                }
+                else
+                {
+                    preview.Text = PasswordGen.Make((int)len.Value, up.Checked, low.Checked, dig.Checked, sym.Checked, noAmb.Checked);
+                    sLen = (int)len.Value; sUp = up.Checked; sLow = low.Checked; sDig = dig.Checked; sSym = sym.Checked; sNoAmb = noAmb.Checked;
+                    bits = PasswordGen.Bits((int)len.Value, up.Checked, low.Checked, dig.Checked, sym.Checked, noAmb.Checked);
+                }
+                Color c;
+                strength.Text = "Стойкость: " + Strength.Verdict(bits, out c) + " (≈ " + Math.Round(bits) + " бит)";
+                strength.ForeColor = c;
+                if (error != null) error.Visible = false;
+            }
+            catch (ArgumentException ex)
+            {
+                preview.Text = ""; strength.Text = "";
+                if (error == null) error = Note(ex.Message, Color.Firebrick);
+                error.Text = ex.Message; error.Visible = true;
+            }
+        }
+    }
+
+    // Портативная программа с файлами рядом: скопировать всю папку или только exe.
+    // Вопрос задаётся, пока главное окно ещё активно: диалог от отключённого окна
+    // мог спрятаться за ним и выглядеть как зависание.
+    // Галочка удаления не предлагается для папок-контейнеров (Загрузки, Рабочий стол и т.п.).
+    class FolderCopyDialog : Dlg
+    {
+        readonly CheckBox del = new CheckBox { AutoSize = true };
+        public bool DeleteFolder { get { return del.Checked; } }
+
+        public FolderCopyDialog(string exe, string folder, int others, bool allowDelete) : base("Портативная программа")
+        {
+            Note("Рядом с " + exe + " лежат другие файлы (" + others + ").\r\n" +
+                 "Портативным программам обычно нужны свои файлы рядом — скопировать всю папку «" + folder + "» в WinUp?");
+            if (allowDelete)
+            {
+                del.Text = "После копирования удалить папку «" + folder + "» из исходного места (в Корзину)";
+                Grid.Controls.Add(del);
+                Grid.SetColumnSpan(del, 2);
+            }
+            Buttons();
+            Ok.Text = "Скопировать всю папку";
+            Cancel.Text = "Только exe";
+        }
+    }
+
+    // Удаление исходных файлов после копирования (когда вопроса про папку не было) — выбор на всю пачку.
+    class DeleteSourcesDialog : Dlg
+    {
+        public DeleteSourcesDialog(int count) : base("Исходные файлы")
+        {
+            Note(count == 1
+                ? "Файл будет скопирован в папку WinUp. Удалить его из исходного места после копирования?"
+                : "Выбрано файлов: " + count + ". Внешние скопируются в папку WinUp. Удалить их из исходного места после копирования?");
+            Buttons();
+            Ok.Text = "Копировать, оставить";
+            Cancel.Text = "Копировать и удалить";
+            Cancel.DialogResult = DialogResult.Yes; // Enter — безопасное «оставить», «удалить» — только явный клик
+            CancelButton = null;                    // Esc не должен удалять
+        }
+    }
+
+    // Копирование в apps\: прогресс и кнопка «Отмена» (раньше окно молча отключалось
+    // на всё время копирования — без прогресса и отмены это выглядело как зависание).
+    class CopyProgressDialog : Form
+    {
+        readonly Label what = new Label { Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft, Padding = new Padding(10, 0, 10, 0) };
+        readonly ProgressBar bar = new ProgressBar { Dock = DockStyle.Bottom, Height = 22 };
+        readonly Button cancel = new Button { Text = "Отмена", AutoSize = true };
+        public readonly CancellationTokenSource Cts = new CancellationTokenSource();
+        public bool Cancelled;
+        public readonly List<string> Errors = new List<string>();
+
+        public CopyProgressDialog()
+        {
+            Text = "WinUp — копирование";
+            Font = new Font("Segoe UI", 9f);
+            FormBorderStyle = FormBorderStyle.FixedDialog;
+            MaximizeBox = MinimizeBox = false;
+            StartPosition = FormStartPosition.CenterParent;
+            ShowInTaskbar = false;
+            ClientSize = new Size(560, 120);
+            var btns = new FlowLayoutPanel { Dock = DockStyle.Bottom, AutoSize = true, FlowDirection = FlowDirection.RightToLeft, Padding = new Padding(4) };
+            btns.Controls.Add(cancel);
+            Controls.Add(what);
+            Controls.Add(bar);
+            Controls.Add(btns);
+            cancel.Click += (s, e) => { cancel.Enabled = false; Cts.Cancel(); };
+            FormClosed += (s, e) => Cts.Cancel();
+        }
+
+        public CancellationToken Token { get { return Cts.Token; } }
+
+        public void Report(string text, int done, int total)
+        {
+            if (IsDisposed || !IsHandleCreated) return;
+            try
+            {
+                BeginInvoke((Action)(() =>
+                {
+                    if (IsDisposed) return;
+                    what.Text = text;
+                    if (total > 0)
+                    {
+                        bar.Minimum = 0;
+                        bar.Maximum = total;
+                        if (done <= total) bar.Value = done;
+                    }
+                }));
+            }
+            catch (InvalidOperationException) { } // окно уже закрыто — репорт больше не нужен
+        }
+
+        public void Done()
+        {
+            if (IsDisposed) return;
+            try { BeginInvoke((Action)(() => { if (!IsDisposed) Close(); })); } catch { }
+        }
+    }
+
+    class AppDialog : Dlg
+    {        readonly AppItem item;
+        readonly TextBox name = new TextBox(), args = new TextBox(), note = new TextBox(),
+                         desc = new TextBox { Multiline = true, Height = 70, ScrollBars = ScrollBars.Vertical };
+        readonly ComboBox kind = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList };
+        readonly CheckBox admin = new CheckBox { Text = "Запускать от администратора", AutoSize = true };
+
+        public AppDialog(AppItem a) : base("Программа")
+        {
+            item = a;
+            name.Text = a.Name; args.Text = a.Args; note.Text = a.Note; desc.Text = a.Description;
+            kind.Items.AddRange(new object[] { "Установщик", "Портативная (запуск без установки)" });
+            kind.SelectedIndex = a.Kind == "portable" ? 1 : 0;
+            admin.Checked = a.Admin;
+            Row("Файл:", new Label { Text = a.File, AutoSize = true, Margin = new Padding(3, 7, 3, 3) });
+            Row("Название:", name);
+            Row("Описание:", desc);
+            Row("Тип:", kind);
+            var detect = new Button { Text = "Определить" };
+            detect.Click += (s, e) =>
+            {
+                string g, n;
+                Detect.Guess(Paths.Full(a.File), out g, out n);
+                args.Text = g; note.Text = n;
+            };
+            Row("Ключи установки / параметры запуска:", WithButton(args, detect));
+            Row("", admin);
+            Row("Примечание:", note);
+            Note("Пустые ключи — установщик откроется как обычно, с окнами. Для портативных: параметры командной строки, {root} — папка WinUp. " +
+                 "Скрипты .ps1 запускаются через PowerShell, .cmd/.bat — через cmd; файл-папка открывается в Проводнике.", SystemColors.GrayText);
+            Buttons();
+            Ok.Click += (s, e) =>
+            {
+                if (name.Text.Trim().Length == 0) { Fail("Укажите название."); return; }
+                item.Name = name.Text.Trim(); item.Args = args.Text.Trim(); item.Note = note.Text.Trim(); item.Description = desc.Text.Trim();
+                item.Kind = kind.SelectedIndex == 1 ? "portable" : "install";
+                item.Admin = admin.Checked;
+            };
+        }
+    }
+
+    class LinkDialog : Dlg
+    {
+        readonly TextBox name = new TextBox(), url = new TextBox(),
+                         desc = new TextBox { Multiline = true, Height = 70, ScrollBars = ScrollBars.Vertical };
+
+        public LinkDialog(LinkItem l) : base("Ссылка на загрузку")
+        {
+            name.Text = l.Name; url.Text = l.Url; desc.Text = l.Description;
+            Row("Название:", name);
+            Row("Сайт загрузки:", url);
+            Row("Описание:", desc);
+            Buttons();
+            Ok.Click += (s, e) =>
+            {
+                var u = url.Text.Trim();
+                if (name.Text.Trim().Length == 0) { Fail("Укажите название."); return; }
+                if (u.Length > 0 && !u.Contains("://")) u = "https://" + u;
+                Uri parsed;
+                if (!Uri.TryCreate(u, UriKind.Absolute, out parsed) || (parsed.Scheme != "https" && parsed.Scheme != "http")) { Fail("Укажите адрес сайта (https://...)."); return; }
+                l.Name = name.Text.Trim(); l.Url = u; l.Description = desc.Text.Trim();
+            };
+        }
+    }
+
+    class WindowPicker : Dlg
+    {
+        readonly ListBox list = new ListBox { Height = 260, IntegralHeight = false };
+        public string Selected { get { return list.SelectedItem as string; } }
+
+        public WindowPicker() : base("Открытые окна")
+        {
+            foreach (var w in Win.Windows().Select(w => w.Value).Distinct().OrderBy(t => t)) list.Items.Add(w);
+            Note("Выберите окно. Потом можно оставить в поле только характерную часть заголовка.");
+            Grid.Controls.Add(list); Grid.SetColumnSpan(list, 2); list.Dock = DockStyle.Fill;
+            list.DoubleClick += (s, e) => { if (Selected != null) { DialogResult = DialogResult.OK; Close(); } };
+            Buttons();
+            Ok.Click += (s, e) => { if (Selected == null) Fail("Выберите окно в списке."); };
+        }
+    }
+
+    // Новые файлы в apps\, которых нет в списке.
+    class ScanDialog : Form
+    {
+        readonly ListView lv = new ListView { View = View.Details, CheckBoxes = true, FullRowSelect = true, Dock = DockStyle.Fill };
+        public readonly List<AppItem> ToAdd = new List<AppItem>();
+        public readonly List<string> ToIgnore = new List<string>();
+
+        public ScanDialog(List<AppItem> found)
+        {
+            Text = "WinUp — новые файлы в папке apps";
+            Font = new Font("Segoe UI", 9f);
+            Size = new Size(820, 480);
+            StartPosition = FormStartPosition.CenterParent;
+            lv.Columns.Add("Файл", 330); lv.Columns.Add("Тип", 110); lv.Columns.Add("Определено", 330);
+            foreach (var a in found) lv.Items.Add(new ListViewItem(new[] { a.File, KindText(a), a.Note ?? "" }) { Tag = a, Checked = true });
+            var top = new Label { Dock = DockStyle.Top, Height = 58, Padding = new Padding(6), Text =
+                "Эти файлы лежат в apps\\, но их нет в списке WinUp. Отметьте, что добавить. Тип и ключи подобраны автоматически — " +
+                "проверьте; описание можно дописать потом в «Изменить...»." };
+            var bar = new FlowLayoutPanel { Dock = DockStyle.Bottom, AutoSize = true, Padding = new Padding(4) };
+            var add = new Button { Text = "Добавить отмеченные", AutoSize = true };
+            var toggle = new Button { Text = "Сменить тип у выделенных", AutoSize = true };
+            var ignore = new Button { Text = "Не предлагать отмеченные", AutoSize = true };
+            var later = new Button { Text = "Позже", AutoSize = true, DialogResult = DialogResult.Cancel };
+            bar.Controls.AddRange(new Control[] { add, toggle, ignore, later });
+            Controls.Add(lv); Controls.Add(top); Controls.Add(bar);
+            CancelButton = later;
+
+            add.Click += (s, e) => { ToAdd.AddRange(Checked()); DialogResult = DialogResult.OK; Close(); };
+            ignore.Click += (s, e) =>
+            {
+                if (MessageBox.Show(this, "Больше не предлагать отмеченные файлы (" + Checked().Count + ")?", Text, MessageBoxButtons.YesNo) != DialogResult.Yes) return;
+                ToIgnore.AddRange(Checked().Select(a => a.File)); DialogResult = DialogResult.OK; Close();
+            };
+            toggle.Click += (s, e) =>
+            {
+                foreach (ListViewItem it in lv.SelectedItems)
+                {
+                    var a = (AppItem)it.Tag;
+                    a.Kind = a.Kind == "portable" ? "install" : "portable";
+                    // Примечание автоопределения («предлагаю как портативную») после ручной смены типа неверно.
+                    if (a.Kind == "install" && string.IsNullOrEmpty(a.Args))
+                        a.Note = "тип изменён вручную — ключи тихой установки задайте в «Изменить...», без них установка пойдёт с окнами";
+                    else if (a.Kind == "portable") a.Note = "тип изменён вручную";
+                    it.SubItems[1].Text = KindText(a);
+                    it.SubItems[2].Text = a.Note;
+                }
+            };
+        }
+
+        List<AppItem> Checked() { return lv.CheckedItems.Cast<ListViewItem>().Select(i => (AppItem)i.Tag).ToList(); }
+        static string KindText(AppItem a) { return a.Kind == "portable" ? "портативная" : "установщик"; }
+    }
+
+    class EntryDialog : Dlg, ILockableDialog
+    {
+        sealed class TplItem
+        {
+            public LoginTemplate T;
+            public override string ToString() { return T == null ? "(без шаблона)" : "[" + T.Group + "] " + T.Name; }
+        }
+
+        sealed class BrItem
+        {
+            public string Name;
+            public override string ToString() { return Name.Length == 0 ? "(как в настройках WinUp)" : Name; }
+        }
+
+        readonly LoginEntry e;
+        readonly AppStore store;
+        readonly TextBox name = new TextBox(), target = new TextBox(), args = new TextBox(), window = new TextBox(),
+                         login = new TextBox(), pass = new TextBox { UseSystemPasswordChar = true },
+                         notes = new TextBox();
+        readonly RadioButton site = new RadioButton { Text = "Сайт", AutoSize = true, Checked = true },
+                             app = new RadioButton { Text = "Программа на ПК", AutoSize = true };
+        readonly CheckBox enter = new CheckBox { Text = "Нажимать Enter (вход) после пароля", AutoSize = true },
+                          show = new CheckBox { Text = "Показать", AutoSize = true };
+        readonly List<OtpEntry> otps;
+        // Аккаунты 2FA, созданные кнопкой «Новый...»: попадают в базу только по ОК записи (MainForm добавляет их
+        // вместе с ней). Раньше они сразу уходили в список базы и при «Отмене» молча сохранялись следующей правкой.
+        public readonly List<OtpEntry> NewOtp = new List<OtpEntry>();
+        readonly ComboBox otpBox = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList };
+        readonly Button otpAdd = new Button { Text = "Новый..." };
+        readonly ComboBox twofa = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList },
+                          browser = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList },
+                          tpl = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, MaxDropDownItems = 25 };
+        readonly NumericUpDown delay = new NumericUpDown { Minimum = 0, Maximum = 60, Width = 60 };
+        readonly Button browse = new Button { Text = "Обзор..." };
+
+        sealed class OtpItem
+        {
+            public OtpEntry O;
+            public override string ToString() { return O.Title; }
+        }
+
+        public EntryDialog(LoginEntry entry, AppStore store, bool isNew, List<OtpEntry> otps) : base(isNew ? "Новая запись для входа" : "Запись для входа")
+        {
+            e = entry; this.store = store; this.otps = otps;
+
+            if (isNew)
+            {
+                tpl.Items.Add(new TplItem());
+                foreach (var t in store.Templates.OrderBy(t => t.Group).ThenBy(t => t.Name, StringComparer.CurrentCultureIgnoreCase))
+                    tpl.Items.Add(new TplItem { T = t });
+                tpl.SelectedIndex = 0;
+                Row("Шаблон:", tpl);
+                Note("Выберите сайт или программу из списка — останется ввести логин и пароль.", SystemColors.GrayText);
+                tpl.SelectedIndexChanged += (s, a) => ApplyTemplate(((TplItem)tpl.SelectedItem).T);
+            }
+
+            var kinds = new FlowLayoutPanel { AutoSize = true, Margin = Padding.Empty };
+            kinds.Controls.Add(site); kinds.Controls.Add(app);
+            Row("Название:", name);
+            Row("Тип:", kinds);
+            Row("Адрес / программа:", WithButton(target, browse));
+            Row("Параметры запуска:", args);
+            browser.Items.Add(new BrItem { Name = "" });
+            foreach (var b in Browsers.Installed()) browser.Items.Add(new BrItem { Name = b.Name });
+            Row("Браузер:", browser);
+            var pick = new Button { Text = "Выбрать из открытых..." };
+            Row("Заголовок окна:", WithButton(window, pick));
+            Note("Ввод идёт только в окно, в заголовке которого есть этот текст. Несколько вариантов — через | (например «ВКонтакте|VK ID»).", SystemColors.GrayText);
+            Row("Логин:", login);
+            var gen = new Button { Text = "Сгенерировать..." };
+            Row("Пароль:", WithButton(pass, show, gen));
+            Row("", enter);
+            twofa.Items.AddRange(new object[] { "Нет", "Спросить код при входе (ввести из телефона / SMS)", "Взять код из вкладки «Коды 2FA»" });
+            Row("Код 2FA:", twofa);
+            foreach (var o in otps.OrderBy(x => x.Title, StringComparer.CurrentCultureIgnoreCase)) otpBox.Items.Add(new OtpItem { O = o });
+            Row("Аккаунт 2FA:", WithButton(otpBox, otpAdd));
+            Note("«Спросить код» — после пароля появится окошко, впишите код из телефона. «Из вкладки „Коды 2FA“» — WinUp сам вставит код; " +
+                 "аккаунт берётся из вкладки «Коды 2FA» (или нажмите «Новый...»).", SystemColors.GrayText);
+            Row("Пауза перед вводом, с:", delay);
+            Row("Заметка:", notes);
+            var saveTpl = new Button { Text = "Сохранить как шаблон", AutoSize = true };
+            Buttons(saveTpl);
+
+            FillFrom(e);
+
+            show.CheckedChanged += (s, a) => pass.UseSystemPasswordChar = !show.Checked;
+            site.CheckedChanged += (s, a) => UpdateKind();
+            twofa.SelectedIndexChanged += (s, a) => otpBox.Enabled = otpAdd.Enabled = twofa.SelectedIndex == 2;
+            otpAdd.Click += (s, a) =>
+            {
+                var o = new OtpEntry { Id = AppStore.NewId(), Issuer = name.Text.Trim(), Account = login.Text.Trim() };
+                using (var d = new OtpDialog(o, true))
+                    if (d.ShowDialog(this) == DialogResult.OK)
+                    {
+                        NewOtp.Add(o);
+                        var item = new OtpItem { O = o };
+                        otpBox.Items.Add(item); otpBox.SelectedItem = item;
+                    }
+            };
+            browse.Click += (s, a) =>
+            {
+                using (var d = new OpenFileDialog { Filter = "Программы (*.exe;*.lnk)|*.exe;*.lnk|Все файлы|*.*" })
+                    if (d.ShowDialog(this) == DialogResult.OK) target.Text = Paths.Rel(d.FileName);
+            };
+            pick.Click += (s, a) =>
+            {
+                using (var d = new WindowPicker())
+                    if (d.ShowDialog(this) == DialogResult.OK) window.Text = d.Selected;
+            };
+            gen.Click += (s, a) =>
+            {
+                using (var d = new GenDialog(true))
+                    if (d.ShowDialog(this) == DialogResult.OK && d.Result.Length > 0) { pass.Text = d.Result; show.Checked = true; }
+            };
+            saveTpl.Click += (s, a) => SaveAsTemplate();
+            Ok.Click += (s, a) => Commit();
+        }
+
+        void FillFrom(LoginEntry x)
+        {
+            name.Text = x.Name; target.Text = x.Target; args.Text = x.Args; window.Text = x.Window; login.Text = x.Login;
+            x.UsePassword(pw => { var handle = pass.Handle; pass.Text = pw; return 0; }); notes.Text = x.Notes;
+            enter.Checked = x.AutoEnter; delay.Value = Math.Max(0, Math.Min(60, x.Delay));
+            app.Checked = x.Kind == "app"; site.Checked = !app.Checked;
+            twofa.SelectedIndex = x.TwoFa == "ask" ? 1 : x.TwoFa == "link" ? 2 : 0;
+            otpBox.SelectedItem = otpBox.Items.Cast<OtpItem>().FirstOrDefault(i => i.O.Id == x.OtpId);
+            otpBox.Enabled = otpAdd.Enabled = twofa.SelectedIndex == 2;
+            SelectBrowser(x.Browser ?? "");
+            UpdateKind();
+        }
+
+        void SelectBrowser(string n)
+        {
+            var item = browser.Items.Cast<BrItem>().FirstOrDefault(b => b.Name == n);
+            if (item == null) { item = new BrItem { Name = n }; browser.Items.Add(item); } // браузера нет на этом ПК
+            browser.SelectedItem = item;
+        }
+
+        void ApplyTemplate(LoginTemplate t)
+        {
+            if (t == null) return;
+            name.Text = t.Name; app.Checked = t.Kind == "app"; site.Checked = !app.Checked;
+            target.Text = t.Target; args.Text = t.Args; window.Text = t.Window; enter.Checked = t.AutoEnter;
+            twofa.SelectedIndex = t.TwoFa == "ask" ? 1 : t.TwoFa == "link" ? 2 : 0;
+            notes.Text = t.Note;
+            UpdateKind();
+            login.Focus();
+        }
+
+        void UpdateKind()
+        {
+            browse.Enabled = args.Enabled = app.Checked;
+            browser.Enabled = site.Checked;
+        }
+
+        void SaveAsTemplate()
+        {
+            if (name.Text.Trim().Length == 0 || window.Text.Trim().Length == 0) { Fail("Для шаблона нужны название и заголовок окна."); return; }
+            var t = new LoginTemplate
+            {
+                Name = name.Text.Trim(), Group = "Мои", Kind = app.Checked ? "app" : "site", Target = target.Text.Trim(), Args = args.Text.Trim(),
+                // Заметка записи — личное (её видно только в зашифрованной базе), а шаблоны лежат в apps.json
+                // открытым текстом: в шаблон не копируется.
+                Window = window.Text.Trim(), AutoEnter = enter.Checked, TwoFa = TwoFaValue() == "link" ? "ask" : TwoFaValue(), Note = ""
+            };
+            store.Templates.RemoveAll(x => x.Group == "Мои" && x.Name == t.Name);
+            store.Templates.Add(t);
+            try { store.Save(); MessageBox.Show(this, "Шаблон «" + t.Name + "» сохранён (группа «Мои»). Логин, пароль и заметка в шаблон не попадают.", Text); }
+            catch (Exception ex) { MessageBox.Show(this, ex.Message, Text); }
+        }
+
+        string TwoFaValue() { return twofa.SelectedIndex == 1 ? "ask" : twofa.SelectedIndex == 2 ? "link" : "none"; }
+
+        void Commit()
+        {
+            if (name.Text.Trim().Length == 0) { Fail("Укажите название."); return; }
+            if (window.Text.Trim().Length == 0) { Fail("Укажите заголовок окна — без него ввод мог бы попасть в чужое окно."); return; }
+            if (pass.Text.Length == 0) { Fail("Укажите пароль."); return; }
+            var t = target.Text.Trim();
+            if (app.Checked && t.Length > 0 && !File.Exists(Paths.Full(t)) &&
+                MessageBox.Show(this, "Программа не найдена на этом ПК:\n" + Paths.Full(t) + "\n\nСохранить всё равно (например, установите её позже)?",
+                    Text, MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes)
+            { DialogResult = DialogResult.None; return; }
+            var mode = TwoFaValue();
+            var otp = otpBox.SelectedItem as OtpItem;
+            if (mode == "link" && otp == null) { Fail("Выберите аккаунт 2FA или нажмите «Новый...»."); return; }
+
+            e.Name = name.Text.Trim(); e.Kind = app.Checked ? "app" : "site";
+            if (site.Checked && t.Length > 0 && !t.Contains("://")) t = "https://" + t;
+            e.Target = t; e.Args = app.Checked ? args.Text.Trim() : "";
+            e.Browser = site.Checked ? ((BrItem)browser.SelectedItem).Name : "";
+            e.Window = window.Text.Trim(); e.Login = login.Text; e.Password = pass.Text;
+            e.AutoEnter = enter.Checked; e.TwoFa = mode; e.OtpId = mode == "link" ? otp.O.Id : null; e.Totp = ""; e.AutoTotp = false;
+            e.Delay = (int)delay.Value; e.Notes = notes.Text;
+        }
+    }
+}

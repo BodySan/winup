@@ -1,0 +1,24 @@
+name: Проверка WinUp
+on:
+  push:
+    branches: [main]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  tests:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Проверить исходники и расширение
+        shell: powershell
+        run: ./qa/security/ci.ps1
+      - name: Сохранить результаты
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: test-results
+          path: C:/WinUp/test/ci/candidate/*.txt

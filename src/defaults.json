@@ -1,0 +1,991 @@
+{
+  "Version": 1,
+  "Links": [
+    {
+      "Id": "8636f7d6",
+      "Name": "3uTools",
+      "Url": "https://www.3u.com/",
+      "Description": "Управление iPhone/iPad с ПК: резервные копии, перенос файлов и фото, прошивка, рингтоны."
+    },
+    {
+      "Id": "874e664e",
+      "Name": "BlueStacks",
+      "Url": "https://www.bluestacks.com/",
+      "Description": "Эмулятор Android: запуск мобильных игр и приложений на ПК."
+    },
+    {
+      "Id": "0a0ea581",
+      "Name": "ChatGPT",
+      "Url": "https://openai.com/chatgpt/download/",
+      "Description": "Приложение ChatGPT (OpenAI) для Windows. Установщик-загрузчик, нужен интернет."
+    },
+    {
+      "Id": "60792b7f",
+      "Name": "Google Chrome",
+      "Url": "https://www.google.com/chrome/",
+      "Description": "Браузер Google Chrome. Установщик-загрузчик, нужен интернет."
+    },
+    {
+      "Id": "720c4c03",
+      "Name": "Claude",
+      "Url": "https://claude.ai/download",
+      "Description": "Приложение Claude (Anthropic) для Windows."
+    },
+    {
+      "Id": "9458f41b",
+      "Name": "Cloudflare WARP",
+      "Url": "https://one.one.one.one/",
+      "Description": "Cloudflare WARP (1.1.1.1): бесплатный VPN/шифрованный DNS от Cloudflare."
+    },
+    {
+      "Id": "3a2a8451",
+      "Name": "Discord",
+      "Url": "https://discord.com/download",
+      "Description": "Discord: голосовой и текстовый чат, сообщества, стримы."
+    },
+    {
+      "Id": "e80e0f94",
+      "Name": "Epic Games Launcher",
+      "Url": "https://store.epicgames.com/download",
+      "Description": "Epic Games Launcher: магазин и запуск игр Epic, бесплатные раздачи игр."
+    },
+    {
+      "Id": "b998522d",
+      "Name": "Firefox",
+      "Url": "https://www.mozilla.org/firefox/new/",
+      "Description": "Браузер Mozilla Firefox. Установщик-загрузчик, нужен интернет."
+    },
+    {
+      "Id": "0ba5f475",
+      "Name": "Git",
+      "Url": "https://git-scm.com/download/win",
+      "Description": "Git — система контроля версий для программистов (+ Git Bash)."
+    },
+    {
+      "Id": "e45ec695",
+      "Name": "GitHub Desktop",
+      "Url": "https://desktop.github.com/",
+      "Description": "GitHub Desktop: работа с Git-репозиториями GitHub через окно, без командной строки."
+    },
+    {
+      "Id": "de7dd746",
+      "Name": "Google Drive",
+      "Url": "https://www.google.com/drive/download/",
+      "Description": "Google Диск: синхронизация файлов с облаком Google, диск в Проводнике."
+    },
+    {
+      "Id": "4b69adae",
+      "Name": "Huawei Cloud",
+      "Url": "https://cloud.huawei.com/",
+      "Description": "Облако Huawei для ПК: синхронизация фото и файлов с телефоном Huawei."
+    },
+    {
+      "Id": "fa4711ce",
+      "Name": "NVIDIA app",
+      "Url": "https://www.nvidia.com/en-us/software/nvidia-app/",
+      "Description": "NVIDIA app: драйверы видеокарты NVIDIA, настройки игр, запись экрана (замена GeForce Experience)."
+    },
+    {
+      "Id": "6c2e453d",
+      "Name": "Razer Synapse",
+      "Url": "https://www.razer.com/synapse-4",
+      "Description": "Razer Synapse: настройка мышей, клавиатур, гарнитур Razer (подсветка, макросы). Загрузчик."
+    },
+    {
+      "Id": "fc041c32",
+      "Name": "Rockstar Games Launcher",
+      "Url": "https://socialclub.rockstargames.com/rockstar-games-launcher",
+      "Description": "Rockstar Games Launcher: запуск и покупка игр Rockstar (GTA V, RDR2)."
+    },
+    {
+      "Id": "1154b9e4",
+      "Name": "Steam",
+      "Url": "https://store.steampowered.com/about/",
+      "Description": "Steam: магазин, библиотека и запуск игр."
+    },
+    {
+      "Id": "276ae0f6",
+      "Name": "TLauncher",
+      "Url": "https://tlauncher.org/",
+      "Description": "TLauncher: сторонний лаунчер Minecraft."
+    },
+    {
+      "Id": "a0d72485",
+      "Name": "VK Play",
+      "Url": "https://vkplay.ru/",
+      "Description": "VK Play: лаунчер игр VK. Загрузчик, нужен интернет."
+    },
+    {
+      "Id": "14736080",
+      "Name": "Яндекс Музыка",
+      "Url": "https://music.yandex.ru/download/",
+      "Description": "Яндекс Музыка для Windows."
+    },
+    {
+      "Id": "120bcb4d",
+      "Name": "Zapret",
+      "Url": "https://github.com/bol-van/zapret-win-bundle",
+      "Description": "Zapret: обход блокировок сайтов провайдером (DPI) — оболочка над zapret."
+    },
+    {
+      "Id": "66076500",
+      "Name": "Zoom",
+      "Url": "https://zoom.us/download",
+      "Description": "Zoom: видеоконференции и звонки."
+    },
+    {
+      "Id": "6c177ade",
+      "Name": "Android Studio",
+      "Url": "https://developer.android.com/studio",
+      "Description": "Android Studio: среда разработки Android-приложений (Google). Большая, ~1.5 ГБ."
+    },
+    {
+      "Id": "bd171d1d",
+      "Name": "iCloud",
+      "Url": "https://support.apple.com/en-us/103232",
+      "Description": "iCloud для Windows: фото, iCloud Drive и пароли Apple на ПК. Загрузчик."
+    },
+    {
+      "Id": "c06506a5",
+      "Name": "Karing",
+      "Url": "https://karing.app/",
+      "Description": "Karing: прокси-клиент (Clash/sing-box) для подписок VPN/прокси."
+    },
+    {
+      "Id": "43cea602",
+      "Name": "Kaspersky",
+      "Url": "https://www.kaspersky.ru/downloads",
+      "Description": "Антивирус Kaspersky. Установщик-загрузчик, нужен интернет."
+    },
+    {
+      "Id": "30c42799",
+      "Name": "Контур.Толк",
+      "Url": "https://kontur.ru/talk",
+      "Description": "Контур.Толк: видеовстречи и созвоны (сервис СКБ Контур)."
+    },
+    {
+      "Id": "9ad38322",
+      "Name": "PingPlotter",
+      "Url": "https://www.pingplotter.com/download",
+      "Description": "PingPlotter: диагностика сети — где по маршруту теряются пакеты и растёт пинг."
+    },
+    {
+      "Id": "e2357b62",
+      "Name": "PyCharm",
+      "Url": "https://www.jetbrains.com/pycharm/download/",
+      "Description": "PyCharm: среда разработки на Python (JetBrains)."
+    },
+    {
+      "Id": "5df392a2",
+      "Name": "Happ",
+      "Url": "https://www.happ.su/",
+      "Description": "Happ: клиент прокси/VPN (Xray) для подписок."
+    },
+    {
+      "Id": "b1f1aba1",
+      "Name": "TeraCopy",
+      "Url": "https://www.codesector.com/teracopy",
+      "Description": "TeraCopy: быстрое и надёжное копирование файлов с проверкой и паузой."
+    },
+    {
+      "Id": "ee2fdb85",
+      "Name": "Telegram",
+      "Url": "https://desktop.telegram.org/",
+      "Description": "Telegram Desktop: мессенджер."
+    },
+    {
+      "Id": "71209b93",
+      "Name": "WinRAR",
+      "Url": "https://www.rarlab.com/download.htm",
+      "Description": "WinRAR: архиватор (rar, zip и др.)."
+    },
+    {
+      "Id": "ce6f6eb2",
+      "Name": "GPU-Z",
+      "Url": "https://www.techpowerup.com/gpuz/",
+      "Description": "GPU-Z: подробная информация о видеокарте, датчики температуры и частот."
+    },
+    {
+      "Id": "838d4df6",
+      "Name": "MemTest64",
+      "Url": "https://www.techpowerup.com/memtest64/",
+      "Description": "MemTest64: проверка оперативной памяти на ошибки прямо в Windows."
+    },
+    {
+      "Id": "f0ce80e8",
+      "Name": "MiniBin-KT",
+      "Url": "https://github.com/king-tri-ton/minibin/releases",
+      "Description": "MiniBin: значок корзины в трее — видно, полна ли, очистка в один клик."
+    },
+    {
+      "Id": "93dfac9f",
+      "Name": "Rufus",
+      "Url": "https://rufus.ie/",
+      "Description": "Rufus: создание загрузочной флешки из образа Windows/Linux (ISO)."
+    },
+    {
+      "Id": "f3586bda",
+      "Name": "AnyDesk",
+      "Url": "https://anydesk.com/downloads",
+      "Description": "AnyDesk: удалённый доступ к ПК (помочь кому-то или подключиться к своему компьютеру)."
+    },
+    {
+      "Id": "39df23d9",
+      "Name": "Auto Dark Mode",
+      "Url": "https://github.com/AutoDarkMode/Windows-Auto-Night-Mode/releases",
+      "Description": "Auto Dark Mode: сам переключает светлую/тёмную тему Windows по расписанию или закату."
+    },
+    {
+      "Id": "902b898f",
+      "Name": "Bulk Crap Uninstaller",
+      "Url": "https://github.com/BCUninstaller/Bulk-Crap-Uninstaller/releases",
+      "Description": "Bulk Crap Uninstaller: удаление программ пачками, поиск остатков после удаления."
+    },
+    {
+      "Id": "631edf7b",
+      "Name": "CrystalDiskInfo",
+      "Url": "https://crystalmark.info/en/software/crystaldiskinfo/",
+      "Description": "CrystalDiskInfo: здоровье дисков по SMART (Хорошо/Тревога), температура, наработка."
+    },
+    {
+      "Id": "ed7b1497",
+      "Name": "Monitorian",
+      "Url": "https://github.com/emoacht/Monitorian/releases",
+      "Description": "Monitorian: ползунки яркости внешних мониторов в трее."
+    },
+    {
+      "Id": "c799e1c0",
+      "Name": "privacy.sexy",
+      "Url": "https://privacy.sexy/",
+      "Description": "privacy.sexy: выбор твиков приватности Windows → готовый скрипт; у каждого твика есть откат."
+    },
+    {
+      "Id": "39f4be9b",
+      "Name": "SimpleBin",
+      "Url": "https://github.com/exalaolir/SimpleBin/releases",
+      "Description": "SimpleBin: корзина в трее (аналог MiniBin)."
+    },
+    {
+      "Id": "10b8b5ea",
+      "Name": "smartmontools",
+      "Url": "https://www.smartmontools.org/",
+      "Description": "smartmontools: проверка SMART дисков из командной строки (smartctl)."
+    },
+    {
+      "Id": "d00c35e8",
+      "Name": "SoundSwitch",
+      "Url": "https://github.com/Belphemur/SoundSwitch/releases",
+      "Description": "SoundSwitch: переключение колонки/наушники горячей клавишей."
+    },
+    {
+      "Id": "4fb68f0a",
+      "Name": "Twinkle Tray",
+      "Url": "https://twinkletray.com/",
+      "Description": "Twinkle Tray: яркость мониторов из трея, расписание яркости (богаче Monitorian)."
+    },
+    {
+      "Id": "9c3389d2",
+      "Name": "Winhance",
+      "Url": "https://github.com/memstechtips/Winhance/releases",
+      "Description": "Winhance: настройка Windows в одном окне — удаление встроенных приложений, приватность, твики."
+    },
+    {
+      "Id": "bc2b8949",
+      "Name": "Hasleo Backup Suite",
+      "Url": "https://www.easyuefi.com/backup-software/backup-suite-free.html",
+      "Description": "Hasleo Backup Suite: резервный образ системы/диска и восстановление, клонирование на новый SSD. Загрузчик."
+    },
+    {
+      "Id": "9cb8ba8e",
+      "Name": "Autoruns",
+      "Url": "https://learn.microsoft.com/sysinternals/downloads/autoruns",
+      "Description": "Autoruns (Sysinternals): всё, что запускается автоматически — автозагрузка, службы, задачи. Можно отключить лишнее."
+    },
+    {
+      "Id": "683cfe01",
+      "Name": "Process Explorer",
+      "Url": "https://learn.microsoft.com/sysinternals/downloads/process-explorer",
+      "Description": "Process Explorer (Sysinternals): продвинутый диспетчер задач — какой процесс что держит и грузит."
+    },
+    {
+      "Id": "50f9f2c0",
+      "Name": "Process Monitor",
+      "Url": "https://learn.microsoft.com/sysinternals/downloads/procmon",
+      "Description": "Process Monitor (Sysinternals): журнал всех обращений программ к файлам и реестру — понять, что делает программа."
+    },
+    {
+      "Id": "d8d4b397",
+      "Name": "TCPView",
+      "Url": "https://learn.microsoft.com/sysinternals/downloads/tcpview",
+      "Description": "TCPView (Sysinternals): какие программы куда подключаются по сети."
+    },
+    {
+      "Id": "32dc578f",
+      "Name": "FullEventLogView",
+      "Url": "https://www.nirsoft.net/utils/full_event_log_view.html",
+      "Description": "FullEventLogView (NirSoft): все журналы событий Windows одной таблицей с фильтрами — искать причины сбоев."
+    },
+    {
+      "Id": "2cb16c7b",
+      "Name": "RegistryChangesView",
+      "Url": "https://www.nirsoft.net/utils/registry_changes_view.html",
+      "Description": "RegistryChangesView (NirSoft): снимок реестра и сравнение — что поменяла программа или твик."
+    },
+    {
+      "Id": "96fc35b4",
+      "Name": "ServiWin",
+      "Url": "https://www.nirsoft.net/utils/serviwin.html",
+      "Description": "ServiWin (NirSoft): список служб и драйверов, запуск/остановка, тип запуска."
+    },
+    {
+      "Id": "c6a03486",
+      "Name": "LibreHardwareMonitor",
+      "Url": "https://github.com/LibreHardwareMonitor/LibreHardwareMonitor/releases",
+      "Description": "LibreHardwareMonitor: температуры, частоты, напряжения, вентиляторы."
+    },
+    {
+      "Id": "444e60ae",
+      "Name": "Everything",
+      "Url": "https://www.voidtools.com/",
+      "Description": "Everything: мгновенный поиск файлов по имени на всех дисках."
+    },
+    {
+      "Id": "b9d04108",
+      "Name": "Krokiet (Czkawka)",
+      "Url": "https://github.com/qarmin/czkawka/releases",
+      "Description": "Czkawka/Krokiet: поиск дубликатов, больших и пустых файлов, похожих фото."
+    },
+    {
+      "Id": "f35d84a0",
+      "Name": "WinDirStat",
+      "Url": "https://windirstat.net/",
+      "Description": "WinDirStat: карта диска — что занимает место."
+    },
+    {
+      "Id": "ac8cb375",
+      "Name": "BleachBit",
+      "Url": "https://www.bleachbit.org/download/windows",
+      "Description": "BleachBit: очистка временных файлов, кэшей и следов (есть предпросмотр)."
+    },
+    {
+      "Id": "b8e62ae2",
+      "Name": "O&O ShutUp10++",
+      "Url": "https://www.oo-software.com/en/shutup10",
+      "Description": "O&O ShutUp10++: переключатели приватности Windows с рекомендациями и откатом."
+    },
+    {
+      "Id": "c3437e42",
+      "Name": "Driver Store Explorer",
+      "Url": "https://github.com/lostindark/DriverStoreExplorer/releases",
+      "Description": "Driver Store Explorer: старые и лишние драйверы в хранилище Windows, их удаление. Осторожно с используемыми."
+    },
+    {
+      "Id": "2094b528",
+      "Name": "wuMgr",
+      "Url": "https://github.com/DavidXanatos/wumgr/releases",
+      "Description": "wuMgr: ручное управление обновлениями Windows — выбрать, скрыть, удалить обновление."
+    },
+    {
+      "Id": "532b1afa",
+      "Name": "CopyQ",
+      "Url": "https://github.com/hluk/CopyQ/releases",
+      "Description": "CopyQ: история буфера обмена с поиском (в истории могут оказаться пароли — настройте исключения)."
+    },
+    {
+      "Id": "083b8df8",
+      "Name": "KeePassXC",
+      "Url": "https://keepassxc.org/download/",
+      "Description": "KeePassXC: отдельный менеджер паролей (база .kdbx). В WinUp свои пароли — это для другой базы."
+    },
+    {
+      "Id": "270495a3",
+      "Name": "7-Zip",
+      "Url": "https://www.7-zip.org/",
+      "Description": "7-Zip: архиватор (7z, zip, rar-распаковка, iso)."
+    },
+    {
+      "Id": "1394c64c",
+      "Name": "Windows ADK (Deployment Tools)",
+      "Url": "https://learn.microsoft.com/windows-hardware/get-started/adk-install",
+      "Description": "Windows ADK: инструменты Microsoft для развёртывания Windows (DISM, файлы ответов). Онлайн-установщик."
+    },
+    {
+      "Id": "dcd306d4",
+      "Name": "Windows ADK WinPE add-on",
+      "Url": "https://learn.microsoft.com/windows-hardware/get-started/adk-install",
+      "Description": "WinPE для ADK: сборка загрузочной среды восстановления Windows PE. Онлайн-установщик."
+    },
+    {
+      "Id": "bc686819",
+      "Name": "EarTrumpet",
+      "Url": "https://apps.microsoft.com/detail/9nblggh516xp",
+      "Description": "EarTrumpet: громкость каждого приложения отдельно из трея. Только Microsoft Store."
+    },
+    {
+      "Id": "951fadfc",
+      "Name": "Win11Debloat",
+      "Url": "https://github.com/Raphire/Win11Debloat",
+      "Description": "Удаляет встроенный «мусор» Windows 10/11 (Xbox, Bing, Clipchamp, реклама в меню Пуск), отключает телеметрию, Copilot, Bing в поиске. Это загрузчик: при запуске скачивает свежую версию скрипта с GitHub (нужен интернет). ⚠ ОСТОРОЖНО: меняет систему, удалённые приложения возвращаются только переустановкой из Store. Перед запуском создайте точку восстановления."
+    },
+    {
+      "Id": "1afa5c20",
+      "Name": "Chris Titus WinUtil",
+      "Url": "https://github.com/ChrisTitusTech/winutil",
+      "Description": "Комбайн настройки Windows: массовая установка программ (через winget), твики (телеметрия, службы, Copilot, фоновые приложения), режимы обновлений, сборка облегчённого образа Windows. ⚠ ОСТОРОЖНО: не все твики откатываются кнопкой Undo. WinUtil сам предлагает создать точку восстановления — соглашайтесь."
+    },
+    {
+      "Id": "fb3e9f6f",
+      "Name": "Remove-Edge",
+      "Url": "https://github.com/ShadowWhisperer/Remove-MS-Edge",
+      "Description": "Принудительно удаляет Microsoft Edge, когда он не удаляется обычным способом (в России Microsoft блокирует штатное удаление). WebView2 не трогает. ⚠ ОСТОРОЖНО: вернуть Edge можно только скачав его заново с сайта Microsoft."
+    },
+    {
+      "Id": "cf12b44f",
+      "Name": "Disable-Defender",
+      "Url": "https://github.com/Lyverance/Disable-Defender",
+      "Description": "Полностью отключает встроенный антивирус Microsoft Defender (если мешает или стоит другой антивирус). ⚠ ОСТОРОЖНО: ПК остаётся без антивирусной защиты. Сначала вручную выключите «Защиту от подделки» (Безопасность Windows → Защита от вирусов → Параметры). Вернуть — «Disable-Defender — включить обратно»."
+    },
+    {
+      "Id": "c1a468d3",
+      "Name": "PSWindowsUpdate (обновления из PowerShell)",
+      "Url": "https://www.powershellgallery.com/packages/PSWindowsUpdate",
+      "Description": "Открывает PowerShell с модулем управления обновлениями Windows и показывает список доступных обновлений (ничего не ставит). Дальше команды: Install-WindowsUpdate -KBArticleID KB1234567 — поставить одно, Hide-WindowsUpdate -KBArticleID ... — скрыть, Get-WUHistory — история."
+    },
+    {
+      "Id": "3ff67e43",
+      "Name": "PSAppDeployToolkit (шаблон)",
+      "Url": "https://psappdeploytoolkit.com/",
+      "Description": "Не программа, а шаблон PowerShell для «правильной» тихой установки/удаления программ в организациях (Intune/SCCM): закрытие приложений, диалоги для пользователя, логи. Открывает папку с шаблоном — пригодится, если какую-то программу не удастся поставить тихо обычными ключами."
+    }
+  ],
+  "Templates": [
+    {
+      "Name": "Steam",
+      "Group": "Программы",
+      "Kind": "app",
+      "Target": "%ProgramFiles(x86)%\\Steam\\steam.exe",
+      "Args": "",
+      "Window": "Steam",
+      "AutoEnter": true,
+      "TwoFa": "ask",
+      "Note": "Код Steam Guard — из приложения Steam или почты."
+    },
+    {
+      "Name": "Epic Games Launcher",
+      "Group": "Программы",
+      "Kind": "app",
+      "Target": "%ProgramFiles(x86)%\\Epic Games\\Launcher\\Portal\\Binaries\\Win64\\EpicGamesLauncher.exe",
+      "Args": "",
+      "Window": "Epic Games",
+      "AutoEnter": true,
+      "TwoFa": "ask",
+      "Note": ""
+    },
+    {
+      "Name": "Discord",
+      "Group": "Программы",
+      "Kind": "app",
+      "Target": "%LocalAppData%\\Discord\\Update.exe",
+      "Args": "--processStart Discord.exe",
+      "Window": "Discord",
+      "AutoEnter": true,
+      "TwoFa": "ask",
+      "Note": ""
+    },
+    {
+      "Name": "Zoom",
+      "Group": "Программы",
+      "Kind": "app",
+      "Target": "%AppData%\\Zoom\\bin\\Zoom.exe",
+      "Args": "",
+      "Window": "Zoom",
+      "AutoEnter": true,
+      "TwoFa": "none",
+      "Note": ""
+    },
+    {
+      "Name": "Rockstar Games Launcher",
+      "Group": "Программы",
+      "Kind": "app",
+      "Target": "%ProgramFiles%\\Rockstar Games\\Launcher\\Launcher.exe",
+      "Args": "",
+      "Window": "Rockstar Games Launcher|Rockstar",
+      "AutoEnter": true,
+      "TwoFa": "ask",
+      "Note": ""
+    },
+    {
+      "Name": "Ubisoft Connect",
+      "Group": "Программы",
+      "Kind": "app",
+      "Target": "%ProgramFiles(x86)%\\Ubisoft\\Ubisoft Game Launcher\\UbisoftConnect.exe",
+      "Args": "",
+      "Window": "Ubisoft Connect",
+      "AutoEnter": true,
+      "TwoFa": "ask",
+      "Note": ""
+    },
+    {
+      "Name": "Battle.net",
+      "Group": "Программы",
+      "Kind": "app",
+      "Target": "%ProgramFiles(x86)%\\Battle.net\\Battle.net Launcher.exe",
+      "Args": "",
+      "Window": "Battle.net",
+      "AutoEnter": true,
+      "TwoFa": "ask",
+      "Note": ""
+    },
+    {
+      "Name": "EA app",
+      "Group": "Программы",
+      "Kind": "app",
+      "Target": "%ProgramFiles%\\Electronic Arts\\EA Desktop\\EA Desktop\\EALauncher.exe",
+      "Args": "",
+      "Window": "EA",
+      "AutoEnter": true,
+      "TwoFa": "ask",
+      "Note": ""
+    },
+    {
+      "Name": "VK Play",
+      "Group": "Программы",
+      "Kind": "app",
+      "Target": "",
+      "Args": "",
+      "Window": "VK Play",
+      "AutoEnter": true,
+      "TwoFa": "none",
+      "Note": "Укажите путь к программе через «Обзор»."
+    },
+    {
+      "Name": "Яндекс Музыка",
+      "Group": "Программы",
+      "Kind": "app",
+      "Target": "",
+      "Args": "",
+      "Window": "Яндекс Музыка",
+      "AutoEnter": true,
+      "TwoFa": "none",
+      "Note": "Вход через Яндекс ID. Укажите путь к программе через «Обзор»."
+    },
+    {
+      "Name": "Razer Synapse",
+      "Group": "Программы",
+      "Kind": "app",
+      "Target": "",
+      "Args": "",
+      "Window": "Razer Synapse|Razer",
+      "AutoEnter": true,
+      "TwoFa": "none",
+      "Note": "Укажите путь к программе через «Обзор»."
+    },
+    {
+      "Name": "AnyDesk (пароль доступа)",
+      "Group": "Программы",
+      "Kind": "app",
+      "Target": "",
+      "Args": "",
+      "Window": "AnyDesk",
+      "AutoEnter": true,
+      "TwoFa": "none",
+      "Note": "Пароль удалённого доступа к другому ПК."
+    },
+    {
+      "Name": "Госуслуги",
+      "Group": "Россия",
+      "Kind": "site",
+      "Target": "https://esia.gosuslugi.ru/",
+      "Args": "",
+      "Window": "Госуслуги",
+      "AutoEnter": true,
+      "TwoFa": "ask",
+      "Note": "Логин — телефон, почта или СНИЛС. Код — из SMS."
+    },
+    {
+      "Name": "Яндекс ID",
+      "Group": "Россия",
+      "Kind": "site",
+      "Target": "https://passport.yandex.ru/auth",
+      "Args": "",
+      "Window": "Яндекс",
+      "AutoEnter": true,
+      "TwoFa": "ask",
+      "Note": ""
+    },
+    {
+      "Name": "ВКонтакте (VK ID)",
+      "Group": "Россия",
+      "Kind": "site",
+      "Target": "https://id.vk.com/",
+      "Args": "",
+      "Window": "ВКонтакте|VK ID|VK",
+      "AutoEnter": true,
+      "TwoFa": "ask",
+      "Note": ""
+    },
+    {
+      "Name": "Mail.ru",
+      "Group": "Россия",
+      "Kind": "site",
+      "Target": "https://account.mail.ru/login",
+      "Args": "",
+      "Window": "Mail|Почта",
+      "AutoEnter": true,
+      "TwoFa": "ask",
+      "Note": ""
+    },
+    {
+      "Name": "Одноклассники",
+      "Group": "Россия",
+      "Kind": "site",
+      "Target": "https://ok.ru/",
+      "Args": "",
+      "Window": "Одноклассники|OK.RU",
+      "AutoEnter": true,
+      "TwoFa": "none",
+      "Note": ""
+    },
+    {
+      "Name": "СберБанк Онлайн",
+      "Group": "Россия",
+      "Kind": "site",
+      "Target": "https://online.sberbank.ru/",
+      "Args": "",
+      "Window": "СберБанк|Сбербанк|Сбер",
+      "AutoEnter": true,
+      "TwoFa": "ask",
+      "Note": "Код — из SMS."
+    },
+    {
+      "Name": "Т-Банк",
+      "Group": "Россия",
+      "Kind": "site",
+      "Target": "https://www.tbank.ru/login/",
+      "Args": "",
+      "Window": "Т-Банк|T-Bank",
+      "AutoEnter": true,
+      "TwoFa": "ask",
+      "Note": ""
+    },
+    {
+      "Name": "Альфа-Банк",
+      "Group": "Россия",
+      "Kind": "site",
+      "Target": "https://web.alfabank.ru/",
+      "Args": "",
+      "Window": "Альфа",
+      "AutoEnter": true,
+      "TwoFa": "ask",
+      "Note": ""
+    },
+    {
+      "Name": "ВТБ Онлайн",
+      "Group": "Россия",
+      "Kind": "site",
+      "Target": "https://online.vtb.ru/",
+      "Args": "",
+      "Window": "ВТБ",
+      "AutoEnter": true,
+      "TwoFa": "ask",
+      "Note": ""
+    },
+    {
+      "Name": "Ozon",
+      "Group": "Россия",
+      "Kind": "site",
+      "Target": "https://www.ozon.ru/",
+      "Args": "",
+      "Window": "OZON|Ozon",
+      "AutoEnter": true,
+      "TwoFa": "ask",
+      "Note": "Обычно вход по коду из SMS без пароля."
+    },
+    {
+      "Name": "Wildberries",
+      "Group": "Россия",
+      "Kind": "site",
+      "Target": "https://www.wildberries.ru/security/login",
+      "Args": "",
+      "Window": "Wildberries",
+      "AutoEnter": true,
+      "TwoFa": "ask",
+      "Note": "Обычно вход по коду из SMS без пароля."
+    },
+    {
+      "Name": "Авито",
+      "Group": "Россия",
+      "Kind": "site",
+      "Target": "https://www.avito.ru/#login",
+      "Args": "",
+      "Window": "Авито",
+      "AutoEnter": true,
+      "TwoFa": "ask",
+      "Note": ""
+    },
+    {
+      "Name": "Кинопоиск",
+      "Group": "Россия",
+      "Kind": "site",
+      "Target": "https://www.kinopoisk.ru/",
+      "Args": "",
+      "Window": "Кинопоиск",
+      "AutoEnter": true,
+      "TwoFa": "ask",
+      "Note": "Вход через Яндекс ID."
+    },
+    {
+      "Name": "Литрес",
+      "Group": "Россия",
+      "Kind": "site",
+      "Target": "https://www.litres.ru/auth/login/",
+      "Args": "",
+      "Window": "Литрес|ЛитРес",
+      "AutoEnter": true,
+      "TwoFa": "none",
+      "Note": ""
+    },
+    {
+      "Name": "Rutube",
+      "Group": "Россия",
+      "Kind": "site",
+      "Target": "https://rutube.ru/",
+      "Args": "",
+      "Window": "RUTUBE|Rutube",
+      "AutoEnter": true,
+      "TwoFa": "none",
+      "Note": ""
+    },
+    {
+      "Name": "МТС (личный кабинет)",
+      "Group": "Россия",
+      "Kind": "site",
+      "Target": "https://login.mts.ru/",
+      "Args": "",
+      "Window": "МТС",
+      "AutoEnter": true,
+      "TwoFa": "ask",
+      "Note": ""
+    },
+    {
+      "Name": "Билайн (личный кабинет)",
+      "Group": "Россия",
+      "Kind": "site",
+      "Target": "https://beeline.ru/login/",
+      "Args": "",
+      "Window": "Билайн",
+      "AutoEnter": true,
+      "TwoFa": "ask",
+      "Note": ""
+    },
+    {
+      "Name": "МегаФон (личный кабинет)",
+      "Group": "Россия",
+      "Kind": "site",
+      "Target": "https://lk.megafon.ru/",
+      "Args": "",
+      "Window": "МегаФон",
+      "AutoEnter": true,
+      "TwoFa": "ask",
+      "Note": ""
+    },
+    {
+      "Name": "Т2 / Tele2 (личный кабинет)",
+      "Group": "Россия",
+      "Kind": "site",
+      "Target": "https://t2.ru/lk",
+      "Args": "",
+      "Window": "t2|Tele2",
+      "AutoEnter": true,
+      "TwoFa": "ask",
+      "Note": ""
+    },
+    {
+      "Name": "Контур.Толк",
+      "Group": "Россия",
+      "Kind": "site",
+      "Target": "https://kontur.ru/talk",
+      "Args": "",
+      "Window": "Толк|Контур",
+      "AutoEnter": true,
+      "TwoFa": "none",
+      "Note": ""
+    },
+    {
+      "Name": "Google / YouTube / Gmail",
+      "Group": "Зарубежные",
+      "Kind": "site",
+      "Target": "https://accounts.google.com/",
+      "Args": "",
+      "Window": "Google|Аккаунт|Gmail|YouTube",
+      "AutoEnter": true,
+      "TwoFa": "ask",
+      "Note": ""
+    },
+    {
+      "Name": "Microsoft / Outlook / Xbox",
+      "Group": "Зарубежные",
+      "Kind": "site",
+      "Target": "https://login.live.com/",
+      "Args": "",
+      "Window": "Microsoft|Учетная запись|Outlook|Xbox",
+      "AutoEnter": true,
+      "TwoFa": "ask",
+      "Note": ""
+    },
+    {
+      "Name": "Apple ID",
+      "Group": "Зарубежные",
+      "Kind": "site",
+      "Target": "https://account.apple.com/",
+      "Args": "",
+      "Window": "Apple",
+      "AutoEnter": true,
+      "TwoFa": "ask",
+      "Note": ""
+    },
+    {
+      "Name": "GitHub",
+      "Group": "Зарубежные",
+      "Kind": "site",
+      "Target": "https://github.com/login",
+      "Args": "",
+      "Window": "GitHub",
+      "AutoEnter": true,
+      "TwoFa": "ask",
+      "Note": ""
+    },
+    {
+      "Name": "Discord (веб)",
+      "Group": "Зарубежные",
+      "Kind": "site",
+      "Target": "https://discord.com/login",
+      "Args": "",
+      "Window": "Discord",
+      "AutoEnter": true,
+      "TwoFa": "ask",
+      "Note": ""
+    },
+    {
+      "Name": "ChatGPT",
+      "Group": "Зарубежные",
+      "Kind": "site",
+      "Target": "https://chatgpt.com/auth/login",
+      "Args": "",
+      "Window": "ChatGPT|OpenAI",
+      "AutoEnter": true,
+      "TwoFa": "ask",
+      "Note": ""
+    },
+    {
+      "Name": "Steam (веб)",
+      "Group": "Зарубежные",
+      "Kind": "site",
+      "Target": "https://store.steampowered.com/login/",
+      "Args": "",
+      "Window": "Steam",
+      "AutoEnter": true,
+      "TwoFa": "ask",
+      "Note": ""
+    },
+    {
+      "Name": "Epic Games (веб)",
+      "Group": "Зарубежные",
+      "Kind": "site",
+      "Target": "https://www.epicgames.com/id/login",
+      "Args": "",
+      "Window": "Epic Games",
+      "AutoEnter": true,
+      "TwoFa": "ask",
+      "Note": ""
+    },
+    {
+      "Name": "Twitch",
+      "Group": "Зарубежные",
+      "Kind": "site",
+      "Target": "https://www.twitch.tv/login",
+      "Args": "",
+      "Window": "Twitch",
+      "AutoEnter": true,
+      "TwoFa": "ask",
+      "Note": ""
+    },
+    {
+      "Name": "Spotify",
+      "Group": "Зарубежные",
+      "Kind": "site",
+      "Target": "https://accounts.spotify.com/login",
+      "Args": "",
+      "Window": "Spotify",
+      "AutoEnter": true,
+      "TwoFa": "none",
+      "Note": ""
+    },
+    {
+      "Name": "PlayStation / Sony",
+      "Group": "Зарубежные",
+      "Kind": "site",
+      "Target": "https://id.sonyentertainmentnetwork.com/signin/",
+      "Args": "",
+      "Window": "PlayStation|Sony",
+      "AutoEnter": true,
+      "TwoFa": "ask",
+      "Note": ""
+    },
+    {
+      "Name": "Battle.net (веб)",
+      "Group": "Зарубежные",
+      "Kind": "site",
+      "Target": "https://account.battle.net/login",
+      "Args": "",
+      "Window": "Battle.net",
+      "AutoEnter": true,
+      "TwoFa": "ask",
+      "Note": ""
+    },
+    {
+      "Name": "EA (веб)",
+      "Group": "Зарубежные",
+      "Kind": "site",
+      "Target": "https://myaccount.ea.com/",
+      "Args": "",
+      "Window": "EA",
+      "AutoEnter": true,
+      "TwoFa": "ask",
+      "Note": ""
+    },
+    {
+      "Name": "Ubisoft (веб)",
+      "Group": "Зарубежные",
+      "Kind": "site",
+      "Target": "https://account.ubisoft.com/login",
+      "Args": "",
+      "Window": "Ubisoft",
+      "AutoEnter": true,
+      "TwoFa": "ask",
+      "Note": ""
+    },
+    {
+      "Name": "Telegram Web",
+      "Group": "Зарубежные",
+      "Kind": "site",
+      "Target": "https://web.telegram.org/",
+      "Args": "",
+      "Window": "Telegram",
+      "AutoEnter": true,
+      "TwoFa": "ask",
+      "Note": "Вход по номеру телефона и коду; пароль — только облачный пароль 2FA."
+    },
+    {
+      "Name": "Faceit",
+      "Group": "Зарубежные",
+      "Kind": "site",
+      "Target": "https://www.faceit.com/",
+      "Args": "",
+      "Window": "FACEIT|Faceit",
+      "AutoEnter": true,
+      "TwoFa": "ask",
+      "Note": ""
+    }
+  ]
+}

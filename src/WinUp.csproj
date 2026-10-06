@@ -1,0 +1,50 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net48</TargetFramework>
+    <LangVersion>7.3</LangVersion>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <AssemblyName>WinUp</AssemblyName>
+    <RootNamespace>WinUp</RootNamespace>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <PlatformTarget>AnyCPU</PlatformTarget>
+    <Prefer32Bit>false</Prefer32Bit>
+    <Version>1.13.0</Version>
+    <Product>WinUp</Product>
+    <!-- Версия задаётся в Properties\AssemblyInfo.cs (иначе атрибуты дублируются и сборка падает). -->
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <GenerateTargetFrameworkAttribute>false</GenerateTargetFrameworkAttribute>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Remove="vendor\**\*.cs" />
+    <EmbeddedResource Include="updates\components.json" LogicalName="components.json" />
+    <EmbeddedResource Include="updates\publisher.xml" LogicalName="component-publisher.xml" />
+    <Reference Include="WinUp.PasskeyEngine" HintPath="lib\WinUp.PasskeyEngine.dll" Private="false" />
+    <EmbeddedResource Include="lib\WinUp.PasskeyEngine.dll;lib\BouncyCastle.Cryptography.dll;lib\CBOR.dll;lib\Numbers.dll" LogicalName="%(Filename)%(Extension)" />
+    <!-- Встроенные шаблоны входа и ссылки: попадают в новую копию WinUp при первом запуске. -->
+    <EmbeddedResource Include="defaults.json" LogicalName="defaults.json" />
+    <EmbeddedResource Include="help.html" LogicalName="help.html" />
+    <EmbeddedResource Include="THIRD-PARTY.md" LogicalName="THIRD-PARTY.md" />
+    <EmbeddedResource Include="licenses\*" LogicalName="licenses/%(Filename)%(Extension)" />
+    <!-- Файлы расширения браузера (без key.txt — ключ уже вписан в manifest.json). -->
+    <EmbeddedResource Include="browser\*.json;browser\*.js;browser\*.html;browser\*.png" Exclude="browser\key.txt" LogicalName="browser/%(Filename)%(Extension)" />
+  </ItemGroup>
+  <ItemGroup>
+    <Reference Include="KeePassLib" HintPath="lib\KeePassLib.dll" Private="false" />
+    <!-- Ядро вшито ресурсом: WinUp работает одним файлом (CoreLoader). -->
+    <EmbeddedResource Include="lib\KeePassLib.dll" LogicalName="KeePassLib.dll" />
+    <EmbeddedResource Include="file-engine\file-engine.zip" LogicalName="file-engine.zip" />
+    <EmbeddedResource Include="file-engine\file-engine.json" LogicalName="file-engine.json" />
+    <EmbeddedResource Include="file-engine\winfsp.msi" LogicalName="winfsp.msi" />
+    <EmbeddedResource Include="public-suffix-list.dat" LogicalName="public-suffix-list.dat" />
+    <Reference Include="System.Windows.Forms" />
+    <Reference Include="System.Drawing" />
+    <Reference Include="System.Web.Extensions" />
+    <Reference Include="System.Security" />
+    <Reference Include="System.IO.Compression" />
+    <Reference Include="System.IO.Compression.FileSystem" />
+  </ItemGroup>
+  <Target Name="PrepareComponents" BeforeTargets="BeforeBuild">
+    <Exec Command="powershell -NoProfile -ExecutionPolicy Bypass -File &quot;$(ProjectDir)updates\prepare.ps1&quot;" />
+  </Target>
+</Project>

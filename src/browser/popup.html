@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>WinUp — пароли</title>
+<style>
+  body{margin:0;width:340px;font:13px/1.4 -apple-system,"Segoe UI",sans-serif;color:#111;background:#fff}
+  header{display:flex;align-items:center;gap:8px;padding:10px 12px;background:#f4f6fa;font-weight:600}
+  header img{width:20px;height:20px}
+  #st{margin-left:auto;font-weight:400;font-size:12px;color:#556}
+  .msg{padding:10px 12px}
+  .code{font:600 26px/1 Consolas,monospace;letter-spacing:4px;text-align:center;padding:8px 0;color:#2563eb}
+  button.bt{margin:4px 12px 10px;padding:7px 12px;border:0;border-radius:6px;background:#2563eb;color:#fff;cursor:pointer;font:inherit}
+  button.bt.alt{background:#e5e9f2;color:#223}
+  .it{display:block;width:100%;text-align:left;border:0;background:none;padding:8px 12px;cursor:pointer;font:inherit;color:inherit}
+  .it:hover{background:#e8efff}
+  .it b{display:block}.it span{color:#556;font-size:12px}.it i{color:#a05a00;font-style:normal;font-size:11px}
+  input.sr{display:block;width:calc(100% - 24px);margin:8px 12px;padding:6px 8px;border:1px solid #ccd;border-radius:6px;font:inherit;box-sizing:border-box}
+  h3{margin:8px 12px 2px;font-size:11px;color:#778;text-transform:uppercase;letter-spacing:.5px}
+  footer{border-top:1px solid #eef;padding:6px 12px;font-size:11px;color:#889}
+  footer a{color:#889;cursor:pointer}
+  .nav{display:flex;border-bottom:1px solid #eef}.nav button.bt{margin:6px;padding:6px 10px}
+  .expiry{text-align:center;color:#556;margin:6px 0}.entry{border-bottom:1px solid #eef}
+  button:disabled{opacity:.5;cursor:default}
+</style>
+</head>
+<body>
+<header><img src="icon32.png" alt=""><span>WinUp — пароли</span><span id="st"></span></header>
+<main id="main"><div class="msg">Связь с WinUp…</div></main>
+<footer><label><input id="passkeys" type="checkbox"> Ключи доступа через WinUp</label><div id="passkey-note"></div><div>Пароли хранятся только в WinUp на этом компьютере. <a id="forget">Отвязать браузер</a></div></footer>
+<script src="popup.js"></script>
+</body>
+</html>
