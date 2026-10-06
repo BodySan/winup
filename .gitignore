@@ -13,3 +13,11 @@ qa/root-*/
 release-work/
 release-ready.json
 tools/github/
+/data/
+/apps/
+/test/
+*.dpapi
+*.pfx
+*.p12
+*.kdbx
+*.keyx

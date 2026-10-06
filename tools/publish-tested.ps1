@@ -1,4 +1,4 @@
-﻿param([string]$Gh='gh',[string]$ProtectedKey,[string]$Repository='BodySan/winup',[switch]$Refresh,[switch]$PrepareOnly)
+﻿param([string]$Gh='gh',[string]$ProtectedKey,[string]$Repository='BodySan/winup',[switch]$Refresh,[switch]$PrepareOnly,[long]$TestRunId)
 $ErrorActionPreference='Stop'
 $root=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 if(!$ProtectedKey) { $ProtectedKey=Join-Path $root '.release-private\component-signing.dpapi' }
@@ -16,6 +16,7 @@ try {
         $env:GH_TOKEN=($credential -split "`n" | Where-Object { $_.StartsWith('password=') } | Select-Object -First 1).Substring(9).Trim(); $credential=$null; $envSet=$true
     }
     if($Refresh) {
+        if($TestRunId) { throw 'Choose Refresh or TestRunId, not both.' }
         $before=& $Gh run list --repo $Repository --workflow components.yml --branch main --limit 1 --json databaseId | ConvertFrom-Json
         if($LASTEXITCODE) { throw 'Workflow listing failed.' }
         $last=if($before) { [long]@($before)[0].databaseId } else { 0 }
@@ -29,16 +30,21 @@ try {
             $latest=@($current)[0]
             if($latest -and [long]$latest.databaseId -gt $last -and $latest.status -eq 'completed') {
                 if($latest.conclusion -ne 'success') { throw 'Fresh checks failed. Nothing was signed or published.' }
-                $finished=$true; break
+                $TestRunId=[long]$latest.databaseId; $finished=$true; break
             }
             Start-Sleep -Seconds 10
         }
         if(!$finished) { throw 'Check timeout. Nothing was signed or published.' }
     }
-    $runs=& $Gh run list --repo $Repository --workflow components.yml --status success --branch main --limit 1 --json databaseId,number,headSha,event,conclusion | ConvertFrom-Json
-    if($LASTEXITCODE -or !$runs) { throw 'No successfully checked component candidate on main.' }
-    $run=@($runs)[0]
-    if($run.conclusion -ne 'success' -or $run.event -notin 'workflow_dispatch','schedule') { throw 'Unexpected workflow run; refusing release.' }
+    if($TestRunId) {
+        $run=& $Gh run view $TestRunId --repo $Repository --json databaseId,number,headSha,event,conclusion,headBranch,workflowName,status | ConvertFrom-Json
+    } else {
+        $runs=& $Gh run list --repo $Repository --workflow components.yml --branch main --limit 20 --json databaseId,number,headSha,event,conclusion,headBranch,workflowName,status | ConvertFrom-Json
+        $run=@($runs | Where-Object { $_.status -eq 'completed' -and $_.conclusion -eq 'success' })[0]
+    }
+    if($LASTEXITCODE -or !$run) { throw 'No successfully checked component candidate on main.' }
+    if($run.status -ne 'completed' -or $run.conclusion -ne 'success' -or $run.headBranch -ne 'main' -or $run.workflowName -ne 'Проверить компоненты' -or $run.event -notin 'workflow_dispatch','schedule') { throw 'Unexpected workflow run; refusing release.' }
+    Write-Output "Verified test run $($run.databaseId), commit $($run.headSha)."
     $sequence=100000+[long]$run.number
     $existing=& $Gh release list --repo $Repository --json tagName | ConvertFrom-Json
     if($LASTEXITCODE) { throw 'Release listing failed.' }
