@@ -42,9 +42,10 @@ foreach($spec in $specs) {
     $versions.($spec.id)=$latest
     $report+=@{id=$spec.id;installed=$installed;latest=$latest;status='Candidate; tests required'}
 }
-$psl=Invoke-WebRequest https://publicsuffix.org/list/public_suffix_list.dat -UseBasicParsing
-if($psl.Content.Length -lt 100000 -or $psl.Content.Length -gt 2097152 -or $psl.Content -notmatch '(?m)^// VERSION: ') { throw 'Invalid official PSL response.' }
-[IO.File]::WriteAllText("$destination\public-suffix-list.dat",$psl.Content,[Text.UTF8Encoding]::new($false))
+$pslPath=Join-Path $destination 'public-suffix-list.dat'
+Invoke-WebRequest ('https://publicsuffix.org/list/public_suffix_list.dat?winup='+[Guid]::NewGuid().ToString('N')) -Headers @{'Cache-Control'='no-cache'} -OutFile $pslPath -UseBasicParsing
+$psl=[IO.File]::ReadAllText($pslPath,[Text.UTF8Encoding]::new($false,$true))
+if($psl.Length -lt 100000 -or $psl.Length -gt 2097152 -or $psl -notmatch '(?m)^// VERSION: ') { throw 'Invalid official PSL response.' }
 foreach($artifact in 'cryptofs','cryptolib') {
     [xml]$metadata=(Invoke-WebRequest "https://repo.maven.apache.org/maven2/org/cryptomator/$artifact/maven-metadata.xml" -UseBasicParsing).Content
     $report+=@{id=$artifact;installed=[string]$versions.$artifact;latest=[string]$metadata.metadata.versioning.release;status='Pinned to verified Cryptomator runtime; separate rebuild required'}

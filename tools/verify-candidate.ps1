@@ -46,8 +46,9 @@ foreach($spec in $specs) {
         if((Get-FileHash -LiteralPath "$candidatePath\lib\$($spec.dll)").Hash -ne $expected) { throw 'Candidate DLL differs from the official signed NuGet package.' }
     } finally { $zip.Dispose() }
 }
-$psl=(Invoke-WebRequest https://publicsuffix.org/list/public_suffix_list.dat -UseBasicParsing).Content
-if([IO.File]::ReadAllText("$candidatePath\public-suffix-list.dat") -ne $psl) { throw 'The official domain list changed since CI. Run new component checks before publishing.' }
+$pslCheck=Join-Path $checks 'public-suffix-list.dat'
+Invoke-WebRequest ('https://publicsuffix.org/list/public_suffix_list.dat?winup='+[Guid]::NewGuid().ToString('N')) -Headers @{'Cache-Control'='no-cache'} -OutFile $pslCheck -UseBasicParsing
+if((Get-FileHash -LiteralPath "$candidatePath\public-suffix-list.dat").Hash -ne (Get-FileHash -LiteralPath $pslCheck).Hash) { throw 'The official domain list changed since CI. Run new component checks before publishing.' }
 $adapterHash=(Get-FileHash -LiteralPath "$candidatePath\lib\WinUp.PasskeyEngine.dll").Hash
 # This script was compared with the local trusted source above. Rebuild with verified dependencies.
 & "$candidatePath\vendor\passkeys\build.ps1"

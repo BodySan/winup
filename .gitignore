@@ -1,5 +1,15 @@
 src/bin/
 src/obj/
+
+doc/chrome-prof/
+doc/Загрузки/
+doc/резерв/
+doc/web/
+doc/Инструкция.html
+/WinUp.exe
+doc/tmp-*.png
+qa/root-*/
 .release-private/
 release-work/
-WinUp.exe
+release-ready.json
+tools/github/

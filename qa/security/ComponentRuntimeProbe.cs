@@ -9,6 +9,13 @@ namespace WinUp {
             if(!Paths.Root.StartsWith(@"C:\WinUpAudit\component-runtime",StringComparison.OrdinalIgnoreCase)) throw new Exception("Synthetic isolated component lab only");
             AppDomain.CurrentDomain.AssemblyResolve+=(s,e)=>new AssemblyName(e.Name).Name=="KeePassLib" ? CoreLoader.Resolve() : EmbeddedModules.Resolve(e.Name);
             try {
+                if(args[0]=="github") {
+                    var source=ComponentFeed.Source;
+                    if(source!="https://github.com/BodySan/winup/releases/latest/download/") throw new Exception("Unexpected production default source");
+                    var release=ComponentFeed.Check(source,System.Threading.CancellationToken.None);
+                    ComponentFeed.Install(release,source,System.Threading.CancellationToken.None);
+                    Console.WriteLine("PASS production-GitHub-feed-signature-download-and-stage sequence="+release.sequence); return 0;
+                }
                 if(args[0]=="online") {
                     if(!Refuse(delegate { ComponentFeed.Check("https://localhost:9266/bad/",System.Threading.CancellationToken.None); })) throw new Exception("Bad online feed accepted");
                     Console.WriteLine("PASS online-feed-signature-tamper-rejected");

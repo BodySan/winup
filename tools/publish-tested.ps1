@@ -1,4 +1,4 @@
-﻿param([string]$Gh='gh',[string]$ProtectedKey,[string]$Repository='BodySan/winup',[switch]$Refresh)
+﻿param([string]$Gh='gh',[string]$ProtectedKey,[string]$Repository='BodySan/winup',[switch]$Refresh,[switch]$PrepareOnly)
 $ErrorActionPreference='Stop'
 $root=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 if(!$ProtectedKey) { $ProtectedKey=Join-Path $root '.release-private\component-signing.dpapi' }
@@ -55,6 +55,10 @@ try {
     Compress-Archive -Path "$candidate\*" -DestinationPath "$release\src.zip"
     $notes="Комплект №$sequence. Проверки GitHub Actions пройдены; подпись выполнена локально на ПК владельца. Новые совместимые библиотеки и PSL. Cryptomator/Java сохраняются в согласованном runtime. KeePass/WinFsp обновляются отдельными кнопками."
     [IO.File]::WriteAllText("$release\notes.txt",$notes,[Text.UTF8Encoding]::new($false))
+    if($PrepareOnly) {
+        [IO.File]::WriteAllText((Join-Path $root 'release-ready.json'),(@{directory=$release;sequence=$sequence;commit=$run.headSha;repository=$Repository}|ConvertTo-Json),[Text.UTF8Encoding]::new($false))
+        Write-Output "Prepared and locally signed release ${sequence}: $release"; return
+    }
     & $Gh release create "components-$sequence" --repo $Repository --target $run.headSha --title "WinUp: комплект $sequence" --notes-file "$release\notes.txt" "$release\WinUp.exe" "$release\WinUp.exe.sig" "$release\src.zip" "$release\components.wup" "$release\update.json" "$release\update.sig"
     if($LASTEXITCODE) { throw 'Signed release publication failed.' }
     Write-Output "Published verified, locally signed component release $sequence. Restart WinUp after installing it."
