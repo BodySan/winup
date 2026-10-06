@@ -1,4 +1,4 @@
-param([string]$Gh='gh',[string]$ProtectedKey,[string]$Repository='BodySan/winup')
+﻿param([string]$Gh='gh',[string]$ProtectedKey,[string]$Repository='BodySan/winup')
 $ErrorActionPreference='Stop'
 $root=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 if(!$ProtectedKey) { $ProtectedKey=Join-Path $root '.release-private\component-signing.dpapi' }
@@ -30,7 +30,9 @@ try {
     if($LASTEXITCODE) { throw 'Candidate download failed.' }
     & $Gh run download $run.databaseId --repo $Repository --name tested-executable --dir $release
     if($LASTEXITCODE) { throw 'Executable download failed.' }
-    # Execute only local publisher scripts. Downloaded candidate code is never run here.
+    & "$PSScriptRoot\verify-candidate.ps1" -Candidate $candidate
+    # Rebuild the application locally; the CI-provided EXE is not published blindly.
+    & "$root\src\build.ps1" -Source $candidate -Output "$release\WinUp.exe"
     & "$root\src\updates\build-package.ps1" -Sequence $sequence -Source $candidate -Output $release -ProtectedKey $ProtectedKey
     Compress-Archive -Path "$candidate\*" -DestinationPath "$release\src.zip"
     $notes="Комплект №$sequence. Проверки GitHub Actions пройдены; подпись выполнена локально на ПК владельца. Новые совместимые библиотеки и PSL. Cryptomator/Java сохраняются в согласованном runtime. KeePass/WinFsp обновляются отдельными кнопками."

@@ -1,4 +1,4 @@
-$ErrorActionPreference='Stop'
+﻿$ErrorActionPreference='Stop'
 $src=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..\src'))
 $sdk=Get-ChildItem 'C:\Program Files\dotnet\sdk' -Directory | Sort-Object Name -Descending | Select-Object -First 1
 $csc=Join-Path $sdk.FullName 'Roslyn\bincore\csc.dll'

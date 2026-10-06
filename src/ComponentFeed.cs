@@ -67,7 +67,8 @@ namespace WinUp {
                 value=(value ?? "").Trim(); if(value.Length>2048) throw new IOException("Адрес слишком длинный.");
                 if(value.Length>0) ComponentNetwork.Https(value);
                 SafePaths.NoReparseParents(ConfigPath); Directory.CreateDirectory(Path.GetDirectoryName(ConfigPath));
-                Paths.AtomicWrite(ConfigPath,Encoding.UTF8.GetBytes(value.Length>0 ? value.TrimEnd('/')+"/" : ""));
+                using(var lease=SourceLease.HoldDirectories(Path.GetDirectoryName(ConfigPath)))
+                    Paths.AtomicWrite(ConfigPath,Encoding.UTF8.GetBytes(value.Length>0 ? value.TrimEnd('/')+"/" : ""));
             }
         }
         static string Key() { using(var reader=new StreamReader(System.Reflection.Assembly.GetExecutingAssembly().GetManifestResourceStream("component-publisher.xml"))) return reader.ReadToEnd(); }
@@ -94,6 +95,7 @@ namespace WinUp {
             if(release.sequence<=ComponentResources.Store.State().highest) throw ComponentPackage.Bad("Этот выпуск уже принят или старее установленного.");
             string folder=Path.Combine(Paths.Data,"components","downloads"); SafePaths.NoReparseParents(folder); Directory.CreateDirectory(folder);
             string path=Path.Combine(folder,Guid.NewGuid().ToString("N")+".partial");
+            using(var lease=SourceLease.HoldDirectories(folder)) {
             try {
                 using(var file=new FileStream(path,FileMode.CreateNew,FileAccess.ReadWrite,FileShare.None)) {
                     ComponentNetwork.Download(new Uri(new Uri(source),release.package).AbsoluteUri,file,release.size,cancellation);
@@ -104,6 +106,7 @@ namespace WinUp {
                     throw ComponentPackage.Bad("Версия пакета не совпадает с описанием выпуска.");
                 cancellation.ThrowIfCancellationRequested(); ComponentResources.Store.Install(path);
             } finally { if(File.Exists(path)) File.Delete(path); }
+            }
         }
     }
 }

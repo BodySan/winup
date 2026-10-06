@@ -1,4 +1,4 @@
-param([string]$Output = 'C:\WinUp\test\audit\candidate',[string]$Source)
+﻿param([string]$Output = 'C:\WinUp\test\audit\candidate',[string]$Source)
 $ErrorActionPreference = 'Stop'
 $src = if($Source) { [IO.Path]::GetFullPath($Source) } else { [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..\src')) }
 New-Item -ItemType Directory -Force $Output | Out-Null

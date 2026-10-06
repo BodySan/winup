@@ -21,6 +21,7 @@ public final class WinUpFiles {
     private static Path storage;
     private static final ObjectMapper JSON = new ObjectMapper();
     private static final SecureRandom RNG = new SecureRandom();
+    private static final PrintStream PROTOCOL = System.out;
     private static String decode(String s) { return new String(Base64.getDecoder().decode(s), StandardCharsets.UTF_8); }
     private static Path inside(String name) throws IOException {
         Path root = fs.getPath("/");
@@ -30,7 +31,7 @@ public final class WinUpFiles {
         for (Path part : p) if (part.toString().startsWith(".winup-import-")) throw new IOException("reserved_name");
         return p;
     }
-    private static void reply(Object value) throws IOException { System.out.println(JSON.writeValueAsString(value)); System.out.flush(); }
+    private static void reply(Object value) throws IOException { PROTOCOL.println("WUP2\t" + JSON.writeValueAsString(value)); PROTOCOL.flush(); }
     private static void open(String folder, String encoded, boolean create) throws Exception {
         if (fs != null) throw new IOException("already_open");
         Path vault = Path.of(folder).toAbsolutePath().normalize();
@@ -161,6 +162,8 @@ public final class WinUpFiles {
         };
     }
     public static void main(String[] args) throws Exception {
+        // Libraries may print diagnostics while mounting/unmounting. Keep protocol replies distinct.
+        System.setOut(System.err);
         try (BufferedReader input = new BufferedReader(new InputStreamReader(System.in, StandardCharsets.UTF_8))) {
             String line;
             while ((line = input.readLine()) != null) {

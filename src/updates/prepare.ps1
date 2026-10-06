@@ -1,4 +1,4 @@
-param([string]$Source)
+﻿param([string]$Source)
 $ErrorActionPreference='Stop'
 $src=if($Source) { [IO.Path]::GetFullPath($Source) } else { [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..')) }
 $files=[ordered]@{}
@@ -17,5 +17,5 @@ $record=Get-Content "$src\updates\versions.json" -Raw | ConvertFrom-Json
 foreach($property in $record.PSObject.Properties) { $versions[$property.Name]=$property.Value }
 $versions['browser']=(Get-Content "$src\browser\manifest.json" -Raw | ConvertFrom-Json).version
 $versions['psl']=$psl
-$manifest=[ordered]@{schema=1;api=1;sequence=0;minApp='1.13.0.0';maxApp='1.13.999.999';versions=$versions;files=$files}
+$manifest=[ordered]@{schema=1;api=2;sequence=0;minApp='1.13.0.0';maxApp='1.13.999.999';versions=$versions;files=$files}
 [IO.File]::WriteAllText("$src\updates\components.json",($manifest | ConvertTo-Json -Depth 8),[Text.UTF8Encoding]::new($false))

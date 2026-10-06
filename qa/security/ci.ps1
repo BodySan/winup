@@ -1,4 +1,4 @@
-param([string]$Source,[string]$Output='C:\WinUp\test\ci\candidate')
+﻿param([string]$Source,[string]$Output='C:\WinUp\test\ci\candidate')
 $ErrorActionPreference='Stop'
 if(!$Source) { $Source=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..\src')) }
 $lab='C:\WinUpAudit\ci-'+[Guid]::NewGuid().ToString('N')

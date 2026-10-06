@@ -1,4 +1,4 @@
-param([Parameter(Mandatory=$true)][string]$Output)
+﻿param([Parameter(Mandatory=$true)][string]$Output)
 $ErrorActionPreference='Stop'
 $source=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $destination=[IO.Path]::GetFullPath($Output)

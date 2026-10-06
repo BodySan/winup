@@ -1,7 +1,7 @@
-param([string]$Output=(Join-Path $PSScriptRoot '..\WinUp.exe'))
+param([string]$Output=(Join-Path $PSScriptRoot '..\WinUp.exe'),[string]$Source)
 $ErrorActionPreference='Stop'
-$src=$PSScriptRoot
-& "$src\updates\prepare.ps1"
+$src=if($Source) { [IO.Path]::GetFullPath($Source) } else { $PSScriptRoot }
+& "$PSScriptRoot\updates\prepare.ps1" -Source $src
 $csc="$env:WINDIR\Microsoft.NET\Framework64\v4.0.30319\csc.exe"
 if(!(Test-Path $csc)) { $csc="$env:WINDIR\Microsoft.NET\Framework\v4.0.30319\csc.exe" }
 $args=@('/nologo','/target:winexe','/platform:anycpu','/langversion:5','/unsafe+',"/win32manifest:$src\app.manifest","/out:$Output",

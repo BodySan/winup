@@ -1,4 +1,4 @@
-param([Parameter(Mandatory=$true)][long]$Sequence,[Parameter(Mandatory=$true)][string]$Output,
+﻿param([Parameter(Mandatory=$true)][long]$Sequence,[Parameter(Mandatory=$true)][string]$Output,
       [string]$ProtectedKey,[string]$Source)
 $ErrorActionPreference='Stop'
 Add-Type -AssemblyName System.Security

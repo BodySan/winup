@@ -1,4 +1,4 @@
-foreach ($variant in 'memory-baseline','memory-candidate') {
+﻿foreach ($variant in 'memory-baseline','memory-candidate') {
   $lab = "C:\WinUpAudit\$variant"
   New-Item -ItemType Directory -Force $lab | Out-Null
   Copy-Item "C:\WinUp\test\audit\$variant\*.exe" $lab -Force

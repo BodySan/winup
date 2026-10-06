@@ -73,7 +73,7 @@ namespace WinUp {
         }
         internal static void ValidateManifest(ComponentManifest m,ComponentManifest baseline,Version app) {
             Version min,max;
-            if(m==null || m.schema!=1 || m.api!=1 || m.sequence<1 ||
+            if(m==null || m.schema!=1 || m.api!=baseline.api || m.sequence<1 ||
                !Version.TryParse(m.minApp,out min) || !Version.TryParse(m.maxApp,out max) || min>max || app<min || app>max)
                 throw Bad("Комплект несовместим с этой версией WinUp.");
             if(m.files==null || m.versions==null ||
@@ -261,7 +261,13 @@ namespace WinUp {
                         case "cli": case "winfsp": {
                             string repo=row.Id=="cli" ? "cryptomator/cli" : "winfsp/winfsp";
                             var release=ComponentPackage.Json().Deserialize<Dictionary<string,object>>(Get("https://api.github.com/repos/"+repo+"/releases/latest"));
-                            latest=Convert.ToString(release["tag_name"]).TrimStart('v'); row.Source="https://github.com/"+repo+"/releases"; break;
+                            latest=Convert.ToString(release["tag_name"]).TrimStart('v');
+                            if(row.Id=="winfsp") {
+                                var assets=((System.Collections.IEnumerable)release["assets"]).Cast<Dictionary<string,object>>();
+                                var asset=assets.FirstOrDefault(a=>Regex.IsMatch(Convert.ToString(a["name"]),@"\Awinfsp-2\.\d+(?:\.\d+)?\.msi\z",RegexOptions.IgnoreCase));
+                                if(asset!=null) latest=Regex.Match(Convert.ToString(asset["name"]),@"\d+(?:\.\d+)+").Value;
+                            }
+                            row.Source="https://github.com/"+repo+"/releases"; break;
                         }
                         case "bouncycastle": case "cbor": case "numbers": {
                             string package=row.Id=="bouncycastle" ? "bouncycastle.cryptography" : row.Id=="cbor" ? "petero.cbor" : "petero.numbers";

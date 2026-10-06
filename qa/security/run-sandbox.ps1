@@ -1,4 +1,4 @@
-param([ValidateSet('baseline','candidate')][string]$Variant = 'candidate')
+﻿param([ValidateSet('baseline','candidate')][string]$Variant = 'candidate')
 $ErrorActionPreference = 'Stop'
 $lab = "C:\WinUpAudit\$Variant"
 $output = "C:\WinUp\test\audit\$Variant"

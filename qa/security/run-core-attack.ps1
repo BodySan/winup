@@ -1,4 +1,4 @@
-$ErrorActionPreference='Stop'
+﻿$ErrorActionPreference='Stop'
 foreach($variant in 'baseline','candidate') {
   $lab="C:\WinUpAudit\core-attack-$variant"
   New-Item -ItemType Directory -Force $lab | Out-Null

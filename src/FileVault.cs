@@ -25,6 +25,7 @@ namespace WinUp
         int disposed;
         readonly object sync = new object();
         readonly List<FileStream> runtimeLocks = new List<FileStream>();
+        SourceLease runtimeDirectories;
         public string Folder { get; private set; }
         public string MountPoint { get; private set; }
         public bool Open { get { var p=process; try { return p != null && !p.HasExited; } catch { return false; } } }
@@ -35,7 +36,7 @@ namespace WinUp
             SafePaths.NoReparseParents(Folder);
             try
             {
-                string root = ExtractRuntime(runtimeLocks);
+                string root = ExtractRuntime(runtimeLocks,out runtimeDirectories);
                 cancellation.ThrowIfCancellationRequested();
                 var info = new ProcessStartInfo(Path.Combine(root, "WinUpFiles.exe")) {
                     UseShellExecute = false, CreateNoWindow = true, RedirectStandardInput = true,
@@ -50,7 +51,7 @@ namespace WinUp
             catch { Dispose(); throw; }
         }
 
-        static string ExtractRuntime(List<FileStream> held)
+        static string ExtractRuntime(List<FileStream> held,out SourceLease directories)
         {
             var asm = Assembly.GetExecutingAssembly();
             Dictionary<string, string> hashes;
@@ -59,6 +60,7 @@ namespace WinUp
             string root = Path.Combine(Paths.Data, "file-engines", ComponentResources.RuntimeId);
             SafePaths.NoReparseParents(root);
             Directory.CreateDirectory(root);
+            directories=SourceLease.HoldDirectories(root);
             var security = new DirectorySecurity();
             security.SetAccessRuleProtection(true, false);
             security.AddAccessRule(new FileSystemAccessRule(WindowsIdentity.GetCurrent().User, FileSystemRights.FullControl,
@@ -118,8 +120,15 @@ namespace WinUp
                     }
                     line = command + "\t" + string.Join("\t", encoded);
                     process.StandardInput.WriteLine(line); process.StandardInput.Flush();
-                    string response = process.StandardOutput.ReadLine();
-                    if (response == null || response.Length > 4 * 1024 * 1024) throw new IOException("Файловый модуль завершил работу.");
+                    string response=null; int diagnostics=0;
+                    for(int i=0;i<32;i++) {
+                        string received=process.StandardOutput.ReadLine();
+                        if(received==null || received.Length>4*1024*1024) break;
+                        int marker=received.IndexOf("WUP2\t",StringComparison.Ordinal);
+                        if(marker>=0) { response=received.Substring(marker+5); break; }
+                        diagnostics+=received.Length; if(diagnostics>65536) break;
+                    }
+                    if(response==null) throw new IOException("Файловый модуль завершил работу или нарушил протокол.");
                     var result = new JavaScriptSerializer { MaxJsonLength = 4 * 1024 * 1024 }.Deserialize<Dictionary<string,object>>(response);
                     if (result == null || !result.ContainsKey("ok") || !(bool)result["ok"])
                         throw new IOException("Операция не выполнена: " + (result != null && result.ContainsKey("error") ? result["error"] : "сбой модуля") +
@@ -157,6 +166,7 @@ namespace WinUp
                 p.Dispose();
             }
             foreach (var handle in runtimeLocks) handle.Dispose(); runtimeLocks.Clear();
+            if(runtimeDirectories!=null) runtimeDirectories.Dispose();
             MountPoint = null;
         }
         // Cancellation must not wait for a large transfer on the UI thread.

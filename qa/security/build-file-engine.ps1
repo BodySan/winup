@@ -1,4 +1,4 @@
-$ErrorActionPreference='Stop'
+﻿$ErrorActionPreference='Stop'
 $work=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..'))
 $runtime=Join-Path $work 'vendor\cryptomator-cli\cryptomator-cli'
 $classpath=(@((Get-ChildItem "$runtime\app\mods" -Filter '*.jar').FullName)+@((Get-ChildItem "$runtime\app" -Filter '*.jar').FullName)) -join ';'
