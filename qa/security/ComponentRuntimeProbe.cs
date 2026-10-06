@@ -13,6 +13,7 @@ namespace WinUp {
                     var source=ComponentFeed.Source;
                     if(source!="https://github.com/BodySan/winup/releases/latest/download/") throw new Exception("Unexpected production default source");
                     var release=ComponentFeed.Check(source,System.Threading.CancellationToken.None);
+                    if(args.Length>1 && release.sequence!=long.Parse(args[1])) throw new Exception("Unexpected production release sequence "+release.sequence);
                     ComponentFeed.Install(release,source,System.Threading.CancellationToken.None);
                     Console.WriteLine("PASS production-GitHub-feed-signature-download-and-stage sequence="+release.sequence); return 0;
                 }
