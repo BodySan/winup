@@ -43,9 +43,17 @@ foreach($spec in $specs) {
     $report+=@{id=$spec.id;installed=$installed;latest=$latest;status='Candidate; tests required'}
 }
 $pslPath=Join-Path $destination 'public-suffix-list.dat'
-Invoke-WebRequest ('https://publicsuffix.org/list/public_suffix_list.dat?winup='+[Guid]::NewGuid().ToString('N')) -Headers @{'Cache-Control'='no-cache'} -OutFile $pslPath -UseBasicParsing
-$psl=[IO.File]::ReadAllText($pslPath,[Text.UTF8Encoding]::new($false,$true))
-if($psl.Length -lt 100000 -or $psl.Length -gt 2097152 -or $psl -notmatch '(?m)^// VERSION: ') { throw 'Invalid official PSL response.' }
+$download=Join-Path $destination 'psl-download.tmp'
+try {
+    Invoke-WebRequest ('https://publicsuffix.org/list/public_suffix_list.dat?winup='+[Guid]::NewGuid().ToString('N')) -Headers @{'Cache-Control'='no-cache'} -OutFile $download -UseBasicParsing
+    $psl=[IO.File]::ReadAllText($download,[Text.UTF8Encoding]::new($false,$true))
+    if($psl.Length -lt 100000 -or $psl.Length -gt 2097152) { throw 'Invalid official PSL response.' }
+    $stamp=[regex]::Match($psl,'(?m)^// VERSION: (\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}_UTC)').Groups[1].Value
+    $bundledStamp=[regex]::Match([IO.File]::ReadAllText($pslPath),'(?m)^// VERSION: (\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}_UTC)').Groups[1].Value
+    if(!$stamp -or !$bundledStamp) { throw 'Invalid PSL version stamp.' }
+    if([string]::CompareOrdinal($stamp,$bundledStamp) -ge 0) { Copy-Item -LiteralPath $download -Destination $pslPath }
+    else { $report+=@{id='psl';installed=$bundledStamp;latest=$stamp;status='Official CDN returned older data; retained newer trusted baseline'} }
+} finally { if(Test-Path -LiteralPath $download) { Remove-Item -LiteralPath $download } }
 foreach($artifact in 'cryptofs','cryptolib') {
     [xml]$metadata=(Invoke-WebRequest "https://repo.maven.apache.org/maven2/org/cryptomator/$artifact/maven-metadata.xml" -UseBasicParsing).Content
     $report+=@{id=$artifact;installed=[string]$versions.$artifact;latest=[string]$metadata.metadata.versioning.release;status='Pinned to verified Cryptomator runtime; separate rebuild required'}
