@@ -16,10 +16,10 @@ namespace WinUp
             // Режим моста Native Messaging: браузер запускает WinUp.exe "chrome-extension://<id>/".
             // Мост ничего не создаёт и окон не показывает: пересылает один запрос в открытое окно
             // WinUp (именованный канал) и возвращает один ответ. Выполняется до мьютекса и Run.
-            if (args != null && args.Length > 0 &&
-                args[0].StartsWith("chrome-extension://", StringComparison.OrdinalIgnoreCase))
+            if (args != null && args.Length > 0 && (args[0].StartsWith("chrome-extension://", StringComparison.OrdinalIgnoreCase) ||
+                args.Length >= 2 && args[1] == BrowserSetup.FirefoxId && Proc.SameFile(args[0],BrowserSetup.FirefoxHostManifestPath)))
             {
-                BrowserBridge.Run(args[0]);
+                BrowserBridge.Run(args.Length >= 2 && args[1] == BrowserSetup.FirefoxId ? args[1] : args[0]);
                 return;
             }
 

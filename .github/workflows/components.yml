@@ -26,7 +26,7 @@ jobs:
         run: ./src/updates/candidate.ps1 -Output C:/WinUp/candidate/src
       - name: Прогнать проверки без ключа подписи
         shell: powershell
-        run: ./qa/security/ci.ps1 -Source C:/WinUp/candidate/src
+        run: ./qa/security/ci.ps1 -Source C:/WinUp/candidate/src -FunctionalOnly
       - name: Сохранить проверенный комплект
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:

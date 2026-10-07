@@ -21,7 +21,9 @@ public final class WinUpFiles {
     private static Path storage;
     private static final ObjectMapper JSON = new ObjectMapper();
     private static final SecureRandom RNG = new SecureRandom();
-    private static final PrintStream PROTOCOL = System.out;
+    // The native launcher can choose a Windows console code page for System.out.
+    // Protocol bytes always use UTF-8, including Cyrillic and non-BMP filenames.
+    private static final PrintStream PROTOCOL = new PrintStream(new FileOutputStream(FileDescriptor.out), true, StandardCharsets.UTF_8);
     private static String decode(String s) { return new String(Base64.getDecoder().decode(s), StandardCharsets.UTF_8); }
     private static Path inside(String name) throws IOException {
         Path root = fs.getPath("/");
@@ -41,7 +43,11 @@ public final class WinUpFiles {
         try {
             var access = new MasterkeyFileAccess(new byte[0], RNG);
             if (create) {
-                Files.createDirectory(vault);
+                // The parent creates this directory exclusively and holds its
+                // verified root before launching us. Never create/reopen an
+                // unheld root between directory creation and key persistence.
+                if (!Files.isDirectory(vault, LinkOption.NOFOLLOW_LINKS) || Files.isSymbolicLink(vault)) throw new IOException("unsafe_vault_root");
+                try (var entries = Files.list(vault)) { if (entries.findAny().isPresent()) throw new IOException("vault_root_not_empty"); }
                 try (Masterkey key = Masterkey.generate(RNG)) {
                     access.persist(key, vault.resolve("masterkey.cryptomator"), chars);
                     var props = CryptoFileSystemProperties.cryptoFileSystemProperties()
@@ -88,27 +94,44 @@ public final class WinUpFiles {
             for (Path p : walk.sorted(Comparator.reverseOrder()).toList()) Files.delete(p);
         }
     }
-    private static void importPath(Path source, Path destination) throws Exception {
+    private static void importPath(Path source, Path destination, String manifest) throws Exception {
         // The parent WinUp process holds non-write/non-delete handles to every source.
         // Only it can delete originals, and only after this verified commit succeeds.
+        // Iterate its immutable snapshot: a new child may be added to a directory
+        // while the existing entries are held, but that child has no held handle.
+        String[] entries = JSON.readValue(manifest, String[].class);
+        if (entries.length == 0 || entries.length > 10000 || !entries[0].isEmpty()) throw new IOException("bad_snapshot");
+        source = source.toAbsolutePath().normalize();
         if (Files.exists(destination)) throw new FileAlreadyExistsException("destination_exists");
         Path staging = destination.resolveSibling(".winup-import-" + UUID.randomUUID());
         boolean committed = false;
         try {
             if (Files.isDirectory(source, LinkOption.NOFOLLOW_LINKS)) {
                 Files.createDirectory(staging);
-                try (var walk = Files.walk(source)) {
-                    for (Path p : walk.toList()) {
-                        if (Files.isSymbolicLink(p) || Files.readAttributes(p, java.nio.file.attribute.BasicFileAttributes.class, LinkOption.NOFOLLOW_LINKS).isOther()) throw new IOException("reparse_source");
-                        if (p.equals(source)) continue;
-                        Path dst = staging.resolve(source.relativize(p).toString().replace('\\','/'));
-                        if (Files.isDirectory(p, LinkOption.NOFOLLOW_LINKS)) Files.createDirectory(dst);
-                        else if (Files.isRegularFile(p, LinkOption.NOFOLLOW_LINKS)) copyVerified(p,dst);
-                        else throw new IOException("unsupported_source");
+                Set<Path> seen = new HashSet<>();
+                for (String relative : entries) {
+                    Path relativePath = source.getFileSystem().getPath(relative);
+                    if (relativePath.isAbsolute() || relative.contains(":")) throw new IOException("bad_snapshot");
+                    for (Path component : relativePath) {
+                        if (component.toString().equals("..")) throw new IOException("bad_snapshot");
+                        if (component.toString().startsWith(".winup-import-")) throw new IOException("reserved_name");
                     }
+                    Path p = source.resolve(relativePath).normalize();
+                    if (!p.startsWith(source) || !seen.add(p)) throw new IOException("bad_snapshot");
+                    if (Files.isSymbolicLink(p) || Files.readAttributes(p, java.nio.file.attribute.BasicFileAttributes.class, LinkOption.NOFOLLOW_LINKS).isOther()) throw new IOException("reparse_source");
+                    if (p.equals(source)) continue;
+                    Path dst = staging.resolve(source.relativize(p).toString().replace('\\','/'));
+                    if (Files.isDirectory(p, LinkOption.NOFOLLOW_LINKS)) Files.createDirectory(dst);
+                    else if (Files.isRegularFile(p, LinkOption.NOFOLLOW_LINKS)) copyVerified(p,dst);
+                    else throw new IOException("unsupported_source");
                 }
-            } else copyVerified(source, staging);
-            Files.move(staging, destination, StandardCopyOption.ATOMIC_MOVE);
+            } else {
+                if (entries.length != 1 || !Files.isRegularFile(source, LinkOption.NOFOLLOW_LINKS)) throw new IOException("bad_snapshot");
+                copyVerified(source, staging);
+            }
+            // ATOMIC_MOVE on the Windows provider implicitly replaces an existing
+            // target. The ordinary same-directory move uses a non-replacing rename.
+            Files.move(staging, destination);
             // Persist encrypted data and metadata before allowing the parent to remove originals.
             try(var files=Files.walk(storage)) {
                 for(Path file : files.filter(p -> Files.isRegularFile(p,LinkOption.NOFOLLOW_LINKS)).toList()) {
@@ -138,12 +161,13 @@ public final class WinUpFiles {
                 yield Map.of("ok",true,"items",result);
             }
             case "mkdir" -> { Files.createDirectory(inside(decode(p[1]))); yield Map.of("ok",true); }
-            case "import" -> { importPath(Path.of(decode(p[1])), inside(decode(p[2]))); yield Map.of("ok",true); }
+            case "import" -> { importPath(Path.of(decode(p[1])), inside(decode(p[2])), decode(p[3])); yield Map.of("ok",true); }
             case "export" -> {
                 Path destination = Path.of(decode(p[2]));
                 if (Files.exists(destination)) throw new FileAlreadyExistsException("destination_exists");
-                Path staging = destination.resolveSibling(".winup-export-" + UUID.randomUUID());
-                try { copyVerified(inside(decode(p[1])), staging); Files.move(staging,destination,StandardCopyOption.ATOMIC_MOVE); }
+                Path staging = Path.of(decode(p[3]));
+                if (!staging.getParent().equals(destination.getParent()) || !staging.getFileName().toString().startsWith(".winup-export-")) throw new IOException("unsafe_export_stage");
+                try { copyVerified(inside(decode(p[1])), staging); Files.move(staging,destination); }
                 finally { Files.deleteIfExists(staging); }
                 yield Map.of("ok",true);
             }
@@ -167,7 +191,7 @@ public final class WinUpFiles {
         try (BufferedReader input = new BufferedReader(new InputStreamReader(System.in, StandardCharsets.UTF_8))) {
             String line;
             while ((line = input.readLine()) != null) {
-                if (line.length() > 65536) break;
+                if (line.length() > 8 * 1024 * 1024) break;
                 try { reply(command(line.split("\t",-1))); }
                 catch (Exception e) { reply(Map.of("ok",false,"error",e.getClass().getSimpleName(),"detail",String.valueOf(e.getMessage()))); }
             }

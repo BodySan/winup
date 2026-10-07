@@ -38,7 +38,7 @@ namespace WinUp
     {
         ShowFromTray();
         if (vault != null || Application.OpenForms.OfType<Dlg>().Any()) return;
-        tabs.SelectedIndex = 3;
+        SelectTab("Пароли");
         Unlock();
     }
     // Уведомление о каждой выдаче пароля расширению (FillToast); переключатель — в окне «Расширение для браузера».
@@ -98,15 +98,15 @@ namespace WinUp
             BuildUpdateBanner(); // до меню: верхние панели раскладываются от последней добавленной, меню остаётся выше плашки
             BuildMenu();
             tray = new TrayIcon(ShowFromTray, delegate { if (vault != null) { LockVault(); PwLog("Заблокировано из значка WinUp в области уведомлений."); } },
-                                delegate { ShowFromTray(); tabs.SelectedIndex = 3; if (vault == null) Unlock(); }, Close);
-            BuildInstallTab();
-            BuildPortableTab();
-            BuildLinksTab();
+                                delegate { ShowFromTray(); SelectTab("Пароли"); if (vault == null) Unlock(); }, Close);
             BuildPasswordTab();
             BuildCodesTab();
-            BuildWingetTab(); // последней: номера вкладок выше используются в коде («Пароли» = 3)
-            BuildFileVaultTab();
             BuildPasskeyTab();
+            BuildFileVaultTab();
+            BuildPortableTab();
+            BuildWingetTab();
+            BuildInstallTab();
+            BuildLinksTab();
             RefreshApps();
             ShowLocked();
             // Файл базы мог появиться или исчезнуть, пока окно открыто (восстановили vault-*.kdbx из резерва):
@@ -118,8 +118,9 @@ namespace WinUp
             // тоже убираем (ревью R-5).
             try
             {
-                foreach (var f in Directory.GetFiles(Paths.Data, "export-*.xml")) File.Delete(f);
-                foreach (var f in Directory.GetFiles(Paths.Data, "*.tmp")) File.Delete(f);
+                foreach (var f in Directory.GetFiles(Paths.Data, "export-*.xml").Where(f => System.Text.RegularExpressions.Regex.IsMatch(Path.GetFileName(f), @"^export-[0-9a-fA-F]{32}\.xml$"))) { string error; Secure.WipeFile(f, out error); }
+                foreach (var name in new[] { "vault.kdbx", "recovery.kdbx", "tab.dat", "vault.dat", "apps.json" })
+                    foreach (var f in Paths.AtomicRemnants(Path.Combine(Paths.Data, name))) { string error; Secure.WipeFile(f, out error); }
             }
             catch { }
 
@@ -131,7 +132,7 @@ namespace WinUp
             lockTimer.Tick += (s, e) =>
             {
                 int mins = Math.Max(1, store.Settings.AutoLockMinutes);
-                if (vault != null && Win.Idle().TotalMinutes >= mins)
+                if ((vault != null || unlockBusy) && Win.Idle().TotalMinutes >= mins)
                 {
                     LockVault();
                     PwLog("Заблокировано автоматически после " + mins + " мин простоя.");
@@ -221,6 +222,7 @@ namespace WinUp
         }
 
         void SetStatus(string s) { status.Text = s; }
+        internal string PreferredBrowser {get {return store.Settings.Browser ?? "";}}
 
         static string AppDesc(AppItem a)
         {
@@ -314,6 +316,8 @@ namespace WinUp
         void RefreshApps()
         {
             var checkedIds = new HashSet<string>(instList.CheckedItems.Cast<ListViewItem>().Select(i => ((AppItem)i.Tag).Id));
+            var selectedApps = new HashSet<string>(instList.SelectedItems.Cast<ListViewItem>().Concat(portList.SelectedItems.Cast<ListViewItem>()).Select(i => ((AppItem)i.Tag).Id));
+            var selectedLinks = new HashSet<string>(linkList.SelectedItems.Cast<ListViewItem>().Select(i => ((LinkItem)i.Tag).Id));
             instList.BeginUpdate(); portList.BeginUpdate();
             instList.Items.Clear(); portList.Items.Clear();
             foreach (var a in store.Apps.OrderBy(a => a.Name, StringComparer.CurrentCultureIgnoreCase))
@@ -332,12 +336,13 @@ namespace WinUp
                     instList.Items.Add(it);
                 }
                 it.Tag = a;
+                it.Selected = selectedApps.Contains(a.Id);
                 if (!exists) { it.ForeColor = Color.Firebrick; it.SubItems[it.SubItems.Count - 1].Text = a.File + " (файл не найден)"; }
             }
             instList.EndUpdate(); portList.EndUpdate();
             linkList.BeginUpdate(); linkList.Items.Clear();
             foreach (var l in store.Links.OrderBy(l => l.Name, StringComparer.CurrentCultureIgnoreCase))
-                linkList.Items.Add(new ListViewItem(new[] { l.Name, l.Description ?? "", l.Url }) { Tag = l });
+                linkList.Items.Add(new ListViewItem(new[] { l.Name, l.Description ?? "", l.Url }) { Tag = l, Selected = selectedLinks.Contains(l.Id) });
             linkList.EndUpdate();
             instDesc.Text = portDesc.Text = linkDesc.Text = "";
             SetStatus("Программ: " + store.Apps.Count + ". Данные: " + Paths.Data + (Backup.LastError != null ? "   ⚠ резерв: " + Backup.LastError : ""));
@@ -749,7 +754,7 @@ namespace WinUp
 
         void BuildWingetTab()
         {
-            var page = new TabPage("Каталог (winget)");
+            var page = new TabPage("WinGet");
             wgList.Columns.Add("Программа", 250); wgList.Columns.Add("ID", 230); wgList.Columns.Add("Версия", 110);
             wgList.Columns.Add("Доступна", 110); wgList.Columns.Add("Примечание", 150);
             var top = Bar();
@@ -908,7 +913,7 @@ namespace WinUp
 
         void BuildCodesTab()
         {
-            var page = new TabPage("Коды 2FA");
+            var page = new TabPage("2FA");
             var lbl = new Label { AutoSize = true, MaximumSize = new Size(640, 0), Location = new Point(20, 20),
                 Text = "Коды 2FA хранятся в той же зашифрованной базе, что и пароли, и открываются тем же паролем базы.\n" +
                        "Открыли «Пароли» — открыта и эта вкладка." };
@@ -1102,9 +1107,9 @@ namespace WinUp
                 flow.Controls.Add(b);
             };
             add("Проверить крипто-ядро", "Сверить версию шифрования с keepass.info и при необходимости обновить", (s, e) => ShowAbout(true));
-            add("Обновления программ", "Вкладка «Каталог (winget)» → список программ, для которых есть новые версии", async (s, e) =>
+            add("Обновления программ", "Вкладка «WinGet» → список программ, для которых есть новые версии", async (s, e) =>
             {
-                tabs.SelectedIndex = tabs.TabPages.Count - 1; // «Каталог (winget)» — последняя вкладка
+                SelectTab("WinGet");
                 await WgUpgrades();
             });
             add("Через месяц", "Напомнить через 30 дней", (s, e) => { Reminder.Snooze(30); RefreshUpdateBanner(); });
@@ -1191,7 +1196,7 @@ namespace WinUp
                 ShowFromTray();
                 return;
             }
-            if (m.Msg == Win.WmWtsSessionChange && m.WParam.ToInt32() == Win.WtsSessionLock && vault != null)
+            if (m.Msg == Win.WmWtsSessionChange && m.WParam.ToInt32() == Win.WtsSessionLock)
             {
                 LockVault();
                 PwLog("Заблокировано вместе с Windows (Win+L).");
@@ -1405,7 +1410,7 @@ namespace WinUp
             if (vault == null)
             {
                 MessageBox.Show(this, "Сначала откройте вкладку «Пароли» (нужен пароль базы).", "WinUp");
-                tabs.SelectedIndex = 3;
+                SelectTab("Пароли");
                 return;
             }
             if (!ConfirmDbPassword("Экспорт паролей")) return;
@@ -1417,7 +1422,7 @@ namespace WinUp
                 try
                 {
                 var entries = vault.Entries.OrderBy(x => x.Name, StringComparer.CurrentCultureIgnoreCase).ToList();
-                var stem = "WinUp-пароли-" + DateTime.Now.ToString("yyyy-MM-dd_HH-mm");
+                var stem = "WinUp-пароли-" + DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss") + "-" + Guid.NewGuid().ToString("N").Substring(0, 8);
                 var made = new List<string>();
                 try
                 {
@@ -1427,7 +1432,7 @@ namespace WinUp
                         // База WinUp — уже стандартный .kdbx: копия открывается в KeePassXC и на телефоне
                         // вашим паролем базы (+ ключ-файлом, если он есть).
                         var p = Path.Combine(d.Folder, stem + ".kdbx");
-                        Busy(() => { File.Copy(KdbxStore.KdbxFile, p, true); return 0; });
+                        Busy(() => { Export.CopyEncryptedDatabase(KdbxStore.KdbxFile, p); return 0; });
                         if (vault == null) throw new InvalidOperationException("база заблокирована во время экспорта");
                         made.Add(p);
                     }
@@ -1568,6 +1573,7 @@ namespace WinUp
         // Растёт при каждой блокировке: вход, начатый до блокировки, не применяет свой результат
         // (за время Busy-качания сообщений могла прийти блокировка Win+L и затереть объект).
         int lockGen;
+        bool unlockBusy;
 
         void BuildPasswordTab()
         {
@@ -1725,6 +1731,7 @@ namespace WinUp
         void LockVault()
         {
             lockGen++;
+            browserLogins.Clear();
             CloseFileVault();
             passkeyList.Items.Clear();
             // Порядок важен (ревью R-3/R-4): сначала прекращается ввод и закрываются окна
@@ -1750,6 +1757,8 @@ namespace WinUp
 
         void Unlock()
         {
+            if (unlockBusy) return;
+            unlockBusy = true;
             try
             {
                 if (!KdbxStore.Exists && !Vault.LegacyExists) { CreateVault(); return; }
@@ -1788,7 +1797,7 @@ namespace WinUp
                 int gen = lockGen;
                 var v = OpenDb("База паролей");
                 if (v == null) return;
-                if (lockGen != gen) { PwLog("Вход отменён: база заблокирована во время открытия."); return; }
+                if (lockGen != gen) { v.Lock(); PwLog("Вход отменён: база заблокирована во время открытия."); return; }
                 Opened(v);
                 // Вход полным паролем: срок Windows Hello отсчитывается заново.
                 if (WindowsHello.Enabled) ResealHello(v, "вход паролем базы");
@@ -1797,6 +1806,7 @@ namespace WinUp
             {
                 MessageBox.Show(this, "Не удалось открыть базу:\n" + ex.Message, "WinUp", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
+            finally { unlockBusy = false; }
         }
 
         // Полный вход в старую базу vault.dat с немедленной миграцией в vault.kdbx (KDBX 4, Argon2).
@@ -1983,7 +1993,7 @@ namespace WinUp
             if (v == null)
             {
                 MessageBox.Show(this, "Сначала откройте базу паролей — Windows Hello привязывается к её ключу.", "WinUp");
-                tabs.SelectedIndex = 3;
+                SelectTab("Пароли");
                 return;
             }
             string why;
@@ -2039,9 +2049,9 @@ namespace WinUp
                 // Успешный вход сбрасывает счётчик ошибок: копятся неверные вводы ПОДРЯД (ревью R-6).
                 if (res == StoreResult.Ok && v != null)
                 {
-                    if (lockGen != gen) { PwLog("Вход по PIN отменён: база заблокирована."); return false; }
+                    if (lockGen != gen) { v.Lock(); PwLog("Вход по PIN отменён: база заблокирована."); return false; }
                     pin.Fails = 0;
-                    if (vault == null) Opened(v);
+                    if (vault == null) Opened(v); else v.Lock();
                     return true;
                 }
                 pin.Fails++;
@@ -2068,7 +2078,7 @@ namespace WinUp
             if (vault == null)
             {
                 MessageBox.Show(this, "Сначала откройте вкладку «Пароли» — PIN привязывается к открытой базе.", "WinUp");
-                tabs.SelectedIndex = 3;
+                SelectTab("Пароли");
                 return;
             }
             if (pin == null)
@@ -2163,7 +2173,7 @@ namespace WinUp
                 {
                     if (d.ShowDialog(this) != DialogResult.OK) { v.Lock(); return null; }
                     v.SetDbPassword(d.DbPassword, null);
-                    if (!SaveVaultOf(v)) { LockVault(); return null; }
+                    if (!SaveVaultOf(v)) { v.Lock(); LockVault(); return null; }
                     PwLog("База открыта кодом восстановления, пароль базы изменён. Ключ-файл отключён (код и есть аварийный вход).");
                 }
                 return v;
@@ -2176,6 +2186,7 @@ namespace WinUp
             lockedAt = null;                 // база открыта — счётчик простоя PIN не тикает
             dbPwFails = 0; // новая открытая сессия — счётчик подтверждений заново
             PwLog("База открыта. Записей: " + vault.Entries.Count + ".");
+            if (v.RecoveryNeedsRepair) PwLog("⚠ Код восстановления не удалось развернуть из служебного файла. Создайте новый код: существующая копия восстановления может быть устаревшей.");
             if (!cloudNoted)
             {
                 cloudNoted = true;
@@ -2260,10 +2271,10 @@ namespace WinUp
             var changedAt = DateTime.Now;
             bool hadCode = vault.HasRecovery;
             var code = vault.MakeRecoveryCode();
-            if (!SaveVault()) return;
-            // Старый код открывал старые копии: локальный .bak после перевыпуска лишний.
-            try { if (File.Exists(KdbxStore.KdbxFile + ".bak")) File.Delete(KdbxStore.KdbxFile + ".bak"); } catch { }
-            using (var d = new RecoveryCodeDialog(code)) d.ShowDialog(this);
+            if (!SaveVault()) { Secure.Wipe(code); return; }
+            foreach (var error in KdbxStore.PurgeLocalOldCopies()) PwLog("⚠ Старая локальная копия не удалена: " + error);
+            try { using (var d = new RecoveryCodeDialog(code)) d.ShowDialog(this); }
+            finally { Secure.Wipe(code); }
             PwLog("Создан код восстановления." + BackupNote());
             PwLog("Копия recovery.kdbx обновляется при каждом сохранении базы.");
             if (hadCode) OfferPurgeOldBackups(changedAt, false);
@@ -2307,15 +2318,24 @@ namespace WinUp
             try
             {
                 v.Save();
+                var backupErrors = new List<string>();
                 Backup.Copy(KdbxStore.KdbxFile, "vault", ".kdbx", store.Settings);
-                if (KdbxStore.RecoveryExists) Backup.Copy(KdbxStore.RecoveryFile, "recovery", ".kdbx", store.Settings);
+                if (Backup.LastError != null) backupErrors.Add("база: " + Backup.LastError);
+                if (KdbxStore.RecoveryExists) { Backup.Copy(KdbxStore.RecoveryFile, "recovery", ".kdbx", store.Settings); if (Backup.LastError != null) backupErrors.Add("восстановление: " + Backup.LastError); }
                 Backup.Copy(KdbxStore.TabFile, "tab", ".dat", store.Settings);
+                if (Backup.LastError != null) backupErrors.Add("служебный файл: " + Backup.LastError);
+                Backup.LastError = backupErrors.Count == 0 ? null : string.Join("; ", backupErrors);
                 // v может быть ещё не текущей базой (вход кодом восстановления, сброс пароля 1):
                 // список записей рисуем только для открытой вкладки, иначе NRE на null vault.
                 if (vault == v) RefreshEntries();
                 return true;
             }
-            catch (Exception ex) { MessageBox.Show(this, "Не удалось сохранить базу:\n" + ex.Message, "WinUp", MessageBoxButtons.OK, MessageBoxIcon.Error); return false; }
+            catch (Exception ex) {
+                MessageBox.Show(this, "Не удалось сохранить базу:\n" + ex.Message + "\nБазу нужно открыть заново перед дальнейшими изменениями.", "WinUp", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                if (v != null && v.SaveFailed && vault == v && IsHandleCreated)
+                    BeginInvoke(new MethodInvoker(delegate { if (vault == v) LockVault(); }));
+                return false;
+            }
         }
 
         static string TwoFaText(LoginEntry e)
@@ -2331,7 +2351,7 @@ namespace WinUp
             foreach (var e in vault.Entries.OrderBy(x => x.Name, StringComparer.CurrentCultureIgnoreCase))
             {
                 if (e.Kind == "passkey") continue;
-                var it = new ListViewItem(new[] { e.Name, e.Kind == "app" ? "программа" : "сайт", e.Login ?? "", e.Target ?? "", e.Window ?? "",
+                var it = new ListViewItem(new[] { e.Name, e.Kind == "both" ? "приложение / сайт" : e.Kind == "app" ? "приложение" : "сайт", e.Login ?? "", e.Target ?? "", e.Window ?? "",
                     e.AutoEnter ? "да" : "нет", TwoFaText(e), e.Kind == "app" ? "" : (string.IsNullOrEmpty(e.Browser) ? "общий" : e.Browser) })
                 { Tag = e, Checked = checkedIds.Contains(e.Id) };
                 pwList.Items.Add(it);
@@ -2347,14 +2367,16 @@ namespace WinUp
         {
             if (vault == null) { PwLog("База заблокирована — добавление отменено."); return; }
             var e = new LoginEntry { Id = AppStore.NewId(), AutoEnter = true };
-            using (var d = new EntryDialog(e, store, true, vault.Otp))
-            {
+            bool retained=false;
+            using (var d = new EntryDialog(e, store, true, vault.Otp, vault.Entries))
+            { try {
                 if (d.ShowDialog(this) != DialogResult.OK) return;
                 if (vault == null) { PwLog("База заблокирована во время ввода — запись не сохранена."); return; }
                 vault.Otp.AddRange(d.NewOtp); // аккаунты 2FA, созданные кнопкой «Новый...», — только вместе с записью
                 vault.Entries.Add(e);
-                if (SaveVault()) { RefreshOtp(); PwLog("Добавлено: " + e.Name + "." + BackupNote()); }
-            }
+                if (SaveVault()) { retained=true;RefreshOtp(); PwLog("Добавлено: " + e.Name + "." + BackupNote()); }
+                else {vault.Entries.Remove(e);foreach(var o in d.NewOtp)vault.Otp.Remove(o);}
+            } finally {if(!retained){e.ClearSecrets();foreach(var o in d.NewOtp)o.ClearSecret();}} }
         }
 
         void EditEntry()
@@ -2362,15 +2384,17 @@ namespace WinUp
             if (vault == null) return;
             var e = SelectedEntry();
             if (e == null) return;
-            var copy = Json.Read<LoginEntry>(Json.Write(e, false));
-            using (var d = new EntryDialog(copy, store, false, vault.Otp))
+            var copy = e.Copy();
+            bool retained = false;
+            try { using (var d = new EntryDialog(copy, store, false, vault.Otp, vault.Entries))
             {
                 if (d.ShowDialog(this) != DialogResult.OK) return;
                 if (vault == null) { PwLog("База заблокирована во время правки — изменения не сохранены."); return; }
                 vault.Otp.AddRange(d.NewOtp);
                 vault.Entries[vault.Entries.IndexOf(e)] = copy;
-                if (SaveVault()) { RefreshOtp(); PwLog("Изменено: " + copy.Name + "."); }
-            }
+                if (SaveVault()) { retained = true; e.ClearSecrets(); RefreshOtp(); PwLog("Изменено: " + copy.Name + "."); }
+                else { vault.Entries[vault.Entries.IndexOf(copy)] = e; foreach(var o in d.NewOtp) { vault.Otp.Remove(o); o.ClearSecret(); } }
+            } } finally { if(!retained) copy.ClearSecrets(); }
         }
 
         void DeleteEntry()
@@ -2421,6 +2445,7 @@ namespace WinUp
                     {
                         if (!string.Equals(Path.GetExtension(f), ext, StringComparison.OrdinalIgnoreCase)) continue;
                         var stamp = Path.GetFileNameWithoutExtension(f).Substring(prefix.Length + 1);
+                        if (stamp.Length == 28 && stamp[19] == '-') stamp = stamp.Substring(0, 19);
                         DateTime t;
                         if (DateTime.TryParseExact(stamp, "yyyyMMdd-HHmmss-fff", System.Globalization.CultureInfo.InvariantCulture,
                                 System.Globalization.DateTimeStyles.None, out t) && t < changedAt)
@@ -2497,10 +2522,7 @@ namespace WinUp
                     PwLog("Прежний пароль текущий файл больше не открывает. Код восстановления продолжает работать (recovery.kdbx обновится при сохранении).");
                     // Локальные .bak открываются СТАРЫМ паролем: vault.kdbx.bak — сама база, tab.dat.bak — обёртка кода
                     // восстановления под прежним паролем (прежний пароль → код → текущая recovery.kdbx). Затираем.
-                    string err;
-                    Secure.WipeFile(KdbxStore.KdbxFile + ".bak", out err);
-                    if (!Secure.WipeFile(KdbxStore.TabFile + ".bak", out err))
-                        PwLog("⚠ Не удалось удалить data\\tab.dat.bak (" + err + ") — удалите вручную: он открывается прежним паролем.");
+                    foreach (var error in KdbxStore.PurgeLocalOldCopies()) PwLog("⚠ Старая локальная копия не удалена: " + error);
                     OfferPurgeOldBackups(changedAt, true);
                     if (WindowsHello.Enabled) ResealHello(v, "пароль базы изменён");
                 }
@@ -2510,7 +2532,8 @@ namespace WinUp
                     // чтобы следующая несвязанная правка не записала их на диск молча (ревью п.4.5).
                     LockVault();
                     MessageBox.Show(this, "Не удалось записать файл базы после смены пароля.\n" +
-                        "Изменения не сохранены: вкладка заблокирована, файл не менялся — действует прежний пароль.",
+                        "Вкладка заблокирована. Сохранение могло завершиться частично: попробуйте новый пароль, затем прежний.\n" +
+                        "При необходимости восстановите последнюю копию из папки резерва.",
                         "WinUp", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 }
             }
@@ -2554,11 +2577,15 @@ namespace WinUp
         {
             ProcessStartInfo psi;
             string where = "";
-            if (e.Kind == "app")
+            bool openApp = e.Kind == "app";
+            if (openApp)
             {
-                var path = Paths.Full(e.Target);
-                psi = new ProcessStartInfo(path, e.Args ?? "");
-                if (File.Exists(path)) psi.WorkingDirectory = Path.GetDirectoryName(path);
+                // App selection has already checked the Windows catalog. Do not hand an
+                // arbitrary protocol or command string to ShellExecute as an application.
+                var catalog=LocalApplications.Scan();
+                if(!catalog.IsCompleted) {PwLog(e.Name+": список приложений ещё загружается — повторите вход.");return false;}
+                try {psi=LocalApplications.LaunchInfo(e.Target,e.Args,catalog.Result);}
+                catch(Exception ex) {PwLog(e.Name+": "+ex.Message);return false;}
             }
             else
             {
@@ -2577,10 +2604,56 @@ namespace WinUp
 
         async Task Login(LoginEntry e, CancellationToken ct)
         {
+            if(vault==null || ct.IsCancellationRequested) return;
+            bool desktop=e.Kind=="app";
+            string appValue=e.Kind=="both" ? e.AppTarget : e.Target;
+            if(e.Kind=="both" || desktop) {
+                var apps=await LocalApplications.Available(true);
+                if(vault==null || ct.IsCancellationRequested)return;
+                if(!LocalApplications.Exists(appValue,apps)) {
+                    var match=LocalApplications.Match(apps,e.Name,e.Kind=="both" ? e.Target : "");
+                    appValue=match==null ? "" : match.Target;
+                }
+                if(e.Kind=="both") {
+                    if(!string.IsNullOrEmpty(appValue)) {
+                        var choice=MessageBox.Show(this,"Войти в приложение?\nДа — приложение, Нет — сайт.",e.Name,MessageBoxButtons.YesNoCancel,MessageBoxIcon.Question);
+                        if(choice==DialogResult.Cancel)return;desktop=choice==DialogResult.Yes;
+                    } else {
+                        var choice=MessageBox.Show(this,"Приложение не найдено на этом ПК.\n\nДа — войти на сайт.\nНет — выбрать установленное приложение.\nОтмена — отменить вход.\n\nПосле установки WinUp повторит поиск автоматически.",e.Name,MessageBoxButtons.YesNoCancel,MessageBoxIcon.Information);
+                        if(choice==DialogResult.Cancel)return;desktop=choice==DialogResult.No;
+                    }
+                }
+                if(desktop && string.IsNullOrEmpty(appValue)) {
+                    using(var picker=new LocalApplicationDialog(e.Name)) {if(picker.ShowDialog(this)!=DialogResult.OK)return;appValue=picker.Selected.Target;}
+                }
+            }
+            if(vault==null || ct.IsCancellationRequested)return;
+            if(desktop) {
+                var copy=e.Copy();try {copy.Kind="app";copy.Target=appValue;if(LocalApplications.IsShell(appValue))copy.Args="";await LoginDesktop(copy,ct);}finally {copy.ClearSecrets();}
+                return;
+            }
+            string url=BeginBrowserLogin(e);
+            var browserName=string.IsNullOrEmpty(e.Browser) ? store.Settings.Browser : e.Browser;
+            var browser=Browsers.Find(browserName);
+            if (!string.IsNullOrEmpty(browserName) && browser == null) { PwLog(e.Name + ": выбранный браузер не установлен. Выберите другой браузер для входа."); return; }
+            var launch=BrowserPages.SiteLaunch(url, browser);
+            launch.UseShellExecute=true;Process.Start(launch);
+            PwLog(e.Name+": открыта отдельная вкладка входа. Старая вкладка не получает данные.");
+        }
+
+        async Task LoginDesktop(LoginEntry e, CancellationToken ct)
+        {
             // База заблокирована в другом месте — секреты уже затёрты, ввод невозможен.
             if (vault == null || ct.IsCancellationRequested) return;
+            if(e.UsePassword(p=>string.IsNullOrEmpty(p))) {
+                if(!string.IsNullOrWhiteSpace(e.Target)) StartTarget(e);
+                PwLog(e.Name+": пароль не сохранён. "+(string.IsNullOrEmpty(e.PasskeyId) ? "Сайт или приложение открыт." : "Выберите на сайте вход ключом доступа.")); return;
+            }
             if (string.IsNullOrWhiteSpace(e.Window)) { PwLog(e.Name + ": не задан заголовок окна."); return; }
-            IntPtr h = Win.Find(e.Window);
+            string targetReason;
+            var targetBinding = DesktopTarget.Create(e.Target, out targetReason);
+            if (targetBinding == null) { PwLog(e.Name + ": " + targetReason); return; }
+            IntPtr h = Win.Find(e.Window, targetBinding.Matches);
             if (h == IntPtr.Zero && !string.IsNullOrWhiteSpace(e.Target))
             {
                 if (!StartTarget(e)) return;
@@ -2589,7 +2662,7 @@ namespace WinUp
                 {
                     await Task.Delay(300);
                     if (ct.IsCancellationRequested || vault == null) { PwLog(e.Name + ": ввод отменён — база заблокирована."); return; }
-                    h = Win.Find(e.Window);
+                    h = Win.Find(e.Window, targetBinding.Matches);
                 }
             }
             if (h == IntPtr.Zero) { PwLog(e.Name + ": окно «" + e.Window + "» не найдено, ввод отменён."); return; }
@@ -2607,12 +2680,14 @@ namespace WinUp
             if (!Win.Focus(h)) { PwLog(e.Name + ": не удалось вывести окно вперёд, ввод отменён."); return; }
             // Ещё одна проверка перед печатью секрета: блокировка могла прийти в момент отсчёта.
             if (ct.IsCancellationRequested || vault == null) { PwLog(e.Name + ": ввод отменён — база заблокирована."); return; }
+            if (!targetBinding.Verify(h, out targetReason)) { PwLog(e.Name + ": " + targetReason); return; }
             // Фокус проверяется перед каждым символом: если окно потеряло передний план — ввод прерывается.
             if (!string.IsNullOrEmpty(e.Login))
             {
                 if (!Win.TypeText(h, e.Login) || !Win.Key(h, Win.TAB)) { PwLog(e.Name + ": фокус ушёл из окна, ввод прерван."); return; }
             }
             if (!Win.IsForeground(h)) { PwLog(e.Name + ": фокус ушёл из окна, пароль не введён."); return; }
+            if (!targetBinding.Verify(h, out targetReason)) { PwLog(e.Name + ": " + targetReason); return; }
             if (!e.UsePassword(pw => Win.TypeText(h, pw))) { PwLog(e.Name + ": фокус ушёл из окна во время ввода пароля — ввод прерван."); return; }
             if (e.AutoEnter && !Win.Key(h, Win.ENTER)) { PwLog(e.Name + ": фокус ушёл из окна, Enter не нажат."); return; }
             PwLog(e.Name + ": " + (string.IsNullOrEmpty(e.Login) ? "пароль введён" : "логин и пароль введены") + (e.AutoEnter ? ", Enter нажат." : ", Enter не нажат — войдите вручную."));
@@ -2644,8 +2719,9 @@ namespace WinUp
                 code = Totp.Code(otp);
             }
             if (code == null) return;
-            if (!Win.IsWindow(h)) h = Win.Find(e.Window);
+            if (!Win.IsWindow(h)) h = Win.Find(e.Window, targetBinding.Matches);
             if (h == IntPtr.Zero || !Win.Focus(h)) { PwLog(e.Name + ": окно не на переднем плане, код 2FA не введён."); return; }
+            if (!targetBinding.Verify(h, out targetReason)) { PwLog(e.Name + ": " + targetReason); return; }
             if (!Win.TypeText(h, code)) { PwLog(e.Name + ": фокус ушёл из окна, код 2FA не введён полностью."); return; }
             if (e.AutoEnter && !Win.Key(h, Win.ENTER)) { PwLog(e.Name + ": фокус ушёл из окна, Enter не нажат."); return; }
             PwLog(e.Name + ": код 2FA введён.");

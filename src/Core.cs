@@ -78,15 +78,86 @@ namespace WinUp
 
         // Запись через временный файл: при сбое посередине старый файл остаётся целым,
         // предыдущая версия сохраняется как .bak.
-        public static void AtomicWrite(string path, byte[] data)
+        static readonly object writeSync = new object();
+
+        // Keep every existing directory stable while creating children. Checking a
+        // path and then opening it is insufficient when another process can rename it.
+        internal static IDisposable HoldWriteDirectory(string directory)
         {
-            Directory.CreateDirectory(Path.GetDirectoryName(path));
-            var tmp = path + ".tmp";
+            var held = new WriteDirectoryLease();
             try
             {
-                using (var fs = new FileStream(tmp, FileMode.Create, FileAccess.Write))
+                var missing = new Stack<string>();
+                var current = Path.GetFullPath(directory);
+                while (!Directory.Exists(current))
                 {
-                    fs.Write(data, 0, data.Length);
+                    missing.Push(current);
+                    current = Path.GetDirectoryName(current);
+                    if (string.IsNullOrEmpty(current)) throw new IOException("Не найден корень папки для записи.");
+                }
+                held.Items.Add(SourceLease.HoldDirectories(current));
+                while (missing.Count != 0)
+                {
+                    var child = missing.Pop();
+                    Directory.CreateDirectory(child);
+                    held.Items.Add(SourceLease.HoldDirectories(child));
+                }
+                return held;
+            }
+            catch { held.Dispose(); throw; }
+        }
+
+        sealed class WriteDirectoryLease : IDisposable
+        {
+            internal readonly List<SourceLease> Items = new List<SourceLease>();
+            public void Dispose() { for (int i = Items.Count - 1; i >= 0; --i) Items[i].Dispose(); Items.Clear(); }
+        }
+
+        public static void AtomicWrite(string path, byte[] data)
+        {
+            if (data == null) throw new ArgumentNullException("data");
+            AtomicWriteStream(path, stream => stream.Write(data, 0, data.Length));
+        }
+
+        internal static void AtomicWriteStream(string path, Action<Stream> write)
+        {
+            if (write == null) throw new ArgumentNullException("write");
+            path = Path.GetFullPath(path);
+            var name = Path.GetFileName(path);
+            if (string.IsNullOrEmpty(name) || name.IndexOf(':') >= 0 || name.EndsWith(".") || name.EndsWith(" "))
+                throw new IOException("Недопустимое имя файла для записи.");
+            lock (writeSync)
+            using (HoldWriteDirectory(Path.GetDirectoryName(path)))
+                AtomicWriteHeld(path, write);
+        }
+
+        internal sealed class LeaveOpenStream : Stream
+        {
+            readonly Stream inner;
+            internal LeaveOpenStream(Stream stream) { inner = stream; }
+            public override bool CanRead { get { return inner.CanRead; } }
+            public override bool CanSeek { get { return inner.CanSeek; } }
+            public override bool CanWrite { get { return inner.CanWrite; } }
+            public override long Length { get { return inner.Length; } }
+            public override long Position { get { return inner.Position; } set { inner.Position = value; } }
+            public override void Flush() { inner.Flush(); }
+            public override int Read(byte[] buffer, int offset, int count) { return inner.Read(buffer, offset, count); }
+            public override long Seek(long offset, SeekOrigin origin) { return inner.Seek(offset, origin); }
+            public override void SetLength(long value) { inner.SetLength(value); }
+            public override void Write(byte[] buffer, int offset, int count) { inner.Write(buffer, offset, count); }
+            protected override void Dispose(bool disposing) { if (disposing) inner.Flush(); }
+        }
+
+        static void AtomicWriteHeld(string path, Action<Stream> write)
+        {
+            SafePaths.NoReparseParents(path);
+            SafePaths.NoReparseParents(path + ".bak");
+            var tmp = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
+            try
+            {
+                using (var fs = new FileStream(tmp, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+                {
+                    write(fs);
                     fs.Flush(true);
                 }
                 if (File.Exists(path))
@@ -105,6 +176,119 @@ namespace WinUp
             {
                 // При любом сбое старый файл остаётся цел; неперенесённый tmp подчищаем, чтобы не копился мусор.
                 try { if (File.Exists(tmp)) File.Delete(tmp); } catch { }
+            }
+        }
+        internal static string[] AtomicRemnants(string path)
+        {
+            var directory = Path.GetDirectoryName(path);
+            if (!Directory.Exists(directory)) return new string[0];
+            string name = Path.GetFileName(path);
+            return Directory.GetFiles(directory, name + "*.tmp").Where(file =>
+                string.Equals(Path.GetFileName(file), name + ".tmp", StringComparison.OrdinalIgnoreCase) ||
+                Regex.IsMatch(Path.GetFileName(file), "^" + Regex.Escape(name) + @"\.[0-9a-fA-F]{32}\.tmp$")).ToArray();
+        }
+
+        sealed class AtomicBatchFile
+        {
+            internal string Path, Temporary, OldBackup;
+            internal Action<Stream> Write;
+            internal bool Existed, HadBackup, Committed, KeepOldBackup;
+        }
+
+        // All serializers finish before any target changes. A running-process
+        // failure restores both the previous targets and their existing backups.
+        internal static void AtomicWriteBatch(List<KeyValuePair<string, Action<Stream>>> writes)
+        {
+            if (writes == null || writes.Count == 0) throw new ArgumentException("Пустой набор файлов.");
+            lock (writeSync)
+            {
+                var files = new List<AtomicBatchFile>();
+                string directory = null;
+                foreach (var write in writes)
+                {
+                    if (write.Value == null) throw new ArgumentNullException("write");
+                    string path = Path.GetFullPath(write.Key), name = Path.GetFileName(path);
+                    if (string.IsNullOrEmpty(name) || name.IndexOf(':') >= 0 || name.EndsWith(".") || name.EndsWith(" "))
+                        throw new IOException("Недопустимое имя файла для записи.");
+                    string parent = Path.GetDirectoryName(path);
+                    if (directory == null) directory = parent;
+                    if (!string.Equals(parent, directory, StringComparison.OrdinalIgnoreCase) || files.Any(x =>
+                        string.Equals(x.Path, path, StringComparison.OrdinalIgnoreCase) ||
+                        string.Equals(x.Path + ".bak", path, StringComparison.OrdinalIgnoreCase) ||
+                        string.Equals(x.Path, path + ".bak", StringComparison.OrdinalIgnoreCase)))
+                        throw new IOException("Неверный набор файлов сохранения.");
+                    files.Add(new AtomicBatchFile { Path = path, Write = write.Value });
+                }
+                using (HoldWriteDirectory(directory))
+                try
+                {
+                    foreach (var file in files)
+                    {
+                        SafePaths.NoReparseParents(file.Path); SafePaths.NoReparseParents(file.Path + ".bak");
+                        file.Existed = File.Exists(file.Path);
+                        file.HadBackup = file.Existed && File.Exists(file.Path + ".bak");
+                        file.Temporary = file.Path + "." + Guid.NewGuid().ToString("N") + ".tmp";
+                        using (var stream = new FileStream(file.Temporary, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+                        { file.Write(stream); stream.Flush(true); }
+                        if (file.HadBackup)
+                        {
+                            // Use the same remnant pattern as serializer staging so
+                            // password rotation and destruction can also remove it.
+                            file.OldBackup = file.Path + "." + Guid.NewGuid().ToString("N") + ".tmp";
+                            using (var source = new FileStream(file.Path + ".bak", FileMode.Open, FileAccess.Read, FileShare.Read))
+                            using (var destination = new FileStream(file.OldBackup, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+                            { source.CopyTo(destination); destination.Flush(true); }
+                        }
+                    }
+                    foreach (var file in files)
+                    {
+                        if (file.Existed) File.Replace(file.Temporary, file.Path, file.Path + ".bak");
+                        else File.Move(file.Temporary, file.Path);
+                        file.Committed = true;
+                    }
+                }
+                catch (Exception original)
+                {
+                    var rollbackErrors = new List<string>();
+                    for (int i = files.Count - 1; i >= 0; --i)
+                    {
+                        var file = files[i];
+                        if (!file.Committed) continue;
+                        try
+                        {
+                            if (file.Existed) File.Replace(file.Path + ".bak", file.Path, null);
+                            else File.Delete(file.Path);
+                        }
+                        catch (Exception failure)
+                        {
+                            // The current .bak still holds the original target.
+                            // Keep its older backup as well if restoration failed.
+                            file.KeepOldBackup = true;
+                            rollbackErrors.Add(Path.GetFileName(file.Path) + ": " + failure.Message);
+                            continue;
+                        }
+                        if (file.HadBackup)
+                        {
+                            try { File.Move(file.OldBackup, file.Path + ".bak"); }
+                            catch (Exception failure)
+                            {
+                                file.KeepOldBackup = true;
+                                rollbackErrors.Add(Path.GetFileName(file.Path + ".bak") + ": " + failure.Message +
+                                    "; прежняя копия: " + Path.GetFileName(file.OldBackup));
+                            }
+                        }
+                    }
+                    if (rollbackErrors.Count != 0) throw new IOException("Сохранение прервано; восстановление прежнего состояния не завершено: " + string.Join("; ", rollbackErrors) + ". Откройте базу заново или восстановите резерв.", original);
+                    throw new IOException("Сохранение отменено. Прежние файлы сохранены или восстановлены.", original);
+                }
+                finally
+                {
+                    foreach (var file in files)
+                    {
+                        try { if (file.Temporary != null) File.Delete(file.Temporary); } catch { }
+                        try { if (!file.KeepOldBackup && file.OldBackup != null) File.Delete(file.OldBackup); } catch { }
+                    }
+                }
             }
         }
     }
@@ -146,6 +330,9 @@ namespace WinUp
         public string Group { get; set; }
         public string Kind { get; set; }      // "site" | "app"
         public string Target { get; set; }
+        public string AppTarget { get; set; }
+        public string LoginUrl { get; set; }
+        public string LoginProfile { get; set; }
         public string Args { get; set; }
         public string Window { get; set; }
         public bool AutoEnter { get; set; }
@@ -210,16 +397,23 @@ namespace WinUp
                 if (!string.IsNullOrEmpty(pinned) && cur != null && pinned != cur) ChangedOutside = cur;
             }
             catch { }
-            var s = Json.Read<AppStore>(System.IO.File.ReadAllText(Paths.AppsFile, Encoding.UTF8));
+            var s = Json.Read<AppStore>(SafeStorage.ReadTextBounded(Paths.AppsFile, 16 * 1024 * 1024));
+            if (s == null) throw new InvalidDataException("Список WinUp повреждён: вместо объекта записан null. Восстановите apps.json из резерва.");
             if (s.Apps == null) s.Apps = new List<AppItem>();
             if (s.Links == null) s.Links = new List<LinkItem>();
             if (s.Templates == null) s.Templates = new List<LoginTemplate>();
             if (s.Settings == null) s.Settings = new Settings();
+            s.Apps.RemoveAll(x => x == null);
+            s.Links.RemoveAll(x => x == null);
+            s.Templates.RemoveAll(x => x == null);
+            s.Settings.AutoLockMinutes = Math.Max(1, Math.Min(1440, s.Settings.AutoLockMinutes));
+            s.Settings.BackupKeep = Math.Max(1, Math.Min(1000, s.Settings.BackupKeep));
             if (s.Settings.IgnoredFiles == null) s.Settings.IgnoredFiles = new List<string>();
             if (s.Settings.Browser == null) s.Settings.Browser = "";
             // Пусто — копия для передачи (путь отправителя ей не нужен): резерв в «Документах» этого пользователя.
             if (string.IsNullOrWhiteSpace(s.Settings.BackupDir)) s.Settings.BackupDir = Settings.DefaultBackupDir;
             if (s.Winget == null) s.Winget = new List<WingetPackage>();
+            s.Winget.RemoveAll(x => x == null);
             if (s.Settings.DefaultsVersion < d.Version)
             {
                 var had = s.Links.ToList(); // сравниваем только с тем, что было у пользователя
@@ -227,13 +421,45 @@ namespace WinUp
                     if (!had.Any(x => string.Equals(x.Name, l.Name, StringComparison.OrdinalIgnoreCase) ||
                                           string.Equals((x.Url ?? "").TrimEnd('/'), (l.Url ?? "").TrimEnd('/'), StringComparison.OrdinalIgnoreCase)))
                         s.Links.Add(l);
-                foreach (var t in d.Templates)
-                    if (!s.Templates.Any(x => x.Group == t.Group && string.Equals(x.Name, t.Name, StringComparison.OrdinalIgnoreCase))) s.Templates.Add(t);
+                MergeTemplates(s.Templates,d.Templates);
                 s.Settings.DefaultsVersion = d.Version;
                 // Изменённый извне список не перезаписываем до решения пользователя (вопрос в главном окне).
                 if (!readOnly && ChangedOutside == null) s.Save();
             }
             return s;
+        }
+
+        internal static string TemplateName(string name) {
+            switch((name ?? "").Trim().ToLowerInvariant()) {
+                case "steam": case "steam (веб)": return "Steam Community";
+                case "google / youtube / gmail": return "Google";
+                case "вконтакте (vk id)": return "ВКонтакте";
+                case "билайн (личный кабинет)": return "Билайн";
+                case "discord (веб)": return "Discord";
+                case "epic games (веб)": return "Epic Games Launcher";
+                case "battle.net (веб)": return "Battle.net";
+                case "ea (веб)": return "EA app";
+                case "ubisoft (веб)": return "Ubisoft Connect";
+                case "telegram web": return "Telegram";
+                default: return (name ?? "").Trim();
+            }
+        }
+        internal static void MergeTemplates(List<LoginTemplate> saved,IEnumerable<LoginTemplate> additions) {
+            var merged=new List<LoginTemplate>();
+            foreach(var item in saved.OrderByDescending(x=>x.Group=="Мои").Concat(additions)) {
+                string key=TemplateName(item.Name);
+                var old=merged.FirstOrDefault(x=>string.Equals(TemplateName(x.Name),key,StringComparison.OrdinalIgnoreCase));
+                if(old==null) { if(item.Group!="Мои") item.Name=key; merged.Add(item); continue; }
+                if(old.Group=="Мои") continue;
+                bool oldApp=old.Kind=="app", newApp=item.Kind=="app";
+                if(oldApp && !newApp) { old.AppTarget=old.Target; old.Target=item.Target; old.Kind="both"; }
+                else if(!oldApp && newApp) { if(string.IsNullOrEmpty(old.AppTarget)) old.AppTarget=item.Target; old.Kind="both"; }
+                else if(item.Kind=="both") old.Kind="both";
+                if(string.IsNullOrEmpty(old.AppTarget)) old.AppTarget=item.AppTarget;
+                if(string.IsNullOrEmpty(old.LoginUrl)) old.LoginUrl=item.LoginUrl;
+                if(string.IsNullOrEmpty(old.LoginProfile)) old.LoginProfile=item.LoginProfile;
+            }
+            saved.Clear(); saved.AddRange(merged.OrderBy(x=>x.Name,StringComparer.CurrentCultureIgnoreCase));
         }
 
         // Хэш apps.json, если при загрузке он не совпал с отпечатком WinUp (файл изменён вне программы), иначе null.
@@ -377,23 +603,33 @@ namespace WinUp
         {
             try
             {
-                Directory.CreateDirectory(s.BackupDir);
-                var dst = Path.Combine(s.BackupDir, prefix + "-" + DateTime.Now.ToString("yyyyMMdd-HHmmss-fff") + ext);
-                System.IO.File.Copy(src, dst, true);
+                using (Paths.HoldWriteDirectory(s.BackupDir))
+                {
+                var dst = Path.Combine(s.BackupDir, prefix + "-" + DateTime.Now.ToString("yyyyMMdd-HHmmss-fff") + "-" + Guid.NewGuid().ToString("N").Substring(0, 8) + ext);
+                Export.CopyEncryptedDatabase(src, dst);
                 // Паттерн "vault-*.dat" из-за 8.3-имён захватывает и чужие "vault-*.data" —
                 // оставляем только точное совпадение расширения с расширением бэкапа.
                 var outdated = Directory.GetFiles(s.BackupDir, prefix + "-*" + ext)
-                    .Where(f => string.Equals(Path.GetExtension(f), ext, StringComparison.OrdinalIgnoreCase))
-                    .OrderByDescending(f => f).Skip(Math.Max(1, s.BackupKeep));
+                    .Where(f => !string.Equals(f, dst, StringComparison.OrdinalIgnoreCase) && IsBackupName(f, prefix, ext))
+                    .OrderByDescending(f => f).Skip(Math.Max(0, s.BackupKeep - 1));
                 foreach (var old in outdated)
                 {
                     // Одна залоченная старая копия не должна портить статус только что сделанной записи.
                     try { System.IO.File.Delete(old); }
                     catch { }
                 }
+                }
                 LastError = null;
             }
             catch (Exception e) { LastError = e.Message; }
+        }
+
+        internal static bool IsBackupName(string file, string prefix, string extension)
+        {
+            if (!string.Equals(Path.GetExtension(file), extension, StringComparison.OrdinalIgnoreCase)) return false;
+            var match = Regex.Match(Path.GetFileNameWithoutExtension(file), "^" + Regex.Escape(prefix) + @"-(?<date>\d{8}-\d{6}-\d{3})(?:-[0-9a-fA-F]{8})?$");
+            DateTime date;
+            return match.Success && DateTime.TryParseExact(match.Groups["date"].Value, "yyyyMMdd-HHmmss-fff", System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out date);
         }
     }
 
@@ -461,13 +697,13 @@ namespace WinUp
 
     static class Json
     {
-        static readonly JavaScriptSerializer S = new JavaScriptSerializer { MaxJsonLength = int.MaxValue };
+        static JavaScriptSerializer Serializer() { return new JavaScriptSerializer { MaxJsonLength = 16 * 1024 * 1024, RecursionLimit = 64 }; }
 
-        public static T Read<T>(string text) { return S.Deserialize<T>(text); }
+        public static T Read<T>(string text) { return Serializer().Deserialize<T>(text); }
 
         public static string Write(object o, bool pretty)
         {
-            var s = S.Serialize(o);
+            var s = Serializer().Serialize(o);
             // Сериализатор пишет не-ASCII как \uXXXX — возвращаем читаемый вид.
             // Замена только для эскейпов самого сериализатора: \u, перед которым стоит
             // не-бэкслэш и чётное число бэкслэшей. Экранированные данные вида \\uXXXX

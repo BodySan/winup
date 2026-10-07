@@ -140,6 +140,12 @@ namespace WinUp
 
         static void CoreIntegrityTests()
         {
+            AboutDialog closed=null;bool lateCallback=false;
+            var callback=typeof(AboutDialog).GetMethod("CoreUi",Private);
+            Ui(delegate {closed=new AboutDialog(new string('0',64),null);closed.Show(form);Application.DoEvents();callback.Invoke(closed,new object[] {new MethodInvoker(delegate {lateCallback=true;})});closed.Close();closed.Dispose();});
+            callback.Invoke(closed,new object[] {new MethodInvoker(delegate {lateCallback=true;})});
+            Ui(delegate {Application.DoEvents();});
+            Check("core-update-callback-after-close-is-ignored",!lateCallback,"queued and late callbacks cannot touch a closed updater dialog");
             string official = Path.Combine(Paths.Root,"official-KeePass.exe");
             Version version;
             var signed = CoreLoader.ReadVerifiedCore(official, out version);
@@ -157,6 +163,7 @@ namespace WinUp
             Check("tampered-signed-core-rejected", rejected, "signed executable modified after publication");
             string error;
             Check("official-package-stage", CoreUpdate.StageSignedPackage(File.ReadAllBytes(Path.Combine(Paths.Root,"official-KeePass.zip")), "2.61.1", out error), error ?? "signed portable package");
+            Check("same-signed-core-is-not-pending-update",ComponentInventory.Rows().First(r=>r.Id=="keepass").Pending==null,"2.61.1 and 2.61.1.0 are the same running release");
             var installedHash = CoreLoader.Sha256(File.ReadAllBytes(CoreLoader.CoreFile));
             byte[] fakeZip;
             using (var memory = new MemoryStream())

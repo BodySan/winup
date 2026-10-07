@@ -19,10 +19,25 @@ namespace WinUp
         public bool PasskeyBackupEligible { get; set; }
         public bool PasskeyBackedUp { get; set; }
         public string Login { get; set; }
+        public string Login2 { get; set; }
+        public string AppTarget { get; set; }
+        public string LoginUrl { get; set; }
+        public string LoginProfile { get; set; }
+        public string PasskeyId { get; set; }
         readonly SecretText password = new SecretText();
         public string Password { get { return password.Read(); } set { password.Set(value); } }
         internal T UsePassword<T>(Func<string, T> action) { return password.Use(action); }
-        internal void ClearSecrets() { password.Clear(); totp.Clear(); }
+        readonly SecretText recoveryCodes = new SecretText();
+        public string RecoveryCodes { get { return recoveryCodes.Read(); } set { recoveryCodes.Set(value); } }
+        internal T UseRecoveryCodes<T>(Func<string,T> action) { return recoveryCodes.Use(action); }
+        internal void ClearSecrets() { password.Clear(); totp.Clear(); recoveryCodes.Clear(); }
+        static string CopyText(string value) {return value==null ? null : new string(value.ToCharArray());}
+        internal LoginEntry Copy() { return UsePassword(p => UseRecoveryCodes(c => new LoginEntry {
+            Id=CopyText(Id), Name=CopyText(Name), Kind=CopyText(Kind), Target=CopyText(Target), AppTarget=CopyText(AppTarget), LoginUrl=CopyText(LoginUrl), LoginProfile=CopyText(LoginProfile), Args=CopyText(Args), Browser=CopyText(Browser), Window=CopyText(Window),
+            Login=CopyText(Login), Login2=CopyText(Login2), Password=p, RecoveryCodes=c, PasskeyId=CopyText(PasskeyId),
+            PasskeyBackupEligible=PasskeyBackupEligible, PasskeyBackedUp=PasskeyBackedUp,
+            AutoEnter=AutoEnter, TwoFa=CopyText(TwoFa), OtpId=CopyText(OtpId), Delay=Delay, Notes=CopyText(Notes)
+        })); }
         public bool AutoEnter { get; set; }
         public string TwoFa { get; set; }     // "none" | "ask" | "link" (код из раздела «Коды 2FA»); "totp" — устарело
         public string OtpId { get; set; }     // для "link": какой аккаунт из раздела «Коды 2FA»
@@ -144,7 +159,7 @@ namespace WinUp
 
         static byte[] ReadChecked()
         {
-            var b = File.ReadAllBytes(FilePath);
+            var b = SafeStorage.ReadBounded(FilePath, 256 * 1024 * 1024);
             if (b.Length < V1Cipher + 16) throw new InvalidDataException("Файл базы повреждён.");
             bool v1 = true, v2 = true, v3 = true;
             for (int i = 0; i < 4; i++) { v1 &= b[i] == MagicV1[i]; v2 &= b[i] == MagicV2[i]; v3 &= b[i] == MagicV3[i]; }
@@ -558,19 +573,8 @@ namespace WinUp
         {
             foreach (var f in new[] { FilePath, FilePath + ".bak", FilePath + ".tmp" })
             {
-                try
-                {
-                    if (!File.Exists(f)) continue;
-                    long len = new FileInfo(f).Length;
-                    using (var fs = new FileStream(f, FileMode.Open, FileAccess.Write))
-                    {
-                        var junk = Random((int)Math.Max(len, 1));
-                        fs.Write(junk, 0, junk.Length);
-                        fs.Flush(true);
-                    }
-                    File.Delete(f);
-                }
-                catch { }
+                string error;
+                Secure.WipeFile(f, out error);
             }
         }
 
@@ -754,14 +758,9 @@ namespace WinUp
             try
             {
                 if (!File.Exists(path)) return true;
-                var len = new FileInfo(path).Length;
-                var junk = Vault.Random((int)Math.Min(Math.Max(len, 1), 4 * 1024 * 1024));
-                using (var fs = new FileStream(path, FileMode.Open, FileAccess.Write))
-                    for (long off = 0; off < len; off += junk.Length)
-                        fs.Write(junk, 0, (int)Math.Min(junk.Length, len - off));
+                SafeStorage.WipeFile(path);
+                return !File.Exists(path);
             }
-            catch (Exception e) { error = e.Message; }
-            try { File.Delete(path); return !File.Exists(path); }
             catch (Exception e) { error = e.Message; return false; }
         }
 

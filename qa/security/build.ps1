@@ -23,7 +23,7 @@ $common += "/resource:$src\updates\components.json,components.json","/resource:$
 foreach($file in Get-ChildItem "$src\licenses" -File) { $common += "/resource:$($file.FullName),licenses/$($file.Name)" }
 & $csc @common '/target:winexe' "/out:$Output\WinUp.exe" @sources
 if ($LASTEXITCODE) { throw 'Production build failed' }
-& $csc @common '/target:exe' '/main:WinUp.SecurityHarness' "/out:$Output\SecurityHarness.exe" @sources "$PSScriptRoot\SecurityHarness.cs" "$PSScriptRoot\HardeningTests.cs" "$PSScriptRoot\FeatureTests.cs" "$PSScriptRoot\UpdateTests.cs"
+& $csc @common '/target:exe' '/main:WinUp.SecurityHarness' "/out:$Output\SecurityHarness.exe" @sources "$PSScriptRoot\SecurityHarness.cs" "$PSScriptRoot\HardeningTests.cs" "$PSScriptRoot\FeatureTests.cs" "$PSScriptRoot\CorrectionsTests.cs" "$PSScriptRoot\UpdateTests.cs" "$PSScriptRoot\DeepStorageTests.cs" "$PSScriptRoot\DeepBrowserTests.cs" "$PSScriptRoot\DeepFileTests.cs" "$PSScriptRoot\DeliveryTests.cs"
 if ($LASTEXITCODE) { throw 'Harness build failed' }
 New-Item -ItemType Directory -Force "$Output\browser-lab" | Out-Null
 & $csc @common '/target:winexe' '/main:WinUp.FeatureUiHarness' "/out:$Output\browser-lab\WinUp.exe" @sources "$PSScriptRoot\FeatureUiHarness.cs"
@@ -32,3 +32,8 @@ if ($LASTEXITCODE) { throw 'Browser lab build failed' }
 if ($LASTEXITCODE) { throw 'Component runtime probe build failed' }
 & $csc '/nologo' '/target:exe' "/out:$Output\MemoryProbe.exe" "$PSScriptRoot\MemoryProbe.cs"
 if ($LASTEXITCODE) { throw 'Memory probe build failed' }
+& $csc '/nologo' '/target:exe' "/out:$Output\SyntheticInstaller.exe" "$PSScriptRoot\SyntheticInstaller.cs"
+if ($LASTEXITCODE) { throw 'Synthetic installer build failed' }
+& $csc '/nologo' '/target:winexe' '/r:System.Windows.Forms.dll' "/out:$Output\DesktopWindowFixture.exe" "$PSScriptRoot\DesktopWindowFixture.cs"
+if ($LASTEXITCODE) { throw 'Desktop window fixture build failed' }
+Copy-Item "$Output\DesktopWindowFixture.exe" "$Output\ForeignWindowFixture.exe" -Force

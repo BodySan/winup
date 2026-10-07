@@ -69,9 +69,9 @@
   https://github.com/keepassxreboot/keepassxc-browser, GPL v3.
   Оригинал: `vendor/upstream/keepassxc-browser.zip`; адаптер транспорта —
   `browser/passkeys.js`, `browser/passkey-relay.js`. Стороннее расширение не требуется.
-- BouncyCastle.Cryptography 2.6.2 (MIT), PeterO.Cbor 4.5.5 и PeterO.Numbers 1.8.2
+- BouncyCastle.Cryptography 2.7.0 (MIT), PeterO.Cbor 4.5.5 и PeterO.Numbers 1.8.2
   (CC0-1.0 по опубликованным NuGet-пакетам), оригинальные DLL для .NET Framework.
-  Источники: https://www.nuget.org/packages/BouncyCastle.Cryptography/2.6.2,
+  Источники: https://www.nuget.org/packages/BouncyCastle.Cryptography/2.7.0,
   https://www.nuget.org/packages/PeterO.Cbor/4.5.5,
   https://www.nuget.org/packages/PeterO.Numbers/1.8.2.
   Компоненты вшиты в WinUp.exe, загрузка одноимённых соседних DLL отклоняется.

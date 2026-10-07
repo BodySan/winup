@@ -47,7 +47,7 @@
     "app/mods/slf4j-api-2.0.17.jar":  "7b751d952061954d5abfed7181c1f645d336091b679891591d63329c622eb832",
     "app/mods/webdav-nio-adapter-2.0.10.jar":  "2abd569059b0855a9e4535094a977e46e28185d740cbb4dab21a1efd5c03336d",
     "app/mods/webdav-nio-adapter-servlet-1.2.8.jar":  "bd98fbfcd1789ab6cd25a282cd0e211b70ebd43f9492626e99e87f054da3ffab",
-    "app/winup-files/WinUpFiles.class":  "54b0a958c70de79bb8ee15c7756508cffd59067fd777ff00495a9defa94b1e7e",
+    "app/winup-files/WinUpFiles.class":  "c5dfdd0fcc3748da730bb441a0c6e1972800780b15ce46a9559d2dde77774765",
     "runtime/release":  "1d6da91ebd149bee74dc27923b96d2a91e8a4e20af30a24cd06a0557cbb7bbc5",
     "runtime/bin/api-ms-win-core-console-l1-1-0.dll":  "3058b1f6d5ec2442f468ee0df442674e0960dfe29cd89b61c9e4a0872e8401a3",
     "runtime/bin/api-ms-win-core-console-l1-2-0.dll":  "b54dcb4f0e00e41b302086559cfb6baa6110e7217f1f2cdedd001b0079cc10fe",

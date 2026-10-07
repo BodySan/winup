@@ -9,6 +9,7 @@ using System.Security.AccessControl;
 using System.Security.Principal;
 using System.Text;
 using System.Text.RegularExpressions;
+using System.Threading;
 
 namespace WinUp
 {
@@ -31,6 +32,9 @@ namespace WinUp
 
         // Пользователь согласился перезапустить WinUp после подготовки обновления.
         public static bool RestartPendingFlag;
+        static readonly object stageLock = new object();
+        internal const int MaxTextBytes = 1024 * 1024;
+        internal const int MaxArchiveEntries = 2048;
 
         // ---------------- Парсинг (открыт для тестов) ----------------
 
@@ -85,15 +89,6 @@ namespace WinUp
 
         // ---------------- Сеть ----------------
 
-        static HttpWebRequest NewReq(string url)
-        {
-            var rq = (HttpWebRequest)WebRequest.Create(url);
-            rq.Timeout = 15000;
-            rq.ReadWriteTimeout = 30000;
-            rq.UserAgent = "WinUp (keepasslib core updater)";
-            return rq;
-        }
-
         // Человекочитаемая ошибка сети: 407 (корпоративный прокси без авторизации),
         // таймаут и прочее — со ссылкой на ручной путь обновления.
         static string NetError(Exception ex)
@@ -115,10 +110,8 @@ namespace WinUp
             error = null;
             try
             {
-                using (var resp = NewReq(url).GetResponse())
-                using (var s = resp.GetResponseStream())
-                using (var r = new StreamReader(s, Encoding.UTF8))
-                    return r.ReadToEnd();
+                var bytes = ComponentNetwork.Fetch(url, MaxTextBytes, CancellationToken.None);
+                return Encoding.UTF8.GetString(bytes);
             }
             catch (Exception ex) { error = NetError(ex); return null; }
         }
@@ -134,9 +127,7 @@ namespace WinUp
             error = null;
             try
             {
-                var rq = NewReq(url);
-                rq.AllowAutoRedirect = true; // /download → зеркало sourceforge
-                using (var resp = rq.GetResponse())
+                using (var resp = ComponentNetwork.Open(url, CancellationToken.None))
                 using (var s = resp.GetResponseStream())
                 using (var m = new MemoryStream())
                 {
@@ -144,12 +135,12 @@ namespace WinUp
                     int n;
                     while ((n = s.Read(buf, 0, buf.Length)) > 0)
                     {
-                        m.Write(buf, 0, n);
-                        if (m.Length > maxBytes)
+                        if (m.Length + n > maxBytes)
                         {
                             error = "Архив обновления больше " + (maxBytes / 1048576) + " МБ.";
                             return null;
                         }
+                        m.Write(buf, 0, n);
                     }
                     var result = m.ToArray();
                     if (allowRefresh && result.Length < 1024 * 1024 && (resp.ContentType ?? "").IndexOf("text/html", StringComparison.OrdinalIgnoreCase) >= 0)
@@ -193,7 +184,7 @@ namespace WinUp
         public static bool DownloadAndStage(string version, string integrityUrl, string zipUrl, Action<string> log, out string error)
         {
             error = null;
-            if (!Regex.IsMatch(version ?? "", @"^2\.\d+(?:\.\d+)?$")) { error = "Неверная версия KeePass."; return false; }
+            if (!Regex.IsMatch(version ?? "", @"\A2\.\d+(?:\.\d+)?\z")) { error = "Неверная версия KeePass."; return false; }
             string package = "KeePass-" + version + ".zip";
             string html = FetchText(integrityUrl, out error);
             if (html == null) return false;
@@ -211,20 +202,48 @@ namespace WinUp
 
         public static bool StageSignedPackage(byte[] zipBytes, string version, out string error)
         {
+            lock (stageLock) return StageSignedPackageLocked(zipBytes, version, out error);
+        }
+        internal static void RequireCurrentOrNewer(Version candidate, Version current) {
+            if (current != null && candidate < current)
+                throw new InvalidDataException("Крипто-ядро старее уже работающего или подготовленного. Возврат к уязвимой старой версии отклонён.");
+        }
+        internal static void ValidateArchiveDirectory(byte[] bytes) {
+            if (bytes == null || bytes.Length < 22 || bytes.Length > MaxZipBytes)
+                throw new InvalidDataException("Неверный пакет обновления.");
+            // Check the directory before ZipArchive materializes every entry.
+            for (int i = bytes.Length - 22; i >= Math.Max(0, bytes.Length - 65557); i--)
+                if (BitConverter.ToUInt32(bytes, i) == 0x06054b50 && i + 22 + BitConverter.ToUInt16(bytes, i + 20) == bytes.Length) {
+                    int count = BitConverter.ToUInt16(bytes, i + 10);
+                    long start = BitConverter.ToUInt32(bytes, i + 16), length = BitConverter.ToUInt32(bytes, i + 12);
+                    if (BitConverter.ToUInt16(bytes, i + 4) != 0 || BitConverter.ToUInt16(bytes, i + 6) != 0 ||
+                        BitConverter.ToUInt16(bytes, i + 8) != count || count < 1 || count > MaxArchiveEntries || start + length > i)
+                        throw new InvalidDataException("Неверная или слишком большая таблица ZIP.");
+                    return;
+                }
+            throw new InvalidDataException("Повреждённый ZIP-пакет.");
+        }
+        static bool StageSignedPackageLocked(byte[] zipBytes, string version, out string error)
+        {
             error = null;
             string stage = null;
             try
             {
-                if (zipBytes == null || zipBytes.Length > MaxZipBytes) throw new InvalidDataException("Неверный пакет обновления.");
+                if (!Regex.IsMatch(version ?? "", @"\A2\.\d+(?:\.\d+)?\z")) throw new InvalidDataException("Неверная версия KeePass.");
+                ValidateArchiveDirectory(zipBytes);
                 stage = NewPrivateDir();
+                using (var stageLease = SourceLease.HoldDirectories(stage)) {
                 var candidate = Path.Combine(stage, "KeePass.exe");
                 using (var archive = new ZipArchive(new MemoryStream(zipBytes, false), ZipArchiveMode.Read))
                 {
-                    var entry = archive.GetEntry("KeePass.exe");
+                    var candidates = archive.Entries.Where(e => string.Equals(e.FullName, "KeePass.exe", StringComparison.OrdinalIgnoreCase)).ToList();
+                    if (candidates.Count != 1 || candidates[0].FullName != "KeePass.exe")
+                        throw new InvalidDataException("В пакете нет однозначного подписанного ядра KeePass.");
+                    var entry = candidates[0];
                     if (entry == null || entry.Length <= 0 || entry.Length > 32 * 1024 * 1024)
                         throw new InvalidDataException("В пакете нет подписанного ядра KeePass.");
                     using (var input = entry.Open())
-                    using (var output = File.Create(candidate))
+                    using (var output = new FileStream(candidate, FileMode.CreateNew, FileAccess.Write, FileShare.None))
                     {
                         var buffer = new byte[65536];
                         int count;
@@ -240,10 +259,23 @@ namespace WinUp
                 var requested = new Version(version);
                 if (actual.Major != requested.Major || actual.Minor != requested.Minor || actual.Build != Math.Max(0, requested.Build))
                     throw new InvalidDataException("Версия подписанного ядра не совпадает с ожидаемой.");
+                RequireCurrentOrNewer(actual, CoreLoader.Resolve().GetName().Version);
+                SafePaths.NoReparseParents(CoreLoader.CoreDir);
                 Directory.CreateDirectory(CoreLoader.CoreDir);
+                using (var targetLease = SourceLease.HoldDirectories(CoreLoader.CoreDir)) {
                 string target = CoreLoader.CoreFile;
-                if (File.Exists(target)) File.Copy(target, target + ".old", true);
+                SafePaths.NoReparseParents(target); SafePaths.NoReparseParents(target + ".old");
+                if (File.Exists(target)) {
+                    // Preserve only verified previous bytes. An invalid pending file can
+                    // be repaired by a valid release, but cannot grant a downgrade floor.
+                    byte[] prior = null; Version priorVersion;
+                    try { prior = CoreLoader.ReadVerifiedCore(target, out priorVersion); RequireCurrentOrNewer(actual, priorVersion); }
+                    catch (InvalidDataException) { if (prior != null) throw; }
+                    if (prior != null) Paths.AtomicWrite(target + ".old", prior);
+                }
                 Paths.AtomicWrite(target, dll);
+                }
+                }
                 return true;
             }
             catch (Exception ex) { error = "Обновление отменено: " + ex.Message; return false; }

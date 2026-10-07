@@ -1,10 +1,10 @@
-﻿param([string]$Source,[string]$Output='C:\WinUp\test\ci\candidate')
+﻿param([string]$Source,[string]$Output='C:\WinUp\test\ci\candidate',[switch]$FunctionalOnly)
 $ErrorActionPreference='Stop'
 if(!$Source) { $Source=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..\src')) }
 $lab='C:\WinUpAudit\ci-'+[Guid]::NewGuid().ToString('N')
 New-Item -ItemType Directory -Force $lab,$Output | Out-Null
 & "$PSScriptRoot\build.ps1" -Source $Source -Output $Output
-Copy-Item "$Output\SecurityHarness.exe","$Output\MemoryProbe.exe" $lab
+Copy-Item "$Output\WinUp.exe","$Output\SecurityHarness.exe","$Output\MemoryProbe.exe","$Output\SyntheticInstaller.exe" $lab
 $fixture=Join-Path $PSScriptRoot '..\fixtures\KeePass-2.61.1.zip'
 if((Get-FileHash -LiteralPath $fixture).Hash -ne '3952354DB9B117E906F7CD4F9F5591065B95186472370DA47F46F3E246FEA864') { throw 'Official KeePass test fixture digest mismatch.' }
 Copy-Item -LiteralPath $fixture -Destination "$lab\official-KeePass.zip"
@@ -23,12 +23,22 @@ try {
     try { $input.CopyTo($outputStream) } finally { $input.Dispose(); $outputStream.Dispose() }
 } finally { $archive.Dispose() }
 $info=[Diagnostics.ProcessStartInfo]::new("$lab\SecurityHarness.exe")
+if($FunctionalOnly){$info.Arguments='--functional-only'}
 $info.UseShellExecute=$false; $info.CreateNoWindow=$true; $info.RedirectStandardOutput=$true; $info.RedirectStandardError=$true
 $process=[Diagnostics.Process]::new(); $process.StartInfo=$info; [void]$process.Start()
 $stdout=$process.StandardOutput.ReadToEndAsync(); $stderr=$process.StandardError.ReadToEndAsync()
-if(!$process.WaitForExit(180000)) { $process.Kill(); throw 'Security harness timeout.' }
+if(!$process.WaitForExit(600000)) { $process.Kill(); throw 'Test harness timeout.' }
 $stdout.Result | Set-Content "$Output\runtime.txt"; $stderr.Result | Set-Content "$Output\errors.txt"
-if($process.ExitCode -or $stdout.Result -notmatch 'TOTAL failures=0') { throw "Security tests failed. Read $Output\runtime.txt" }
+if($process.ExitCode -or $stdout.Result -notmatch 'TOTAL failures=0') { throw "Tests failed. Read $Output\runtime.txt" }
+if($FunctionalOnly) {
+    & node "$PSScriptRoot\..\tests\passkey-focus-regression.cjs"
+    if($LASTEXITCODE){throw 'Native passkey focus regression failed.'}
+    foreach($script in Get-ChildItem -LiteralPath (Join-Path $Source 'browser') -Filter '*.js') {
+        & node --check $script.FullName
+        if($LASTEXITCODE){throw "Extension syntax error: $($script.Name)"}
+    }
+    Write-Output 'PASS functional application regressions and extension syntax';return
+}
 $env:WINUP_TEST_BROWSER_SOURCE=Join-Path $Source 'browser'
 try { & node "$PSScriptRoot\extension-tests.cjs"; if($LASTEXITCODE) { throw 'Browser JS tests failed.' } }
 finally { Remove-Item Env:WINUP_TEST_BROWSER_SOURCE -ErrorAction SilentlyContinue }

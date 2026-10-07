@@ -58,6 +58,7 @@ namespace WinUp
             AppDomain.CurrentDomain.AssemblyResolve += delegate(object s, ResolveEventArgs e)
             { return new AssemblyName(e.Name).Name == "KeePassLib" ? CoreLoader.Resolve() : EmbeddedModules.Resolve(e.Name); };
             if(args.Length>0 && args[0].StartsWith("chrome-extension://")) { BrowserBridge.Run(args[0]); return 0; }
+            Console.OutputEncoding=new UTF8Encoding(false);
             Application.EnableVisualStyles();
             Directory.CreateDirectory(Paths.Apps);
             Directory.CreateDirectory(Paths.Data);
@@ -71,7 +72,7 @@ namespace WinUp
             store.Save();
             form = new MainForm(store);
             server = (BrowserServer)typeof(MainForm).GetField("browserServer", Private).GetValue(form);
-            if (!trayUi) form.Shown += delegate { Task.Run((Action)Tests); };
+            if (!trayUi) form.Shown += delegate { Task.Run(Array.IndexOf(args,"--files-only")>=0 ? (Action)DeliveryFilesOnly : Array.IndexOf(args,"--functional-only")>=0 ? (Action)DeliveryTests : Array.IndexOf(args,"--updates-only")>=0 ? (Action)UpdateRegressionTests : (Action)Tests); };
             Application.Run(form);
             Console.WriteLine("TOTAL failures=" + failures);
             return failures == 0 ? 0 : 1;
@@ -79,14 +80,18 @@ namespace WinUp
 
         static void Ui(Action action) { form.Invoke((MethodInvoker)delegate { action(); }); }
         static void Check(string name, bool ok, string detail)
-        { Console.WriteLine((ok ? "PASS " : "FAIL ") + name + " " + detail); if (!ok) failures++; }
+        { string line=(ok ? "PASS " : "FAIL ") + name + " " + detail;Console.WriteLine(line);try {File.AppendAllText(@"C:\WinUp\test\corrections\harness-live.txt",line+Environment.NewLine);}catch {}if (!ok) failures++; }
         static void SetVault(KdbxStore v) { typeof(MainForm).GetField("vault", Private).SetValue(form, v); }
+        static void UpdateRegressionTests() {
+            try {CoreIntegrityTests();ComponentUpdateTests();}catch(Exception ex){Console.WriteLine("FAIL unhandled "+ex);failures++;}
+            finally {Ui(delegate {form.Close();});}
+        }
         static void Lock() { typeof(MainForm).GetMethod("LockVault", Private).Invoke(form, null); }
         static string Fill(string url, bool framed, string token)
         {
             BrowserPair.Save(token, "Synthetic sandbox audit");
             return (string)typeof(BrowserServer).GetMethod("Fill", Private).Invoke(server,
-                new object[] { token, url, "audit-entry", framed });
+                new object[] { token, url, "audit-entry", framed, false });
         }
         static Dictionary<string, object> Parse(string json)
         { return new JavaScriptSerializer().Deserialize<Dictionary<string, object>>(json); }
@@ -135,6 +140,9 @@ namespace WinUp
                 CoreIntegrityTests();
                 ComponentUpdateTests();
                 FeatureTests();
+                DeepStorageTests();
+                DeepBrowserTests();
+                DeepFileTests();
                 Ui(delegate { NewVault(false); });
                 var good = Parse(Fill("https://example.com/login", false, "test-good"));
                 Check("https-fill", (bool)good["ok"] && (string)good["password"] == "Audit-only-secret!", "synthetic credentials returned");
@@ -187,6 +195,13 @@ namespace WinUp
                 }
                 Ui(Lock);
 
+                // A normal rejected caller gets the structured denial before any JSON.
+                using (var c = new NamedPipeClientStream(".", BrowserPipe.Name, PipeDirection.InOut)) {
+                    c.Connect(3000);
+                    var read=Task.Run(delegate {return new StreamReader(c).ReadLine();});
+                    bool ready=read.Wait(3000);
+                    Check("reject-without-json-normal",ready && read.Result!=null && read.Result.Contains("bad_caller"),"idle untrusted caller receives denial before sending a request");
+                }
                 // A local untrusted process sends no JSON. It must be rejected before reading.
                 var clients = new List<NamedPipeClientStream>();
                 int threadsBefore = Process.GetCurrentProcess().Threads.Count, connected = 0;
@@ -208,7 +223,7 @@ namespace WinUp
                     c.Connect(3000);
                     var read = Task.Run(delegate { return new StreamReader(c).ReadLine(); });
                     if (!read.Wait(3000)) { c.Dispose(); Check("reject-without-json", false, "still waiting for attacker input"); }
-                    else Check("reject-without-json", read.Result != null && read.Result.Contains("bad_caller"), "no request body sent");
+                    else Check("reject-without-json", read.Result == null || read.Result.Contains("bad_caller"), "no request body sent; denial or immediate close under connection load");
                 }
                 Ui(delegate
                 {

@@ -67,7 +67,7 @@ namespace WinUp
                 {
                     try
                     {
-                        using (var tk = Process.Start(new ProcessStartInfo("taskkill", "/T /F /PID " + pid) { UseShellExecute = false, CreateNoWindow = true }))
+                        using (var tk = Process.Start(new ProcessStartInfo(SystemTool("taskkill.exe"), "/T /F /PID " + pid) { UseShellExecute = false, CreateNoWindow = true }))
                             tk.WaitForExit(10000);
                     }
                     catch { }
@@ -92,7 +92,7 @@ namespace WinUp
                 try
                 {
                     var psi = path.EndsWith(".msi", StringComparison.OrdinalIgnoreCase)
-                        ? new ProcessStartInfo("msiexec.exe", "/i \"" + path + "\"" + (quiet ? " " + a.Args : ""))
+                        ? new ProcessStartInfo(SystemTool("msiexec.exe"), "/i \"" + path + "\"" + (quiet ? " " + a.Args : ""))
                         : new ProcessStartInfo(path, quiet ? a.Args : "");
                     psi.UseShellExecute = true;
                     psi.WorkingDirectory = Path.GetDirectoryName(path);
@@ -130,6 +130,9 @@ namespace WinUp
             }
             Log("Готово: успешно " + ok + " из " + items.Count + ".");
             skip.Enabled = false; close.Enabled = true;
+        }
+        internal static string SystemTool(string name) {
+            return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), name);
         }
     }
 }

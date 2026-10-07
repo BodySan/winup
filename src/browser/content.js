@@ -72,12 +72,13 @@
 
   const icons = new Map(); // input -> значок
   let dd = null, ddFor = null;
+  let dropdownEpoch = 0, searchEpoch = 0;
 
   // ---------- защита: вставка только по настоящему щелчку по видимому списку ----------
   // Список должен быть виден целиком (браузер сам проверяет, что его ничто не перекрывает и он не прозрачный:
   // IntersectionObserver v2), простоять на экране не меньше SHOW_MS и получить щелчок от пользователя (isTrusted).
   const SHOW_MS = 500;
-  let ddShownAt = 0, ddVisible = false, ddObserver = null;
+  let ddShownAt = 0, ddVisible = false, ddObserver = null, visibilityProof = typeof IntersectionObserverEntry !== "undefined" && "isVisible" in IntersectionObserverEntry.prototype;
   function pageLooksNormal() {
     for (const el of [document.documentElement, document.body, host]) {
       if (!el) continue;
@@ -91,7 +92,7 @@
     if (ddObserver) ddObserver.disconnect();
     ddVisible = false;
     try {
-      ddObserver = new IntersectionObserver(es => { for (const e of es) ddVisible = e.isVisible === true; },
+      ddObserver = new IntersectionObserver(es => { for (const e of es) ddVisible = visibilityProof ? e.isVisible === true : e.intersectionRatio >= 0.99; },
         { trackVisibility: true, delay: 100, threshold: [1.0] });
       ddObserver.observe(el);
     } catch (e) { ddObserver = null; }
@@ -141,10 +142,10 @@
   }
 
   // ---------- выпадающий список ----------
-  const send = msg => new Promise(res => chrome.runtime.sendMessage(msg, r => res(r || { ok: false, error: "host_error", detail: chrome.runtime.lastError && chrome.runtime.lastError.message })));
+  const send = msg => new Promise(res => chrome.runtime.sendMessage({ ...msg, requireConfirmation: !visibilityProof }, r => res(r || { ok: false, error: "host_error", detail: chrome.runtime.lastError && chrome.runtime.lastError.message })));
   const node = (tag, cls, text) => { const n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n; };
 
-  function close() { if (dd) dd.remove(); if (ddObserver) ddObserver.disconnect(); dd = null; ddFor = null; ddVisible = false; }
+  function close() { dropdownEpoch++; searchEpoch++; if (dd) dd.remove(); if (ddObserver) ddObserver.disconnect(); dd = null; ddFor = null; ddVisible = false; }
 
   function toggle(el) {
     if (dd && ddFor === el) { close(); return; }
@@ -178,7 +179,7 @@
     insecure: "Страница открыта без https — пароль от защищённого сайта сюда не вставляется.",
     busy: "В окне WinUp уже открыт вопрос — ответьте на него и попробуйте снова.",
     rate_limited: "Слишком много запросов подряд — подождите минуту.",
-    bad_caller: "WinUp не узнал браузер, из которого пришёл запрос (нужен Chrome, Edge, Яндекс Браузер или Brave). Подробности — в журнале на вкладке «Пароли».",
+    bad_caller: "WinUp не подтвердил подпись браузера. Подробности — в журнале на вкладке «Пароли».",
     bad_server: "Канал связи с WinUp занят другой программой. Закройте WinUp и запустите снова; если не поможет — проверьте ПК антивирусом."
   };
 
@@ -191,10 +192,11 @@
   }
 
   async function load() {
+    const epoch = dropdownEpoch, field = ddFor;
     const want = ddFor && kindOf(ddFor);
     frame([node("div", "msg", "Загрузка…")]);
     const r = await send({ type: "list" });
-    if (!dd) return;
+    if (!dd || epoch !== dropdownEpoch || field !== ddFor) return;
     if (!r.ok) { errorView(r, load); return; }
     const items = want === "otp" ? r.items.filter(x => x.otp) : r.items;
     const kids = [];
@@ -211,9 +213,11 @@
   }
 
   async function search(q, box) {
+    const epoch = dropdownEpoch, queryEpoch = ++searchEpoch;
     box.textContent = "";
     if (q.trim().length < 2) return;
     const r = await send({ type: "search", query: q });
+    if (!dd || epoch !== dropdownEpoch || queryEpoch !== searchEpoch) return;
     if (!r.ok) { box.appendChild(node("div", "msg", ERRORS[r.error] || r.error)); return; }
     if (r.items.length === 0) box.appendChild(node("div", "msg", "Ничего не найдено."));
     r.items.forEach(x => box.appendChild(item(x)));
@@ -277,13 +281,20 @@
       (c.kind === "otp" || (c.kind === "password" ? c.field : passwords(scope(c.field))[0] || null) === c.pw) &&
       (c.kind !== "password" || userFor(c.field) === c.user);
   }
-  function discard(r) { if (r) { r.password = r.login = r.otp = ""; } }
+  function discard(r) { if (r) { r.password = r.login = r.login2 = r.otp = ""; } }
+  function loginFor(field, r) {
+    if(!r.login2) return r.login;
+    const info = hint(field);
+    if((field.type === "email" || /e-mail|email|почт/i.test(info)) && !/@/.test(r.login || "") && /@/.test(r.login2)) return r.login2;
+    if((field.type === "tel" || /phone|телефон/i.test(info)) && !/^\+?[\d ()-]{5,}$/.test(r.login || "") && /^\+?[\d ()-]{5,}$/.test(r.login2)) return r.login2;
+    return r.login || r.login2;
+  }
 
   function apply(r, c) {
     if (!contextValid(c)) return false;
     const { pw, user, otp } = c;
     if (c.kind === "otp") { if (r.otp) setValue(c.field, r.otp); return true; }
-    if (user && r.login) setValue(user, r.login);
+    if (user && (r.login || r.login2)) setValue(user, loginFor(user,r));
     // input/change handlers may synchronously replace the form or navigate.
     if (!contextValid(c)) return false;
     if (pw && r.password) setValue(pw, r.password);
@@ -326,4 +337,51 @@
     .observe(document.documentElement, { childList: true, subtree: true, attributes: true, attributeFilter: ["type", "style", "class", "hidden"] });
   setInterval(place, 1000);
   scan();
+
+  // The website already owns these input values. Keep field references only; never
+  // persist passwords in extension storage. Saving always requires native review.
+  let saveCard=null, saveTimer=null, offeredPw=null, dismissedPw=null, saveShown=0;
+  function hideSave() { if(saveCard) saveCard.remove(); saveCard=null; offeredPw=null; clearTimeout(saveTimer); }
+  function saveCandidate(pw) {
+    if(window !== window.top || document.hidden || !visible(pw) || pw.type !== "password" || !pw.value || pw.value.length > 4096) return null;
+    const user=userFor(pw);
+    if(!user || !user.value || user.value.length > 1024 || !visible(user)) return null;
+    // Two password fields can be a registration/change form. Require a single current
+    // password rather than guessing which of several secrets is the account password.
+    if(passwords(scope(pw)).length !== 1) return null;
+    return { user, pw, url:location.href };
+  }
+  function offerSave(pw) {
+    const c=saveCandidate(pw);
+    if(!c || pw === dismissedPw || saveCard && offeredPw === pw) return;
+    hideSave(); offeredPw=pw; saveShown=Date.now();
+    const card=saveCard=node("div","dd");
+    card.style.cssText="position:fixed;right:18px;bottom:18px;max-width:360px;min-width:280px";
+    card.append(node("div","hd","WinUp — сохранить пароль?"),node("div","msg",location.hostname));
+    const save=node("button","bt","Сохранить / обновить…"), cancel=node("button","bt","Не сейчас");
+    card.append(save,cancel); root.appendChild(card);
+    cancel.addEventListener("click",e=> { if(e.isTrusted) { dismissedPw=pw; hideSave(); } });
+    save.addEventListener("click",async e=> {
+      const now=saveCandidate(pw), rect=save.getBoundingClientRect();
+      if(!e.isTrusted || Date.now()-saveShown<SHOW_MS || !pageLooksNormal() || !now || now.url!==c.url ||
+        rect.left<0 || rect.top<0 || rect.right>innerWidth || rect.bottom>innerHeight || document.elementFromPoint(e.clientX,e.clientY)!==host) return;
+      save.disabled=true;
+      let msg={type:"save",login:now.user.value,password:pw.value};
+      const result=await send(msg); msg.password=msg.login=""; msg=null;
+      if(saveCard!==card) return;
+      if(result.ok) { dismissedPw=pw; hideSave(); }
+      else { save.disabled=false; const status=node("div","msg",ERRORS[result.error] || "Сохранение не выполнено: "+result.error); card.append(status); }
+    });
+  }
+  document.addEventListener("input",e=> {
+    if(!e.isTrusted || e.target?.tagName!=="INPUT") return;
+    // A fresh edit of the password is a new save candidate, even when the site
+    // reuses the same input after a previous save or dismissal.
+    if(e.target===dismissedPw && e.target.type==="password") dismissedPw=null;
+    const pw=e.target.type==="password" ? e.target : passwords(scope(e.target))[0];
+    if(!pw) return; clearTimeout(saveTimer); saveTimer=setTimeout(()=>offerSave(pw),700);
+  },true);
+  document.addEventListener("submit",e=> { if(e.isTrusted) { const pw=passwords(e.target)[0]; if(pw) offerSave(pw); } },true);
+  addEventListener("pagehide",hideSave);
+  document.addEventListener("visibilitychange",()=> { if(document.hidden) hideSave(); });
 })();

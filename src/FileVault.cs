@@ -26,9 +26,12 @@ namespace WinUp
         readonly object sync = new object();
         readonly List<FileStream> runtimeLocks = new List<FileStream>();
         SourceLease runtimeDirectories;
+        SourceLease vaultDirectories;
         public string Folder { get; private set; }
         public string MountPoint { get; private set; }
         public bool Open { get { var p=process; try { return p != null && !p.HasExited; } catch { return false; } } }
+        [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        static extern bool CreateDirectoryW(string path, IntPtr security);
 
         public FileVaultClient(string folder, string password, bool create, CancellationToken cancellation = default(CancellationToken))
         {
@@ -36,8 +39,19 @@ namespace WinUp
             SafePaths.NoReparseParents(Folder);
             try
             {
+                // Keep the selected path stable while the helper opens/creates the vault.
+                // A junction or renamed ancestor must not redirect it elsewhere.
+                vaultDirectories = SourceLease.HoldDirectories(create ? Path.GetDirectoryName(Folder) : Folder);
                 string root = ExtractRuntime(runtimeLocks,out runtimeDirectories);
                 cancellation.ThrowIfCancellationRequested();
+                if (create) {
+                    // Win32 creation fails if ANY object already occupies this name.
+                    // Hold and validate the newly created root before passing secrets
+                    // to the helper, eliminating its mkdir-to-first-write gap.
+                    if (!CreateDirectoryW(Folder, IntPtr.Zero)) throw new IOException("Не удалось создать новую папку хранилища. Выберите свободное имя и доступную папку.");
+                    var createdDirectories = SourceLease.HoldDirectories(Folder);
+                    vaultDirectories.Dispose(); vaultDirectories = createdDirectories;
+                }
                 var info = new ProcessStartInfo(Path.Combine(root, "WinUpFiles.exe")) {
                     UseShellExecute = false, CreateNoWindow = true, RedirectStandardInput = true,
                     RedirectStandardOutput = true, RedirectStandardError = true,
@@ -110,8 +124,23 @@ namespace WinUp
                 if (!Open) throw new IOException("Файловое хранилище закрыто.");
                 var encoded = new List<string>();
                 string line = null;
+                SourceLease exportDirectories = null;
+                string exportStage = null;
+                bool receivedResult = false;
+                bool commandSent = false;
                 try
                 {
+                    if (command == "export") {
+                        if (fields.Length != 2) throw new IOException("Недопустимая команда экспорта.");
+                        string destination = Path.GetFullPath(fields[1]);
+                        SafePaths.NoReparseParents(destination);
+                        if (SafePaths.IsWithin(destination, Folder) ||
+                            MountPoint != null && SafePaths.IsWithin(destination, MountPoint))
+                            throw new IOException("Выберите папку за пределами зашифрованного хранилища и его диска.");
+                        exportDirectories = SourceLease.HoldDirectories(Path.GetDirectoryName(destination));
+                        exportStage = Path.Combine(Path.GetDirectoryName(destination), ".winup-export-" + Guid.NewGuid().ToString("N"));
+                        fields = new[] { fields[0], destination, exportStage };
+                    }
                     foreach (string field in fields)
                     {
                         byte[] bytes = Encoding.UTF8.GetBytes(field ?? "");
@@ -119,6 +148,8 @@ namespace WinUp
                         finally { Array.Clear(bytes,0,bytes.Length); }
                     }
                     line = command + "\t" + string.Join("\t", encoded);
+                    if (line.Length > 8 * 1024 * 1024) throw new IOException("Слишком большой список файлов для одной операции.");
+                    commandSent = true;
                     process.StandardInput.WriteLine(line); process.StandardInput.Flush();
                     string response=null; int diagnostics=0;
                     for(int i=0;i<32;i++) {
@@ -130,12 +161,26 @@ namespace WinUp
                     }
                     if(response==null) throw new IOException("Файловый модуль завершил работу или нарушил протокол.");
                     var result = new JavaScriptSerializer { MaxJsonLength = 4 * 1024 * 1024 }.Deserialize<Dictionary<string,object>>(response);
-                    if (result == null || !result.ContainsKey("ok") || !(bool)result["ok"])
+                    if (result == null || !result.ContainsKey("ok") || !(result["ok"] is bool)) throw new IOException("Файловый модуль нарушил протокол.");
+                    receivedResult = true;
+                    if (!(bool)result["ok"])
                         throw new IOException("Операция не выполнена: " + (result != null && result.ContainsKey("error") ? result["error"] : "сбой модуля") +
                             (result != null && result.ContainsKey("detail") ? " — " + result["detail"] : ""));
                     return result;
                 }
-                finally { Secure.Wipe(line); foreach (string field in encoded) Secure.Wipe(field); }
+                catch {
+                    // A broken reply cannot leave a writer alive with an unknown state.
+                    if (commandSent && !receivedResult) { Cancel(); var failed = process; if (failed != null) try { failed.WaitForExit(3000); } catch { } }
+                    throw;
+                }
+                finally {
+                    try {
+                        // Process termination skips Java's finally blocks. The parent
+                        // owns this exact staging name and removes partial plaintext.
+                        if (exportStage != null) File.Delete(exportStage);
+                    } catch (Exception cleanup) { throw new IOException("Не удалось удалить незавершённую расшифрованную копию: " + exportStage, cleanup); }
+                    finally { if (exportDirectories != null) exportDirectories.Dispose(); Secure.Wipe(line); foreach (string field in encoded) Secure.Wipe(field); }
+                }
             }
         }
         public void Import(string source, string destination, bool move)
@@ -146,7 +191,11 @@ namespace WinUp
                 if (SafePaths.IsWithin(source, Folder) || SafePaths.IsWithin(Folder, source) ||
                     MountPoint != null && SafePaths.IsWithin(source, MountPoint))
                     throw new IOException("Исходник и файловое хранилище не должны находиться друг внутри друга.");
-                Call("import", Path.GetFullPath(source), destination);
+                // Import exactly the locked snapshot. Files created after acquisition
+                // are never read by an unprotected second directory traversal.
+                string manifest = new JavaScriptSerializer { MaxJsonLength = 6 * 1024 * 1024 }.Serialize(lease.Snapshot);
+                try { Call("import", Path.GetFullPath(source), destination, manifest); }
+                finally { Secure.Wipe(manifest); }
                 if (move) lease.DeleteVerifiedOriginals();
             }
         }
@@ -155,6 +204,7 @@ namespace WinUp
             if (drive == null || drive.Length != 3 || drive[1] != ':' || drive[2] != '\\' || drive[0] < 'D' || drive[0] > 'Z')
                 throw new IOException("Выберите свободную букву диска D–Z.");
             if (Directory.Exists(drive)) throw new IOException("Буква диска уже занята.");
+            WinFspDriver.EnsureRunning();
             Call("mount", drive); MountPoint = drive;
         }
         public void Dispose()
@@ -167,6 +217,7 @@ namespace WinUp
             }
             foreach (var handle in runtimeLocks) handle.Dispose(); runtimeLocks.Clear();
             if(runtimeDirectories!=null) runtimeDirectories.Dispose();
+            if(vaultDirectories!=null) vaultDirectories.Dispose();
             MountPoint = null;
         }
         // Cancellation must not wait for a large transfer on the UI thread.
@@ -200,13 +251,19 @@ namespace WinUp
     internal sealed class SourceLease : IDisposable
     {
         readonly List<SafeFileHandle> files = new List<SafeFileHandle>();
+        readonly List<string> filePaths = new List<string>();
         readonly List<string> directories = new List<string>();
         readonly List<SafeFileHandle> directoryLocks = new List<SafeFileHandle>();
+        readonly Dictionary<string, SafeFileHandle> originalDirectories = new Dictionary<string, SafeFileHandle>(StringComparer.OrdinalIgnoreCase);
+        readonly List<string> snapshot = new List<string>();
+        string sourceRoot;
+        internal string[] Snapshot { get { return snapshot.ToArray(); } }
         [StructLayout(LayoutKind.Sequential)] struct HandleInfo {
             public uint Attributes, CreationLow, CreationHigh, AccessLow, AccessHigh, WriteLow, WriteHigh,
                 Volume, SizeHigh, SizeLow, Links, IndexHigh, IndexLow;
         }
         [DllImport("kernel32.dll",SetLastError=true)] static extern bool GetFileInformationByHandle(SafeFileHandle handle,out HandleInfo info);
+        [DllImport("kernel32.dll",SetLastError=true)] static extern bool GetFileInformationByHandleEx(SafeFileHandle handle,int kind,IntPtr information,uint size);
         [DllImport("kernel32.dll", CharSet=CharSet.Unicode, SetLastError=true)] static extern SafeFileHandle CreateFile(string name, uint access, uint share, IntPtr security, uint creation, uint flags, IntPtr template);
         [DllImport("kernel32.dll", SetLastError=true)] static extern bool SetFileInformationByHandle(SafeFileHandle handle, int kind, ref int info, uint size);
         [StructLayout(LayoutKind.Sequential,CharSet=CharSet.Unicode)] struct StreamData { public long Size; [MarshalAs(UnmanagedType.ByValTStr,SizeConst=296)] public string Name; }
@@ -220,13 +277,42 @@ namespace WinUp
                 if(error==38 || error==1 || error==87) return;
                 throw new IOException("Не удалось проверить дополнительные потоки файла: "+path);
             }
-            try { do { if(stream.Name!="::$DATA") throw new IOException("У файла есть дополнительные потоки NTFS. Такой файл нельзя перенести без потери данных: "+path); } while(FindNextStreamW(h,out stream)); }
+            try {
+                do { if(stream.Name!="::$DATA") throw new IOException("У файла есть дополнительные потоки NTFS. Такой файл нельзя перенести без потери данных: "+path); } while(FindNextStreamW(h,out stream));
+                if (Marshal.GetLastWin32Error() != 38) throw new IOException("Не удалось полностью проверить дополнительные потоки файла: " + path);
+            }
             finally { FindClose(h); }
+        }
+        static void RejectNamedStreams(SafeFileHandle handle) {
+            // Query the already-held object. Delete-pending paths intentionally
+            // cannot be reopened, including newly created alternate streams.
+            const int capacity = 65536;
+            IntPtr buffer = Marshal.AllocHGlobal(capacity);
+            try {
+                Marshal.WriteInt32(buffer, 0, 0); Marshal.WriteInt32(buffer, 4, 0);
+                if (!GetFileInformationByHandleEx(handle, 7, buffer, capacity)) {
+                    int error = Marshal.GetLastWin32Error();
+                    if (error == 38 || error == 1 || error == 50 || error == 87) return;
+                    throw new IOException("Не удалось проверить потоки исходника перед удалением.");
+                }
+                int offset = 0;
+                while (true) {
+                    if (offset < 0 || offset > capacity - 24) throw new IOException("Повреждён список потоков исходника.");
+                    int next = Marshal.ReadInt32(buffer, offset), length = Marshal.ReadInt32(buffer, offset + 4);
+                    if (length <= 0 || (length & 1) != 0 || length > capacity - offset - 24) throw new IOException("Повреждён список потоков исходника.");
+                    string name = Marshal.PtrToStringUni(new IntPtr(buffer.ToInt64() + offset + 24), length / 2);
+                    if (name != "::$DATA") throw new IOException("У исходника появился дополнительный поток NTFS. Исходники сохранены.");
+                    if (next == 0) break;
+                    if (next < 24 + length || (next & 7) != 0 || next > capacity - offset) throw new IOException("Повреждён список потоков исходника.");
+                    offset += next;
+                }
+            } finally { Marshal.FreeHGlobal(buffer); }
         }
         public static SourceLease Acquire(string source, bool move) {
             var result = new SourceLease();
             try {
                 source=Path.GetFullPath(source); SafePaths.NoReparseParents(source);
+                result.sourceRoot = source;
                 // Hold each ancestor before descending. A parent junction or rename must
                 // not redirect the helper between verification and reading the source.
                 var parents=new Stack<string>();
@@ -263,28 +349,50 @@ namespace WinUp
             var attrs = File.GetAttributes(path);
             if ((attrs & FileAttributes.ReparsePoint) != 0) throw new IOException("Ссылки в исходной папке не поддерживаются.");
             bool directory = (attrs & FileAttributes.Directory) != 0;
-            var handle = CreateFile(path, directory ? 0x80u : 0x80000000u | (move ? 0x10000u : 0u), 1, IntPtr.Zero, 3, directory ? 0x02200000u : 0x00200000u, IntPtr.Zero);
+            var handle = CreateFile(path, (directory ? 0x80u : 0x80000000u) | (move ? 0x10000u : 0u), 1, IntPtr.Zero, 3, directory ? 0x02200000u : 0x00200000u, IntPtr.Zero);
             if (handle.IsInvalid) { handle.Dispose(); throw new IOException("Файл занят или недоступен: " + path); }
             HandleInfo info;
             if(!GetFileInformationByHandle(handle,out info) || (info.Attributes & 0x400u)!=0 || ((info.Attributes & 0x10u)!=0)!=directory) {
                 handle.Dispose(); throw new IOException("Исходный путь изменился или содержит ссылку: "+path);
             }
             try { RejectNamedStreams(path); } catch { handle.Dispose(); throw; }
-            if (!directory) { files.Add(handle); return; }
+            snapshot.Add(path.Equals(sourceRoot, StringComparison.OrdinalIgnoreCase) ? "" : path.Substring(sourceRoot.Length + 1));
+            if (!directory) { files.Add(handle); filePaths.Add(path); return; }
             directoryLocks.Add(handle); directories.Add(path);
+            originalDirectories.Add(path, handle);
             foreach (string child in Directory.GetFileSystemEntries(path)) Visit(child, move);
         }
         public void DeleteVerifiedOriginals() {
-            foreach (var file in files) {
-                int disposition = 1;
-                if (!SetFileInformationByHandle(file, 4, ref disposition, 4)) throw new IOException("Зашифрованная копия проверена, но часть исходников не удалось удалить.");
-                file.Dispose();
+            // NTFS share modes apply per stream. A newly added named stream can
+            // appear after the initial snapshot without changing default data.
+            // Validate the complete set before deleting even the first original.
+            foreach (string path in filePaths.Concat(directories)) RejectNamedStreams(path);
+            var marked = new List<SafeFileHandle>();
+            try {
+                // Do not close the first file until every original has passed the
+                // final stream check under delete-pending. New stream opens fail.
+                foreach (var file in files) {
+                    int disposition = 1;
+                    if (!SetFileInformationByHandle(file, 4, ref disposition, 4)) throw new IOException("Зашифрованная копия проверена, но исходники не удалось удалить.");
+                    marked.Add(file);
+                }
+                foreach (var file in marked) RejectNamedStreams(file);
+            } catch {
+                bool restored = true;
+                foreach (var file in marked) { int disposition = 0; if (!SetFileInformationByHandle(file, 4, ref disposition, 4)) restored = false; }
+                if (!restored) throw new IOException("Не удалось отменить удаление части исходников. Их зашифрованная копия уже проверена.");
+                throw;
+            }
+            foreach (var file in files) file.Dispose();
+            foreach (string dir in directories.OrderByDescending(x => x.Length)) {
+                var handle = originalDirectories[dir]; int disposition = 1;
+                if (!SetFileInformationByHandle(handle, 4, ref disposition, 4))
+                    throw new IOException("Файлы перенесены. Исходная папка сохранена: она занята или в ней появились новые файлы.");
+                try { RejectNamedStreams(handle); }
+                catch { disposition = 0; if (!SetFileInformationByHandle(handle, 4, ref disposition, 4)) throw new IOException("Не удалось отменить удаление исходной папки. Зашифрованная копия уже проверена."); throw; }
+                handle.Dispose();
             }
             foreach (var handle in directoryLocks) handle.Dispose(); directoryLocks.Clear();
-            foreach (string dir in directories.OrderByDescending(x => x.Length)) {
-                try { Directory.Delete(dir, false); }
-                catch { throw new IOException("Файлы перенесены. Исходная папка сохранена: она занята или в ней появились новые файлы."); }
-            }
         }
         public void Dispose() { foreach (var f in files) f.Dispose(); foreach (var d in directoryLocks) d.Dispose(); }
     }

@@ -7,6 +7,10 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
 using System.Windows.Forms;
+using KeePassLib;
+using KeePassLib.Cryptography.KeyDerivation;
+using KeePassLib.Keys;
+using KeePassLib.Serialization;
 
 namespace WinUp {
     static partial class SecurityHarness {
@@ -30,6 +34,8 @@ namespace WinUp {
         }
         static bool Refused(Action action) { try { action(); return false; } catch(InvalidDataException) { return true; } catch(IOException) { return true; } catch(System.Security.Cryptography.CryptographicException) { return true; } }
         static void ComponentUpdateTests() {
+            DeepUpdateBoundaryTests();
+            KdbxPublicHeaderBoundaryTests();
             string root=Path.Combine(Paths.Root,"update-fixture-"+Guid.NewGuid().ToString("N")); Directory.CreateDirectory(root);
             using(var key=new RSACryptoServiceProvider(3072)) {
                 key.PersistKeyInCsp=false;
@@ -75,6 +81,7 @@ namespace WinUp {
                 string state=Path.Combine(root,"store","state.json"); File.WriteAllText(state,"{\"active\":\"../outside\"}");
                 Check("updates-state-traversal-rejected",Refused(()=>store.Selected()),"only SHA256 identifiers allowed");
                 Check("updates-version-comparison",!ComponentInventory.Newer("2.1.25156","2.1") && ComponentInventory.Newer("2.6.2","2.7.0"),"version comparison");
+                Check("updates-missing-zero-parts-are-equal",!ComponentInventory.Newer("2.61.1","2.61.1.0") && !ComponentInventory.Newer("2.61.1.0","2.61.1") && !ComponentInventory.Newer("2.1","2.1.0.0"),"release and assembly versions compare consistently");
                 var release=new ComponentRelease { schema=1,sequence=1,size=100,sha256=new string('a',64),package="component.wup",expiresUtc=DateTimeOffset.UtcNow.AddDays(7).ToString("o") };
                 ComponentFeed.Validate(release,"https://example.test/releases/",DateTimeOffset.UtcNow);
                 release.expiresUtc=DateTimeOffset.UtcNow.AddDays(-1).ToString("o");
@@ -91,6 +98,15 @@ namespace WinUp {
                     Check("updates-real-dialog-lists-components",dialog.Controls.OfType<ListView>().Single().Items.Count==12,"all bundled modules and KeePass visible");
                     dialog.Close();
                 }
+                string cancelResult=null;
+                using(var dialog=new ComponentUpdatesDialog(text=>cancelResult=text,delegate {},delegate {})) {
+                    dialog.Show(form);Application.DoEvents();
+                    var run=typeof(ComponentUpdatesDialog).GetMethod("Run",System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic);
+                    run.Invoke(dialog,new object[] {new Action<CancellationToken>(token=>{token.WaitHandle.WaitOne();token.ThrowIfCancellationRequested();}),null});
+                    dialog.Close();
+                    var until=DateTime.UtcNow.AddSeconds(5);while(dialog.Visible && DateTime.UtcNow<until){Application.DoEvents();Thread.Sleep(10);}
+                    Check("updates-close-cancels-operation-and-closes-dialog",!dialog.Visible && cancelResult!=null && cancelResult.Contains("отменена"),"actual close event cancels worker and preserves completion status");
+                }
                 string path=Path.Combine(Paths.Data,"components","state.json");
                 Directory.CreateDirectory(Path.GetDirectoryName(path));
                 byte[] previous=File.Exists(path) ? File.ReadAllBytes(path) : null;
@@ -102,6 +118,102 @@ namespace WinUp {
                     }
                 } finally { if(previous==null) File.Delete(path); else File.WriteAllBytes(path,previous); }
             });
+        }
+        static void DeepUpdateBoundaryTests() {
+            Check("core-update-running-version-downgrade-denied",Refused(()=>CoreUpdate.RequireCurrentOrNewer(new Version(2,60,0,0),new Version(2,61,1,0))),"older signed core cannot replace a newer running release");
+            Check("core-update-prepared-version-downgrade-denied",Refused(()=>CoreUpdate.RequireCurrentOrNewer(new Version(2,61,1,0),new Version(2,62,0,0))),"a second update cannot overwrite a newer prepared core");
+            CoreUpdate.RequireCurrentOrNewer(new Version(2,61,1,0),new Version(2,61,1,0));
+            Check("core-update-same-version-repair-allowed",true,"verified same version may repair damaged staging");
+            byte[] many;
+            using(var memory=new MemoryStream()) {
+                using(var archive=new ZipArchive(memory,ZipArchiveMode.Create,true))
+                    for(int i=0;i<=CoreUpdate.MaxArchiveEntries;i++)archive.CreateEntry("entry-"+i);
+                many=memory.ToArray();
+            }
+            Check("core-update-entry-count-bomb-denied",Refused(()=>CoreUpdate.ValidateArchiveDirectory(many)),"directory bound enforced before ZipArchive allocates entries");
+            Check("core-update-truncated-directory-denied",Refused(()=>CoreUpdate.ValidateArchiveDirectory(new byte[64])),"missing ZIP end record rejected");
+            byte[] duplicate;
+            using(var memory=new MemoryStream()) {
+                using(var archive=new ZipArchive(memory,ZipArchiveMode.Create,true)) {
+                    using(var output=archive.CreateEntry("KeePass.exe").Open())output.WriteByte(1);
+                    using(var output=archive.CreateEntry("keepass.EXE").Open())output.WriteByte(1);
+                }
+                duplicate=memory.ToArray();
+            }
+            string error;
+            Check("core-update-ambiguous-candidate-denied",!CoreUpdate.StageSignedPackage(duplicate,"2.61.1",out error) && error.Contains("однозначного"),"case-variant duplicate core is rejected before publisher verification");
+            Check("core-update-invalid-request-version-denied",!CoreUpdate.StageSignedPackage(duplicate,"2.61.1\n",out error) && error.Contains("Неверная версия"),"newline cannot bypass exact version validation");
+            Check("installer-system-tools-use-absolute-paths",Path.IsPathRooted(InstallForm.SystemTool("msiexec.exe")) && InstallForm.SystemTool("taskkill.exe")==Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System),"taskkill.exe"),"installer-folder/PATH executables are not selected");
+            using(var oversized=new MemoryStream(new byte[1024*1024])) {
+                bool denied=Refused(()=>ComponentPackage.HashExact(oversized,16));
+                Check("updates-decompression-hash-is-bounded",denied && oversized.Position==17,"stop after signed length plus one byte, not after attacker-controlled deflate EOF");
+            }
+            using(var truncated=new MemoryStream(new byte[15]))
+                Check("updates-decompressed-truncation-denied",Refused(()=>ComponentPackage.HashExact(truncated,16)),"exact signed length required");
+            var good=Encoding.UTF8.GetBytes("bounded signed bytes");
+            using(var bounded=new MemoryStream(good))using(var original=new MemoryStream(good))
+                Check("updates-bounded-hash-preserves-sha256",ComponentPackage.HashExact(bounded,good.Length)==ComponentPackage.Hash(original),"hash is unchanged for valid exact-length streams");
+        }
+        static KdfParameters SafetyKdf() {
+            var parameters=new Argon2Kdf().GetDefaultParameters();
+            parameters.SetUInt64(Argon2Kdf.ParamMemory,64UL<<20);
+            parameters.SetUInt64(Argon2Kdf.ParamIterations,8);
+            parameters.SetUInt32(Argon2Kdf.ParamParallelism,2);
+            parameters.SetByteArray(Argon2Kdf.ParamSalt,new byte[32]);
+            return parameters;
+        }
+        static byte[] SafetyKdbxFixture(byte[] dictionary,int blockSize=0,byte[] publicData=null) {
+            using(var memory=new MemoryStream())using(var writer=new BinaryWriter(memory,Encoding.UTF8,true)) {
+                writer.Write(0x9AA2D903U);writer.Write(0xB54BFB67U);writer.Write(0x00040000U);
+                Action<byte,byte[]> field=(id,data)=>{writer.Write(id);writer.Write(data.Length);writer.Write(data);};
+                field(2,new byte[16]);field(3,new byte[4]);field(4,new byte[32]);field(7,new byte[16]);field(11,dictionary);
+                if(publicData!=null)field(12,publicData);
+                field(0,new byte[]{13,10,13,10});writer.Flush();
+                byte[] digest;using(var hash=SHA256.Create())digest=hash.ComputeHash(memory.ToArray());
+                writer.Write(digest);writer.Write(new byte[32]);writer.Write(new byte[32]);writer.Write(blockSize);writer.Flush();
+                return memory.ToArray();
+            }
+        }
+        static void KdbxPublicHeaderBoundaryTests() {
+            var parameters=SafetyKdf();var normal=SafetyKdbxFixture(KdfParameters.SerializeExt(parameters));
+            using(var memory=new MemoryStream(normal))KdbxSafety.Validate(memory);
+            Check("kdbx-bounded-header-preflight",true,"public KDBX4 structure checked without deriving a key");
+            Action<KdfParameters,string> reject=(bad,name)=> {
+                var bytes=SafetyKdbxFixture(KdfParameters.SerializeExt(bad));
+                using(var memory=new MemoryStream(bytes))Check(name,Refused(()=>KdbxSafety.Validate(memory)),"rejected before untrusted Argon2 allocation/iterations");
+            };
+            parameters=SafetyKdf();parameters.SetUInt64(Argon2Kdf.ParamMemory,1UL<<30);reject(parameters,"kdbx-attacker-memory-budget-denied");
+            parameters=SafetyKdf();parameters.SetUInt64(Argon2Kdf.ParamIterations,ulong.MaxValue);reject(parameters,"kdbx-attacker-iterations-budget-denied");
+            parameters=SafetyKdf();parameters.SetUInt32(Argon2Kdf.ParamParallelism,uint.MaxValue);reject(parameters,"kdbx-attacker-thread-budget-denied");
+            parameters=SafetyKdf();parameters.SetUInt64(Argon2Kdf.ParamMemory,512UL<<20);parameters.SetUInt64(Argon2Kdf.ParamIterations,1024);reject(parameters,"kdbx-combined-argon-work-budget-denied");
+            parameters=SafetyKdf();parameters.SetUInt64(Argon2Kdf.ParamMemory,512UL<<20);parameters.SetUInt64(Argon2Kdf.ParamIterations,128);KdbxSafety.ValidateKdfParameters(parameters);
+            Check("kdbx-maximum-supported-argon-work-allowed",true,"512 MiB and128 iterations accepted without executing KDF");
+            byte[] legacy=(byte[])normal.Clone();Buffer.BlockCopy(BitConverter.GetBytes(0x00030001U),0,legacy,8,4);
+            using(var memory=new MemoryStream(legacy))Check("kdbx3-requires-explicit-conversion",Refused(()=>KdbxSafety.Validate(memory)),"legacy encrypted block lengths cannot be preflighted safely");
+            byte[] giant=(byte[])normal.Clone();Buffer.BlockCopy(BitConverter.GetBytes(int.MaxValue),0,giant,13,4);
+            using(var memory=new MemoryStream(giant))Check("kdbx-attacker-header-allocation-denied",Refused(()=>KdbxSafety.Validate(memory)),"2 GiB declared field refused before byte[] allocation");
+            byte[] badDictionary;
+            using(var memory=new MemoryStream())using(var writer=new BinaryWriter(memory)) {
+                writer.Write((ushort)0x100);writer.Write((byte)66);writer.Write(int.MaxValue);badDictionary=memory.ToArray();
+            }
+            var nested=SafetyKdbxFixture(KdfParameters.SerializeExt(SafetyKdf()),0,badDictionary);
+            using(var memory=new MemoryStream(nested))Check("kdbx-attacker-nested-allocation-denied",Refused(()=>KdbxSafety.Validate(memory)),"2 GiB VariantDictionary name refused before KeePass deserializer");
+            var badBlock=SafetyKdbxFixture(KdfParameters.SerializeExt(SafetyKdf()),int.MaxValue);
+            using(var memory=new MemoryStream(badBlock))Check("kdbx-attacker-block-allocation-denied",Refused(()=>KdbxSafety.Validate(memory)),"2 GiB unauthenticated HMAC block length refused");
+            byte[] truncated=normal.Take(normal.Length-1).ToArray();
+            using(var memory=new MemoryStream(truncated))Check("kdbx-truncated-public-block-denied",Refused(()=>KdbxSafety.Validate(memory)),"truncated terminator rejected before KDF");
+            byte[] digestChanged=(byte[])normal.Clone();digestChanged[21]^=1;
+            using(var memory=new MemoryStream(digestChanged))Check("kdbx-public-header-digest-denied",Refused(()=>KdbxSafety.Validate(memory)),"cheap public checksum checked before key derivation");
+            string path=Path.Combine(Paths.Root,"safety-roundtrip.kdbx");
+            var key=new CompositeKey();key.AddUserKey(new KcpPassword("Synthetic-Safety-2026!"));
+            var database=new PwDatabase();database.New(IOConnectionInfo.FromPath(path),key);
+            var fast=SafetyKdf();fast.SetUInt64(Argon2Kdf.ParamMemory,8192);fast.SetUInt64(Argon2Kdf.ParamIterations,1);fast.SetUInt32(Argon2Kdf.ParamParallelism,1);
+            database.KdfParameters=fast;database.Save(null);database.Close();
+            var reopened=new PwDatabase();
+            try {
+                KdbxSafety.OpenDatabase(reopened,path,key,null);
+                Check("kdbx-real-safe-open-roundtrip",reopened.IsOpen,"actual KeePass4 encrypted database opens through held preflight wrapper");
+            }finally {reopened.Close();if(File.Exists(path))File.Delete(path);}
         }
     }
 }

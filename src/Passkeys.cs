@@ -26,19 +26,34 @@ namespace WinUp {
             }
         }
         static string Ascii(string s) { return new IdnMapping().GetAscii(s).ToLowerInvariant(); }
-        public static bool ValidRp(string rp,string host) {
-            if(string.IsNullOrEmpty(rp) || rp.Length>253 || rp.EndsWith(".") || rp.IndexOfAny(new[] {'/',':','\\','@',' '})>=0) return false;
-            try { rp=Ascii(rp); host=Ascii(host); } catch { return false; }
-            if(host!=rp && !host.EndsWith("."+rp,StringComparison.Ordinal)) return false;
-            if(rp=="localhost") return host==rp;
-            var labels=rp.Split('.'); int suffix=1;
+        // The same complete PSL (including private hosting domains) also protects
+        // password matching. Unknown TLDs use the PSL's prevailing "*" rule.
+        internal static string Registrable(string host) {
+            try {
+                host=Ascii(host.TrimEnd('.'));
+                if(Uri.CheckHostName(host)!=UriHostNameType.Dns || host=="localhost" || host.EndsWith(".localhost",StringComparison.Ordinal)) return host;
+                var labels=host.Split('.'); int suffix=SuffixLength(labels);
+                return labels.Length>suffix ? string.Join(".",labels.Skip(labels.Length-suffix-1)) : host;
+            } catch { return null; }
+        }
+        static int SuffixLength(string[] labels) {
+            int suffix=1;
             for(int i=0;i<labels.Length;i++) {
                 string tail=string.Join(".",labels.Skip(i));
-                if(exceptions.Contains(tail)) { suffix=labels.Length-i-1; break; }
+                if(exceptions.Contains(tail)) return labels.Length-i-1;
                 if(exact.Contains(tail)) suffix=Math.Max(suffix,labels.Length-i);
                 if(i>0 && wildcard.Contains(tail)) suffix=Math.Max(suffix,labels.Length-i+1);
             }
-            return labels.Length>suffix;
+            return suffix;
+        }
+        public static bool ValidRp(string rp,string host) {
+            if(string.IsNullOrEmpty(rp) || rp.Length>253 || rp.EndsWith(".") || rp.IndexOfAny(new[] {'/',':','\\','@',' '})>=0) return false;
+            try { rp=Ascii(rp); host=Ascii(host); } catch { return false; }
+            if(Uri.CheckHostName(rp)!=UriHostNameType.Dns) return false;
+            if(host!=rp && !host.EndsWith("."+rp,StringComparison.Ordinal)) return false;
+            if(rp=="localhost") return host==rp;
+            var labels=rp.Split('.');
+            return labels.Length>SuffixLength(labels);
         }
         public static string Origin(string url,out string host) {
             host=null; Uri uri;
@@ -62,6 +77,20 @@ namespace WinUp {
         static IEnumerable<Dictionary<string,object>> PArray(Dictionary<string,object> d,string key) {
             object value; var list=d!=null && d.TryGetValue(key,out value) ? value as IEnumerable : null;
             return list==null ? Enumerable.Empty<Dictionary<string,object>>() : list.Cast<object>().OfType<Dictionary<string,object>>();
+        }
+        static Dictionary<string,object>[] PDescriptors(Dictionary<string,object> options,string key) {
+            object value;
+            if(!options.TryGetValue(key,out value)) return new Dictionary<string,object>[0];
+            var list=value as IList;
+            if(list==null || list.Count>100) throw new FormatException("invalid_credentials");
+            var result=new List<Dictionary<string,object>>();
+            foreach(object item in list) {
+                var descriptor=item as Dictionary<string,object>;
+                if(descriptor==null || PString(descriptor,"type")!="public-key") throw new FormatException("invalid_credential");
+                PasskeyPolicy.Decode(PString(descriptor,"id"),1,1024);
+                result.Add(descriptor);
+            }
+            return result.ToArray();
         }
         static string PasskeyError(string name) { return new JavaScriptSerializer().Serialize(new { ok=false,error=name }); }
         internal string BrowserPasskey(string url,bool create,Dictionary<string,object> options,Func<bool> cancelled) {
@@ -87,11 +116,13 @@ namespace WinUp {
                     if(PString(options,"attestation")=="enterprise") return PasskeyError("NotSupportedError");
                 }
                 var ext=PObject(options,"extensions");
-                if(ext!=null && ext.Keys.Any(k=>k!="credProps")) return PasskeyError("NotSupportedError");
+                // Optional unsupported WebAuthn extensions are ignored. Never report PRF/largeBlob
+                // results that the software authenticator did not produce. Every operation uses UV.
             } catch { return PasskeyError("TypeError"); }
             var candidates=current.Entries.Where(e=>e.Kind=="passkey" && e.Target==rp).ToList();
-            var allowed=PArray(options,create ? "excludeCredentials" : "allowCredentials").ToArray();
-            if(allowed.Length>100) return PasskeyError("TypeError");
+            Dictionary<string,object>[] allowed;
+            try { allowed=PDescriptors(options,create ? "excludeCredentials" : "allowCredentials"); }
+            catch { return PasskeyError("TypeError"); }
             if(create && candidates.Any(e=>allowed.Any(a=>PString(a,"id")==e.Args))) return PasskeyError("InvalidStateError");
             if(!create && allowed.Length>0) candidates=candidates.Where(e=>allowed.Any(a=>PString(a,"type")=="public-key" && PString(a,"id")==e.Args)).ToList();
             if(!create && candidates.Count==0) return PasskeyError("not_found");
@@ -101,7 +132,9 @@ namespace WinUp {
                 using(var timer=new Timer { Interval=100 }) {
                     timer.Tick+=(s,e)=> { if(cancelled() || vault!=current) prompt.Close(); }; timer.Start();
                     Win.Focus(Handle);
-                    if(prompt.ShowDialog(this)!=DialogResult.OK) return PasskeyError(cancelled() ? "AbortError" : "NotAllowedError");
+                    var result=prompt.ShowDialog(this);
+                    if(prompt.UseWindows && !cancelled() && vault==current) return "{\"ok\":false,\"fallback\":true}";
+                    if(result!=DialogResult.OK) return PasskeyError(cancelled() ? "AbortError" : "NotAllowedError");
                 }
                 if(!create) selected=prompt.Selected;
             }
@@ -125,7 +158,7 @@ namespace WinUp {
                     byte[] auth=Keys.RegisterData(rp,id,cose);
                     response=new Dictionary<string,object> { {"clientDataJSON",PasskeyPolicy.Encode(client)}, {"authenticatorData",PasskeyPolicy.Encode(auth)},
                         {"attestationObject",PasskeyPolicy.Encode(Keys.Attestation(auth))},{"publicKey",PasskeyPolicy.Encode(spki)},{"publicKeyAlgorithm",algorithm},
-                        {"clientExtensionResults",new { credProps=new { rk=true } }} };
+                        {"clientExtensionResults",PObject(options,"extensions") != null && PObject(options,"extensions").ContainsKey("credProps") ? (object)new { credProps=new { rk=true } } : new Dictionary<string,object>()} };
                 } finally { Secure.Wipe(pem); }
             } else {
                 if(selected==null) return PasskeyError("not_found");
@@ -144,12 +177,16 @@ namespace WinUp {
     }
     sealed class PasskeyConsentDialog : Dlg,ILockableDialog {
         readonly ComboBox accounts=new ComboBox { DropDownStyle=ComboBoxStyle.DropDownList,Width=380 };
+        public bool UseWindows { get; private set; }
         public LoginEntry Selected { get { return accounts.SelectedItem as LoginEntry; } }
         public PasskeyConsentDialog(string origin,string username,List<LoginEntry> entries) : base(username==null ? "Войти ключом доступа" : "Создать ключ доступа") {
             Row("Сайт:",new Label { Text=origin,AutoSize=true,MaximumSize=new System.Drawing.Size(390,100) });
             if(username!=null) Row("Аккаунт:",new Label { Text=username,AutoSize=true,MaximumSize=new System.Drawing.Size(390,100) });
             else { accounts.DisplayMember="Login"; foreach(var entry in entries) accounts.Items.Add(entry); accounts.SelectedIndex=0; Row("Аккаунт:",accounts); }
-            Buttons(); Ok.Text=username==null ? "Войти" : "Создать";
+            Note("WinUp хранит ключ в вашей базе. Для ключа на телефоне, USB-носителе или в Windows выберите «Windows / телефон…».");
+            var system=new Button { Text="Windows / телефон…",AutoSize=true };
+            system.Click+=(s,e)=> { UseWindows=true; DialogResult=DialogResult.Ignore; Close(); };
+            Buttons(system); Ok.Text=username==null ? "Войти" : "Создать";
         }
     }
 }

@@ -45,10 +45,24 @@ try {
     if($LASTEXITCODE -or !$run) { throw 'No successfully checked component candidate on main.' }
     if($run.status -ne 'completed' -or $run.conclusion -ne 'success' -or $run.headBranch -ne 'main' -or $run.workflowName -ne 'Проверить компоненты' -or $run.event -notin 'workflow_dispatch','schedule') { throw 'Unexpected workflow run; refusing release.' }
     Write-Output "Verified test run $($run.databaseId), commit $($run.headSha)."
-    $sequence=100000+[long]$run.number
     $existing=& $Gh release list --repo $Repository --json tagName | ConvertFrom-Json
     if($LASTEXITCODE) { throw 'Release listing failed.' }
-    if($existing.tagName -contains "components-$sequence") { Write-Output 'This tested candidate is already published.'; return }
+    $sequenceFloor=100000+[long]$run.number-1
+    foreach($tag in $existing.tagName) {
+        if($tag -match '^components-(\d+)$') { $sequenceFloor=[Math]::Max($sequenceFloor,[long]$Matches[1]) }
+    }
+    $statePath=Join-Path ([IO.Path]::GetDirectoryName($root)) 'data\components\state.json'
+    if(Test-Path -LiteralPath $statePath) {
+        $state=Get-Content -LiteralPath $statePath -Raw | ConvertFrom-Json
+        $sequenceFloor=[Math]::Max($sequenceFloor,[long]$state.highest)
+    }
+    $readyPath=Join-Path $root 'release-ready.json'
+    if(Test-Path -LiteralPath $readyPath) {
+        $ready=Get-Content -LiteralPath $readyPath -Raw | ConvertFrom-Json
+        if($ready.testRunId -eq $run.databaseId -and $existing.tagName -contains "components-$($ready.sequence)") { Write-Output 'This tested candidate is already published.'; return }
+        $sequenceFloor=[Math]::Max($sequenceFloor,[long]$ready.sequence)
+    }
+    $sequence=$sequenceFloor+1
     $folder=Join-Path $root ('release-work\'+[Guid]::NewGuid().ToString('N'))
     $candidate=Join-Path $folder 'src'; $release=Join-Path $folder 'release'
     New-Item -ItemType Directory -Force $candidate,$release | Out-Null
@@ -58,10 +72,11 @@ try {
     # Rebuild the application locally; the CI-provided EXE is not published blindly.
     & "$root\src\build.ps1" -Source $candidate -Output "$release\WinUp.exe"
     & "$root\src\updates\build-package.ps1" -Sequence $sequence -Source $candidate -Output $release -ProtectedKey $ProtectedKey
-    Compress-Archive -Path "$candidate\*" -DestinationPath "$release\src.zip"
-    $notes="Комплект №$sequence. Проверки GitHub Actions пройдены; подпись выполнена локально на ПК владельца. Новые совместимые библиотеки и PSL. Cryptomator/Java сохраняются в согласованном runtime. KeePass/WinFsp обновляются отдельными кнопками."
+    & "$PSScriptRoot\archive-source.ps1" -Source $candidate -Output "$release\src.zip"
+    $appVersion=(Get-Item -LiteralPath "$release\WinUp.exe").VersionInfo.FileVersion
+    $notes="WinUp $appVersion, комплект №$sequence. Проверки GitHub Actions пройдены; подпись выполнена локально на ПК владельца. Приложение, исходники с инструментами выпуска и совместимые компоненты. Для обновления EXE закройте программу и замените файл, сохранив data. Для компонентов используйте кнопку WinUp или файл .wup и перезапуск. Полная инструкция и ограничения Firefox/Google включены в исходники; варианты выпуска и риски: https://github.com/$Repository/blob/main/doc/UPDATES-SIMPLE-RU.md. Cryptomator/Java сохраняются в согласованном runtime; KeePass/WinFsp обновляются отдельными кнопками."
     [IO.File]::WriteAllText("$release\notes.txt",$notes,[Text.UTF8Encoding]::new($false))
-    [IO.File]::WriteAllText((Join-Path $root 'release-ready.json'),(@{directory=$release;sequence=$sequence;commit=$run.headSha;repository=$Repository}|ConvertTo-Json),[Text.UTF8Encoding]::new($false))
+    [IO.File]::WriteAllText((Join-Path $root 'release-ready.json'),(@{directory=$release;sequence=$sequence;testRunId=$run.databaseId;commit=$run.headSha;repository=$Repository}|ConvertTo-Json),[Text.UTF8Encoding]::new($false))
     if($PrepareOnly) {
         Write-Output "Prepared and locally signed release ${sequence}: $release"; return
     }

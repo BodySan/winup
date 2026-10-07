@@ -6,24 +6,32 @@ const node = (tag, cls, text) => { const n = document.createElement(tag); if (cl
 const btn = (text, fn, alt) => { const b = node("button", "bt" + (alt ? " alt" : ""), text); b.addEventListener("click", fn); return b; };
 let tab = null;
 let epoch = 0, tick = null, watch = null, watchReady = false, generation = null, lastWatch = 0;
+let clearSecretView = null;
 
-function show(...kids) { epoch++; clearInterval(tick); tick = null; main.textContent = ""; main.append(...kids); }
+function show(...kids) {
+  epoch++; clearInterval(tick); tick = null;
+  if (clearSecretView) { clearSecretView(); clearSecretView = null; }
+  main.textContent = ""; main.append(...kids);
+}
 
 function watchState() {
   if (watch) return;
+  let reportedError = false;
   watch = chrome.runtime.connect({ name: "otp-watch" });
   watch.onMessage.addListener(r => {
     lastWatch = Date.now();
     if (!r.ok || !r.paired || r.state !== "open" || generation !== r.generation) {
+      reportedError = true;
       watchReady = false;
       problem({ error: !r.ok ? r.error : !r.paired ? "not_paired" : "locked" });
       return;
     }
     watchReady = true;
+    reportedError = false;
   });
   watch.onDisconnect.addListener(() => {
     void chrome.runtime.lastError; watch = null; watchReady = false;
-    problem({ error: "not_running" });
+    if (!reportedError) problem({ error: "not_running" });
   });
 }
 
@@ -58,7 +66,7 @@ function problem(r) {
     case "rate_limited":
       return show(node("div", "msg", "Слишком много запросов подряд — подождите минуту."), btn("Повторить", start));
     case "bad_caller":
-      return show(node("div", "msg", "WinUp не узнал этот браузер (нужен Chrome, Edge, Яндекс Браузер или Brave). Подробности — в журнале на вкладке «Пароли»."));
+      return show(node("div", "msg", "WinUp не узнал этот браузер. Проверены Chrome, Edge, Яндекс Браузер, Brave, Opera и Firefox. Подробности — в журнале на вкладке «Пароли»."));
     case "bad_server":
       return show(node("div", "msg", "Канал связи с WinUp занят другой программой. Закройте WinUp и запустите снова; если не поможет — проверьте ПК антивирусом."));
   }
@@ -155,6 +163,7 @@ async function otpView(id) {
     } catch { feedback.textContent = "Вставка на этой странице недоступна."; }
   }, true);
   show(navigation(), node("h3", null, r.name), display, timer, copy, insert, feedback);
+  clearSecretView = () => { secret = ""; display.textContent = ""; copy.disabled = true; insert.disabled = true; };
   function update() {
     const left = Math.max(0, Math.ceil((deadline - performance.now()) / 1000));
     if (!watchReady || Date.now() - lastWatch > 7000) { secret = ""; return problem({ error: "not_running" }); }
@@ -181,12 +190,15 @@ async function listView() {
   sr.placeholder = "Поиск во всех записях…";
   const box = node("div");
   let t = 0;
+  let queryEpoch = 0;
   sr.addEventListener("input", () => {
+    const requestEpoch = ++queryEpoch, viewEpoch = epoch;
     clearTimeout(t);
     t = setTimeout(async () => {
       box.textContent = "";
       if (sr.value.trim().length < 2) return;
       const s = await send({ type: "search", url: tab.url, query: sr.value });
+      if (requestEpoch !== queryEpoch || viewEpoch !== epoch) return;
       if (!s.ok) return box.append(node("div", "msg", s.error === "rate_limited" ? "Слишком много запросов подряд — подождите минуту." : s.error));
       if (s.items.length === 0) box.append(node("div", "msg", "Ничего не найдено."));
       s.items.forEach(x => box.append(item(x)));
@@ -205,7 +217,7 @@ document.getElementById("forget").addEventListener("click", async () => {
 window.addEventListener("pagehide", () => { show(); if (watch) watch.disconnect(); });
 
 const passkeys = document.getElementById("passkeys");
-chrome.storage.local.get("passkeysEnabled").then(s => { passkeys.checked = !!s.passkeysEnabled; });
+chrome.storage.local.get("passkeysEnabled").then(s => { passkeys.checked = s.passkeysEnabled !== false; });
 passkeys.addEventListener("change", async () => {
   await chrome.storage.local.set({ passkeysEnabled: passkeys.checked });
   document.getElementById("passkey-note").textContent = "Перезагрузите вкладку сайта, чтобы применить настройку.";

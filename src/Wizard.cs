@@ -14,7 +14,7 @@ namespace WinUp
             ControlBox = false;
             Note(text);
             var box = new TextBox { Text = key, ReadOnly = true, Font = new Font("Consolas", 14f), TextAlign = HorizontalAlignment.Center };
-            Grid.Controls.Add(box); Grid.SetColumnSpan(box, 2); box.Dock = DockStyle.Fill;
+            FullRow(box); box.Dock = DockStyle.Fill;
             var copy = new Button { Text = "Копировать", AutoSize = true };
             copy.Click += (s, e) => SecureClip.Copy(key, 60);
             var save = new Button { Text = "Сохранить в файл...", AutoSize = true };
@@ -25,9 +25,9 @@ namespace WinUp
             };
             var tools = new FlowLayoutPanel { AutoSize = true };
             tools.Controls.Add(copy); tools.Controls.Add(save);
-            Grid.Controls.Add(tools); Grid.SetColumnSpan(tools, 2);
+            FullRow(tools);
             var confirm = new CheckBox { Text = "Я сохранил ключ", AutoSize = true };
-            Grid.Controls.Add(confirm); Grid.SetColumnSpan(confirm, 2);
+            FullRow(confirm);
             Buttons();
             Cancel.Visible = false;
             Ok.Enabled = false;
@@ -163,10 +163,11 @@ namespace WinUp
                 case 3:
                     title.Text = "Готово!";
                     body.Text = "Где что находится:\n\n" +
-                                "•  «Установка» — отметьте программы галочками и нажмите «Установить отмеченные»;\n" +
-                                "•  «Запуск» — программы, которые работают без установки;\n" +
-                                "•  «Скачать» — официальные сайты программ;\n" +
-                                "•  «Пароли» — логины и пароли, вход в один клик.\n\n" +
+                                "•  «Пароли» — учётные записи для сайтов и приложений;\n" +
+                                "•  «2FA» — одноразовые коды; «Ключи доступа» — вход через своё расширение;\n" +
+                                "•  «Файлы» — шифрованные файлы и папки;\n" +
+                                "•  «Запуск» — портативные программы; «WinGet» — каталог программ;\n" +
+                                "•  «Установка» — очередь установщиков; «Скачать» — ссылки на сайты.\n\n" +
                                 "Новые установщики просто кладите в папку apps — WinUp сам предложит их добавить.";
                     action.Text = "Открыть инструкцию";
                     break;

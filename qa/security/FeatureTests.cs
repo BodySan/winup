@@ -57,6 +57,7 @@ namespace WinUp
             Check("otp-revoked-pair-denied", !(bool)unpaired["ok"] && (string)unpaired["error"] == "not_paired", "revocation");
             FileFeatureTests();
             PasskeyFeatureTests();
+            CorrectionsTests();
         }
         static void FileFeatureTests()
         {
@@ -84,6 +85,16 @@ namespace WinUp
                 string exported = Path.Combine(root,"export.txt");
                 client.Call("export","copied/secret.txt",exported);
                 Check("files-decrypt-roundtrip",File.ReadAllText(exported)==marker,"content verified");
+                string unicodeFolder="Русская папка_日本語_😀",unicodeName="Учебный файл_😀.txt";
+                string unicodeSource=Path.Combine(root,unicodeName);
+                File.WriteAllText(unicodeSource,marker,Encoding.UTF8);
+                client.Call("mkdir",unicodeFolder);client.Import(unicodeSource,unicodeFolder+"/"+unicodeName,false);
+                var unicodeRows=((ArrayList)client.Call("list",unicodeFolder)["items"]).Cast<Dictionary<string,object>>();
+                Check("files-unicode-name-protocol",unicodeRows.Any(x=>(string)x["name"]==unicodeName),"Cyrillic and emoji survive UTF-8 protocol");
+                var rootRows=((ArrayList)client.Call("list","")["items"]).Cast<Dictionary<string,object>>();
+                Check("files-unicode-directory-protocol",rootRows.Any(x=>(string)x["name"]==unicodeFolder),"Cyrillic, Japanese and non-BMP characters");
+                string unicodeExport=Path.Combine(root,"Выгрузка_😀.txt");client.Call("export",unicodeFolder+"/"+unicodeName,unicodeExport);
+                Check("files-unicode-export-roundtrip",File.ReadAllText(unicodeExport)==marker,"exact displayed Unicode filename opens and exports");
                 bool collision = false;
                 try { client.Import(source,"copied",true); } catch(IOException) { collision = true; }
                 Check("files-collision-preserves-original",collision && File.Exists(Path.Combine(source,"secret.txt")),"no overwrite or source deletion");
@@ -98,6 +109,7 @@ namespace WinUp
                     client.Mount("R:\\");
                     File.WriteAllText(@"R:\from-explorer.txt",marker);
                     Check("files-explorer-mounted",File.ReadAllText(@"R:\copied\secret.txt")==marker,"real Windows filesystem");
+                    Check("files-unicode-explorer-roundtrip",File.ReadAllText(Path.Combine("R:\\",unicodeFolder,unicodeName))==marker,"same Unicode name through real mounted filesystem");
                     mounted=true;
                 } catch(Exception e) { Check("files-explorer-mounted",false,e.Message); }
                 if(mounted) client.Call("close");

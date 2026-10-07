@@ -1,5 +1,6 @@
 param([string]$Output=(Join-Path $PSScriptRoot '..\WinUp.exe'),[string]$Source)
 $ErrorActionPreference='Stop'
+New-Item -ItemType Directory -Force ([IO.Path]::GetDirectoryName([IO.Path]::GetFullPath($Output))) | Out-Null
 $src=if($Source) { [IO.Path]::GetFullPath($Source) } else { $PSScriptRoot }
 & "$PSScriptRoot\updates\prepare.ps1" -Source $src
 $csc="$env:WINDIR\Microsoft.NET\Framework64\v4.0.30319\csc.exe"

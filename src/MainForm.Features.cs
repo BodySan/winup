@@ -22,9 +22,26 @@ namespace WinUp {
         System.Threading.CancellationTokenSource fileCancellation;
         static Button FeatureButton(string title,Action action) {
             var b=new Button { Text=title, AutoSize=true, Margin=new Padding(4) };
-            b.Click+=(s,e)=>action(); return b;
+            b.Click+=(s,e)=> { try { action(); } catch(Exception ex) { MessageBox.Show(b.FindForm(),ex.Message,"WinUp",MessageBoxButtons.OK,MessageBoxIcon.Warning); } }; return b;
         }
+        void SelectTab(string title) { var page=tabs.TabPages.Cast<TabPage>().FirstOrDefault(x=>x.Text==title); if(page!=null) tabs.SelectedTab=page; }
         bool NeedVault() { if(vault==null) Unlock(); return vault!=null; }
+        bool EnsureFileVault() {
+            if(fileBusy) { fileState.Text="Дождитесь завершения текущей операции или отмените её."; return false; }
+            if(fileVault!=null && fileVault.Open) return true;
+            if(!NeedVault()) return false;
+            using(var choice=new FileVaultChoiceDialog(fileCatalog.SelectedItem as string)) {
+                var result=choice.ShowDialog(this);
+                if(result==DialogResult.Yes) CreateFileVault();
+                else if(result==DialogResult.No) { if(fileCatalog.SelectedItem==null) AttachFileVault(); if(fileCatalog.SelectedItem!=null) OpenFileVault(); }
+            }
+            return fileVault!=null && fileVault.Open;
+        }
+        void EncryptExistingFile() {
+            if(fileBusy) return;
+            using(var picker=new OpenFileDialog {Title="Выберите существующий файл для шифрования",Multiselect=true})
+                if(picker.ShowDialog(this)==DialogResult.OK && EnsureFileVault()) ImportPaths(picker.FileNames);
+        }
         void BuildFileVaultTab() {
             var page=new TabPage("Файлы");
             var bar=new FlowLayoutPanel { Dock=DockStyle.Top,AutoSize=true,WrapContents=true };
@@ -35,6 +52,7 @@ namespace WinUp {
             bar.Controls.Add(FeatureButton("Открыть",OpenFileVault));
             bar.Controls.Add(FeatureButton("Закрыть",CloseFileVaultSafely));
             bar.Controls.Add(FeatureButton("В Проводнике",MountFileVault));
+            bar.Controls.Add(FeatureButton("Зашифровать файл…",EncryptExistingFile));
             bar.Controls.Add(FeatureButton("Добавить файлы",delegate { ImportFiles(false); }));
             bar.Controls.Add(FeatureButton("Добавить папку",delegate { ImportFiles(true); }));
             bar.Controls.Add(FeatureButton("Новая папка",MakeFileDirectory));
@@ -90,7 +108,9 @@ namespace WinUp {
             }
         }
         void OpenFileVault() {
-            if(fileBusy || !NeedVault() || fileCatalog.SelectedItem==null) return;
+            if(fileBusy || !NeedVault()) return;
+            if(fileCatalog.SelectedItem==null) AttachFileVault();
+            if(fileCatalog.SelectedItem==null) return;
             string folder=(string)fileCatalog.SelectedItem;
             CloseFileVault();
             using(var d=new FileVaultDialog(false,folder)) {
@@ -129,7 +149,7 @@ namespace WinUp {
                 task.GetAwaiter().GetResult();
             }
             catch(Exception ex) { MessageBox.Show(this,ex.Message,"WinUp — файлы",MessageBoxButtons.OK,MessageBoxIcon.Warning); }
-            finally { fileCancellation.Dispose(); fileCancellation=null; fileBusy=false; fileState.Text=fileVault!=null && fileVault.Open ? "Хранилище открыто" : "Хранилище закрыто"; }
+            finally { fileCancellation.Dispose(); fileCancellation=null; fileBusy=false; fileState.Text=fileVault!=null && fileVault.Open ? "Открыто: /"+fileDirectory+(fileVault.MountPoint==null ? "" : " · "+fileVault.MountPoint) : "Хранилище закрыто"; }
         }
         void RefreshFileItems() {
             var client=fileVault; if(client==null || fileBusy) return;
@@ -145,7 +165,7 @@ namespace WinUp {
             fileState.Text="Открыто: /"+fileDirectory+(client.MountPoint==null ? "" : " · "+client.MountPoint);
         }
         void MakeFileDirectory() {
-            if(fileVault==null || fileBusy) return;
+            if(!EnsureFileVault()) return;
             using(var d=new FeatureNameDialog("Новая папка","Название папки:")) {
                 if(d.ShowDialog(this)!=DialogResult.OK) return;
                 var client=fileVault; FileOperation(delegate { client.Call("mkdir",FileNameInVault(d.Value)); }); RefreshFileItems();
@@ -153,7 +173,7 @@ namespace WinUp {
         }
         string FileNameInVault(string name) { return fileDirectory.Length==0 ? name : fileDirectory+"/"+name; }
         void ImportFiles(bool folder) {
-            if(fileVault==null || fileBusy) return;
+            if(!EnsureFileVault()) return;
             if(folder) using(var d=new FolderBrowserDialog { Description="Папка для шифрования" }) {
                 if(d.ShowDialog(this)==DialogResult.OK) ImportPaths(new[] { d.SelectedPath });
             } else using(var d=new OpenFileDialog { Multiselect=true,Title="Файлы для шифрования" }) {
@@ -187,7 +207,7 @@ namespace WinUp {
             }
         }
         void MountFileVault() {
-            if(fileVault==null || fileBusy) return;
+            if(!EnsureFileVault()) return;
             if(!WinFspDriver.Installed) {
                 if(MessageBox.Show(this,"Для диска в Проводнике нужен системный компонент WinFsp. Установить его?\nWindows запросит права администратора. Работа с файлами внутри WinUp доступна без него.","WinUp",MessageBoxButtons.YesNo,MessageBoxIcon.Question)!=DialogResult.Yes) return;
                 bool installed=false;
@@ -204,6 +224,8 @@ namespace WinUp {
             var page=new TabPage("Ключи доступа");
             passkeyList.Columns.Add("Сайт",300); passkeyList.Columns.Add("Аккаунт",300);
             var bar=new FlowLayoutPanel { Dock=DockStyle.Top,AutoSize=true };
+            bar.Controls.Add(FeatureButton("Добавить ключ…",AddPasskeyFromSite));
+            bar.Controls.Add(FeatureButton("Открыть сайт",delegate { if(passkeyList.SelectedItems.Count>0) OpenPasskeySite("https://"+((LoginEntry)passkeyList.SelectedItems[0].Tag).Target+"/"); }));
             bar.Controls.Add(FeatureButton("Открыть базу",delegate { if(NeedVault()) RefreshPasskeys(); }));
             bar.Controls.Add(FeatureButton("Обновить",RefreshPasskeys));
             bar.Controls.Add(FeatureButton("Удалить ключ",delegate {
@@ -215,6 +237,22 @@ namespace WinUp {
                 else { if(vault==current) current.Entries.Add(entry); else entry.ClearSecrets(); RefreshPasskeys(); }
             }));
             page.Controls.Add(passkeyList); page.Controls.Add(bar); tabs.TabPages.Add(page);
+        }
+        void AddPasskeyFromSite() {
+            if(!NeedVault()) return;
+            using(var dialog=new AddPasskeyDialog(store,vault.Entries)) {
+                if(dialog.ShowDialog(this)!=DialogResult.OK) return;
+                BrowserSetup.Connect();
+                if(!OpenPasskeySite(dialog.Url))return;
+                MessageBox.Show(this,"На сайте откройте безопасность аккаунта и создайте ключ доступа. Расширение WinUp предложит сохранить его в этой базе.\n\nЕсли расширение только что обновлено, перезагрузите его и вкладку сайта. Ключи, созданные ранее в Windows или телефоне, остаются у своего провайдера — для WinUp создаётся отдельный ключ.","WinUp — ключ доступа");
+            }
+        }
+        bool OpenPasskeySite(string address) {
+            try {
+                var browser=Browsers.Find(PreferredBrowser);
+                if(!string.IsNullOrWhiteSpace(PreferredBrowser) && browser==null)throw new InvalidOperationException("Выбранный браузер не найден. Выберите установленный браузер во вкладке «Пароли».");
+                System.Diagnostics.Process.Start(BrowserPages.SiteLaunch(address,browser));return true;
+            } catch(Exception ex) {MessageBox.Show(this,ex.Message,"WinUp — ключ доступа",MessageBoxButtons.OK,MessageBoxIcon.Information);return false;}
         }
         void RefreshPasskeys() {
             passkeyList.Items.Clear(); if(vault==null) return;
@@ -238,6 +276,27 @@ namespace WinUp {
             return ConfirmDbPassword(title) && vault==current;
         }
         internal bool SaveBrowserVault() { bool result=SaveVault(); RefreshPasskeys(); return result; }
+    }
+    sealed class FileVaultChoiceDialog : Dlg {
+        public FileVaultChoiceDialog(string selected) : base("Файловое хранилище закрыто") {
+            Note("Файлы шифруются внутри хранилища Cryptomator. Выберите, куда их добавить.");
+            if(selected!=null) Note("Выбрано: "+selected);
+            var open=new Button {Text=selected==null ? "Выбрать существующее" : "Открыть выбранное",AutoSize=true,DialogResult=DialogResult.No};
+            var create=new Button {Text="Создать новое",AutoSize=true,DialogResult=DialogResult.Yes};
+            Buttons(open,create); Ok.Visible=false;
+        }
+    }
+    sealed class AddPasskeyDialog : Dlg {
+        readonly ComboBox service=new ComboBox {DropDownStyle=ComboBoxStyle.DropDown,Width=400};
+        public string Url {get { string value=service.Text.Trim(); if(value=="Google") return "https://myaccount.google.com/signinoptions/passkeys"; if(value=="GitHub") return "https://github.com/settings/security"; if(!value.Contains("://")) value="https://"+value; return value; }}
+        public AddPasskeyDialog(AppStore store,IEnumerable<LoginEntry> entries) : base("Добавить ключ доступа") {
+            service.Items.Add("Google"); service.Items.Add("GitHub");
+            foreach(string url in entries.Where(x=>x.Kind=="site" || x.Kind=="both").Select(x=>x.Target).Concat(store.Templates.Where(x=>x.Kind!="app").Select(x=>x.Target)).Where(x=>!string.IsNullOrWhiteSpace(x)).Distinct()) service.Items.Add(url);
+            service.SelectedIndex=0; Row("Сервис или HTTPS-адрес:",service);
+            Note("Ключ регистрируется на сайте и сохраняется в открытой базе WinUp через своё расширение. Подтверждение — Windows Hello или пароль базы.");
+            Buttons(); Ok.Text="Открыть и добавить";
+            Ok.Click+=(s,e)=> { Uri uri; if(!Uri.TryCreate(Url,UriKind.Absolute,out uri) || uri.Scheme!="https" || uri.UserInfo.Length>0) { DialogResult=DialogResult.None; MessageBox.Show(this,"Укажите HTTPS-адрес сервиса.","WinUp"); }};
+        }
     }
     sealed class FileProgressDialog : Dlg,ILockableDialog {
         readonly Timer timer=new Timer { Interval=100 };

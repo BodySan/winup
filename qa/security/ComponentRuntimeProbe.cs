@@ -2,6 +2,8 @@ using System;
 using System.IO;
 using System.Reflection;
 using System.Text;
+using System.Linq;
+using System.Windows.Forms;
 
 namespace WinUp {
     static class ComponentRuntimeProbe {
@@ -9,6 +11,37 @@ namespace WinUp {
             if(!Paths.Root.StartsWith(@"C:\WinUpAudit\component-runtime",StringComparison.OrdinalIgnoreCase)) throw new Exception("Synthetic isolated component lab only");
             AppDomain.CurrentDomain.AssemblyResolve+=(s,e)=>new AssemblyName(e.Name).Name=="KeePassLib" ? CoreLoader.Resolve() : EmbeddedModules.Resolve(e.Name);
             try {
+                if(args[0]=="pending") {
+                    string running=ComponentResources.CurrentId;
+                    var before=ComponentInventory.Rows().ToDictionary(r=>r.Id,r=>r.Installed);
+                    ComponentResources.Store.Install(args[1]);
+                    var rows=ComponentInventory.Rows();
+                    if(ComponentResources.CurrentId!=running)throw new Exception("Running snapshot changed before restart");
+                    foreach(var row in rows.Where(r=>r.Id!="keepass" && r.Id!="winfsp")) {
+                        if(row.Installed!=before[row.Id] || row.Pending==null)throw new Exception("Missing separate pending version: "+row.Id);
+                        row.Latest=row.Pending;ComponentInventory.Availability(row);
+                        if(!row.Status.Contains("уже подготовлена"))throw new Exception("Prepared version offered twice: "+row.Id);
+                    }
+                    Console.WriteLine("PASS installed-package-keeps-runtime-snapshot-and-all-ten-pending-versions");
+                    Application.EnableVisualStyles();
+                    using(var dialog=new ComponentUpdatesDialog(null,delegate {},delegate {})) {
+                        dialog.Show();Application.DoEvents();
+                        var list=dialog.Controls.OfType<ListView>().Single();
+                        if(list.Columns.Count!=5 || list.Items.Cast<ListViewItem>().Count(i=>i.SubItems[2].Text!="—")!=10)throw new Exception("Pending versions missing in real UI");
+                        var method=typeof(ComponentUpdatesDialog).GetMethod("Installed",BindingFlags.Instance|BindingFlags.NonPublic);method.Invoke(dialog,null);
+                        if(!dialog.Controls.OfType<TextBox>().Single().Text.Contains("подготовлен"))throw new Exception("Missing completion history");
+                        foreach(var b in dialog.Controls.OfType<FlowLayoutPanel>().Single().Controls.OfType<Button>())if(!b.Visible || b.Bottom>b.Parent.ClientSize.Height)throw new Exception("Update button clipped: "+b.Text);
+                        using(var screenshot=new System.Drawing.Bitmap(dialog.Width,dialog.Height)){dialog.DrawToBitmap(screenshot,new System.Drawing.Rectangle(System.Drawing.Point.Empty,dialog.Size));screenshot.Save(@"C:\WinUp\test\corrections\component-pending-ui.png");}
+                        dialog.Close();
+                    }
+                    Console.WriteLine("PASS real-update-dialog-shows-per-component-pending-and-completion-history");return 0;
+                }
+                if(args[0]=="recheck") {
+                    var rows=ComponentInventory.Rows();
+                    if(ComponentResources.CurrentId==null || rows.Any(r=>r.Pending!=null))throw new Exception("Restart did not apply staged package");
+                    foreach(var row in rows){row.Latest=row.Installed;ComponentInventory.Availability(row);if(!row.Status.Contains("не требуется"))throw new Exception("Installed version offered again: "+row.Id);}
+                    Console.WriteLine("PASS fresh-process-applies-package-and-repeat-check-offers-no-installed-version");return 0;
+                }
                 if(args[0]=="github") {
                     var source=ComponentFeed.Source;
                     if(source!="https://github.com/BodySan/winup/releases/latest/download/") throw new Exception("Unexpected production default source");

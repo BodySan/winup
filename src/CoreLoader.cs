@@ -93,6 +93,8 @@ namespace WinUp
             version = null;
             // Hold the file against writing/replacement until signature verification,
             // metadata and the exact bytes for Assembly.Load have all been read.
+            SafePaths.NoReparseParents(path);
+            using (var parentLease = SourceLease.HoldDirectories(Path.GetDirectoryName(Path.GetFullPath(path))))
             using (var file = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read))
             {
                 if (file.Length <= 0 || file.Length > 32 * 1024 * 1024) throw new InvalidDataException("Неверный размер крипто-ядра.");

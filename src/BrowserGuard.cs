@@ -50,6 +50,28 @@ namespace WinUp
         const uint QueryLimited = 0x1000;
         static readonly IntPtr Invalid = new IntPtr(-1);
 
+        internal sealed class ProcessIdentity
+        {
+            internal string Path;
+            internal long Started;
+        }
+
+        // Read both values from the same kernel process object. Separate PID
+        // lookups could combine the old process path with a reused PID's time.
+        internal static ProcessIdentity Identity(int pid)
+        {
+            if(pid<=0) return null;
+            var handle=OpenProcess(QueryLimited,false,pid);
+            if(handle==IntPtr.Zero) return null;
+            try {
+                var name=new StringBuilder(1024); int length=name.Capacity;
+                long created,exited,kernel,user;
+                if(!QueryFullProcessImageName(handle,0,name,ref length) ||
+                    !GetProcessTimes(handle,out created,out exited,out kernel,out user) || created==0 || exited!=0) return null;
+                return new ProcessIdentity { Path=name.ToString(0,length),Started=created };
+            } finally { CloseHandle(handle); }
+        }
+
         public static int ClientPid(PipeStream p)
         {
             uint pid;
@@ -148,22 +170,34 @@ namespace WinUp
 
         static Guid GenericVerifyV2 = new Guid("00AAC56B-CD44-11d0-8CC2-00C04FC295EE");
 
-        // Проверенные файлы (путь|время изменения|размер → результат): сервер живёт долго, браузер один и тот же.
-        static readonly Dictionary<string, bool> cache = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
-
         public static bool SignedBy(string path, string org)
         {
-            string key;
-            try { var fi = new FileInfo(path); key = path + "|" + fi.LastWriteTimeUtc.Ticks + "|" + fi.Length + "|" + org; }
-            catch { return false; }
-            lock (cache)
+            // Metadata is attacker controlled: replacing a once trusted file while
+            // preserving its timestamp/length must never reuse the earlier verdict.
+            // Hold a non-write/non-delete-sharing handle while both checks read it.
+            try
             {
-                bool r;
-                if (cache.TryGetValue(key, out r)) return r;
-                r = Valid(path) && OrgOf(path).IndexOf(org, StringComparison.OrdinalIgnoreCase) >= 0;
-                cache[key] = r;
-                return r;
+                using (var pinned = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read))
+                    return Valid(path) && OrganizationMatches(OrgOf(path), org);
             }
+            catch { return false; }
+        }
+
+        internal static bool OrganizationMatches(string actual, string expected)
+        {
+            string[] names;
+            switch (expected)
+            {
+                case "Google": names = new[] { "Google LLC", "Google Inc" }; break;
+                case "Microsoft": names = new[] { "Microsoft Corporation" }; break;
+                case "Yandex": names = new[] { "Yandex LLC", "YANDEX LLC" }; break;
+                case "Brave": names = new[] { "Brave Software, Inc." }; break;
+                case "Opera": names = new[] { "Opera Norway AS", "Opera Software AS" }; break;
+                case "Vivaldi": names = new[] { "Vivaldi Technologies AS" }; break;
+                case "Mozilla": names = new[] { "Mozilla Corporation" }; break;
+                default: return false;
+            }
+            return Array.Exists(names, name => string.Equals(actual, name, StringComparison.OrdinalIgnoreCase));
         }
 
         public static bool SignedByName(string path, string signer)
@@ -231,7 +265,7 @@ namespace WinUp
         static readonly Dictionary<string, string> Known = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
             { "chrome.exe", "Google" }, { "msedge.exe", "Microsoft" }, { "browser.exe", "Yandex" },
-            { "brave.exe", "Brave" }, { "opera.exe", "Opera" }, { "vivaldi.exe", "Vivaldi" }
+            { "brave.exe", "Brave" }, { "opera.exe", "Opera" }, { "vivaldi.exe", "Vivaldi" }, { "firefox.exe", "Mozilla" }
         };
 
         // null — запрос от моста, запущенного браузером; иначе причина отказа (для журнала).
@@ -240,20 +274,23 @@ namespace WinUp
         {
             browser = null;
             var self = System.Windows.Forms.Application.ExecutablePath;
-            var client = Proc.ImagePath(clientPid);
+            var client = Proc.Identity(clientPid);
             if (client == null) return "не удалось определить программу, приславшую запрос (процесс " + clientPid + ")";
-            if (!Proc.SameFile(client, self)) return "запрос прислал не мост WinUp, а " + client;
+            if (!Proc.SameFile(client.Path, self)) return "запрос прислал не мост WinUp, а " + client.Path;
 
             int pid = clientPid;
-            long childStart = Proc.StartTime(pid);
+            long childStart = client.Started;
+            var ancestry = new List<KeyValuePair<int,long>> { new KeyValuePair<int,long>(clientPid,client.Started) };
             for (int hop = 0; hop < 2; hop++)
             {
                 int ppid = Proc.ParentPid(pid);
-                long pstart = Proc.StartTime(ppid);
+                var parent = Proc.Identity(ppid);
+                long pstart = parent==null ? 0 : parent.Started;
                 // Родитель завершён, а его номер занял другой процесс (запущенный позже моста), — цепочка не подтверждена.
                 if (ppid <= 0 || pstart == 0 || childStart == 0 || pstart > childStart)
                     return "мост запущен не браузером (запустившая программа уже завершилась)";
-                var ppath = Proc.ImagePath(ppid);
+                ancestry.Add(new KeyValuePair<int,long>(ppid,pstart));
+                var ppath = parent==null ? null : parent.Path;
                 if (ppath == null) return "мост запущен программой, которую WinUp не может проверить (процесс " + ppid + ")";
                 var name = Path.GetFileName(ppath);
                 if (hop == 0 && string.Equals(name, "cmd.exe", StringComparison.OrdinalIgnoreCase) &&
@@ -266,6 +303,11 @@ namespace WinUp
                 if (!Known.TryGetValue(name, out org)) return "мост запущен не браузером, а " + ppath;
                 if (!Signature.SignedBy(ppath, org))
                     return "у программы " + ppath + " нет действительной подписи " + org + " — это не настоящий браузер";
+                foreach(var ancestor in ancestry) {
+                    var current=Proc.Identity(ancestor.Key);
+                    if(current==null || current.Started!=ancestor.Value)
+                        return "процесс моста или браузера завершился во время проверки";
+                }
                 browser = name;
                 return null;
             }
@@ -275,7 +317,8 @@ namespace WinUp
         // Окно на другом конце канала — этот же WinUp.exe (проверка на стороне моста). null — да.
         public static string CheckServer(PipeStream pipe)
         {
-            var server = Proc.ImagePath(Proc.ServerPid(pipe));
+            var identity = Proc.Identity(Proc.ServerPid(pipe));
+            var server = identity==null ? null : identity.Path;
             if (server == null) return "канал создан неизвестной программой";
             return Proc.SameFile(server, System.Windows.Forms.Application.ExecutablePath) ? null : "канал создан программой " + server;
         }

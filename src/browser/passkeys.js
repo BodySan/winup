@@ -169,19 +169,32 @@
                 if(response.requestId!==id) return;
                 cleanup();
                 if(response.error) {
-                    if(['not_running','not_installed','not_paired','locked','not_found'].includes(response.error)) resolve({fallback:true});
-                    else reject(new DOMException(response.error,['SecurityError','InvalidStateError','NotSupportedError','AbortError'].includes(response.error) ? response.error : 'NotAllowedError'));
+                    if(response.error==='not_found' && request.action==='passkeys_get') resolve({fallback:true});
+                    else if(response.error==='TypeError') reject(new TypeError('Некорректные параметры ключа доступа'));
+                    else {
+                        const hints={not_running:'Запустите WinUp и повторите создание ключа доступа.',not_installed:'Подключите расширение в меню WinUp.',not_paired:'Свяжите расширение с WinUp через его значок в браузере.',locked:'Откройте базу WinUp и повторите запрос.'};
+                        reject(new DOMException(hints[response.error] || response.error,['SecurityError','InvalidStateError','NotSupportedError','AbortError'].includes(response.error) ? response.error : 'NotAllowedError'));
+                    }
                 } else resolve(response);
             }
             if(signal?.aborted) return abort();
+            // Serialize before registering listeners/timers: cyclic or oversized
+            // page-supplied options must not leave an unreachable pending request.
+            let payload;
+            try {
+                payload=JSON.stringify({...serialize(request),requestId:id});
+                if(payload.length>60000) throw new TypeError('Слишком большой запрос ключа доступа');
+            } catch {
+                reject(new TypeError('Некорректные параметры ключа доступа')); return;
+            }
             document.addEventListener('winup-passkeys-response',listener);
             signal?.addEventListener('abort',abort,{once:true});
             const lifetime=Math.max(5000,Math.min(Number(request.publicKey?.timeout)||120000,120000));
             timeout=setTimeout(abort,lifetime);
-            document.dispatchEvent(new CustomEvent('winup-passkeys-request',{detail:JSON.stringify({...serialize(request),requestId:id})}));
+            document.dispatchEvent(new CustomEvent('winup-passkeys-request',{detail:payload}));
         });
     };
-    const waitForFocus = function () {
+    const waitForFocus = function (signal) {
         /*
         Some browsers (Firefox, Safari) reject requests to original `navigator.credentials.create/get` if the page
         is out of focus (when the user selects a passkey in KeePassXC-desktop).
@@ -191,15 +204,18 @@
         `document.visibilityState` is not suitable: if the page is visible, but the focus is on another application
         (or DevTools), the request will be rejected.
         */
-        return new Promise((resolve) => {
+        return new Promise((resolve,reject) => {
+            if(signal?.aborted) return reject(new DOMException('Операция отменена','AbortError'));
             if (document.hasFocus()) {
                 return resolve();
             }
-            document.addEventListener(
-                'focus',
-                () => resolve(),
-                { capture: true, passive: true, once: true }
-            );
+            const cleanup=()=> { document.removeEventListener('focus',focused,true); window.removeEventListener('focus',focused,true); document.removeEventListener('visibilitychange',focused); signal?.removeEventListener('abort',aborted); };
+            const focused=()=> { if(document.hasFocus()) { cleanup(); resolve(); } };
+            const aborted=()=> { cleanup(); reject(new DOMException('Операция отменена','AbortError')); };
+            document.addEventListener('focus',focused,{capture:true,passive:true});
+            window.addEventListener('focus',focused,{capture:true,passive:true});
+            document.addEventListener('visibilitychange',focused,{passive:true});
+            signal?.addEventListener('abort',aborted,{once:true});
         });
     };
 
@@ -269,7 +285,7 @@
                 if (!response.fallback) {
                     throwError(response?.errorCode, response?.errorMessage);
                 }
-                await waitForFocus();
+                await waitForFocus(options?.signal);
                 return originalCredentials.create.call(originalCredentials,options);
             }
 
@@ -293,7 +309,7 @@
                 if (!response.fallback) {
                     throwError(response?.errorCode, response?.errorMessage);
                 }
-                await waitForFocus();
+                await waitForFocus(options?.signal);
                 return originalCredentials.get.call(originalCredentials,options);
             }
 
@@ -312,6 +328,15 @@
     await new Promise(resolve => setTimeout(resolve, 0));
     const available=await postMessageToExtension({action:'available'});
     if(!available.enabled) return;
-    try { Object.defineProperty(navigator,'credentials',{value:passkeysCredentials}); }
+    try {
+        Object.defineProperty(navigator,'credentials',{value:passkeysCredentials});
+        // Google and other sites probe platform UV before offering registration.
+        // WinUp provides UV with its own verified master password / Windows Hello.
+        const originalAvailable=PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable?.bind(PublicKeyCredential);
+        Object.defineProperty(PublicKeyCredential,'isUserVerifyingPlatformAuthenticatorAvailable',{configurable:true,value:async()=>{
+            const setting=await postMessageToExtension({action:'available'});
+            return setting.enabled ? true : originalAvailable ? originalAvailable() : false;
+        }});
+    }
     catch { /* A browser that disallows interception keeps its native provider. */ }
 })();

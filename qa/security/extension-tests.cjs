@@ -6,7 +6,9 @@ let count = 0;
 function check(name, condition) { assert.ok(condition, name); console.log('PASS ' + name); count++; }
 function page() {
   class Node {
-    constructor() { this.style = {}; this.children = []; }
+    constructor() { this.style = {}; this.children = []; this._text=''; }
+    get textContent() { return this._text; }
+    set textContent(value) { this._text=value; this.children=[]; }
     appendChild(n) { this.children.push(n); }
     append(...nodes) { this.children.push(...nodes); }
     attachShadow() { return new Node(); }
@@ -27,27 +29,93 @@ function page() {
   const form = { action: 'https://example.com/session', fields: [user, pw, otp], querySelectorAll(q) { return this.fields.filter(e => q !== 'input[type=password]' || e.type === 'password'); } };
   [user, pw, otp].forEach(e => e.form = form);
   const doc = { documentElement: new Node(), body: new Node(), activeElement: pw, createElement: () => new Node(), querySelectorAll: q => form.querySelectorAll(q), addEventListener() {} };
-  let listener, callback;
+  let listener, callback; const requests=[];
   const window = {}; window.top = window;
   const sandbox = { window, document: doc, location: { href: 'https://example.com/login', origin: 'https://example.com' },
-    chrome: { runtime: { id: 'our-extension', getURL: x => x, sendMessage: (m, cb) => callback = cb, onMessage: { addListener: fn => listener = fn } } },
+    chrome: { runtime: { id: 'our-extension', getURL: x => x, sendMessage: (m, cb) => { callback = cb; requests.push({message:m,reply:cb}); }, onMessage: { addListener: fn => listener = fn } } },
     HTMLInputElement: Input, HTMLTextAreaElement: Input, Event: class { constructor(type) { this.type = type; } },
     getComputedStyle: e => ({ display: e.hidden ? 'none' : 'block', visibility: 'visible', opacity: '1', filter: 'none', clipPath: 'none' }),
     IntersectionObserver: class { observe() {} disconnect() {} }, MutationObserver: class { observe() {} },
     addEventListener() {}, setInterval() {}, setTimeout() {}, clearTimeout() {}, scrollX: 0, scrollY: 0, console };
   let code = fs.readFileSync(path.join(src, 'content.js'), 'utf8');
-  code = code.replace(/\}\)\(\);\s*$/, 'globalThis.audit = { fillContext, contextValid, apply };\n})();');
+  code = code.replace(/\}\)\(\);\s*$/, 'globalThis.audit = { fillContext, contextValid, apply, saveCandidate, loginFor, toggle, search, dropdownState:()=>({dd,ddFor}) };\n})();');
   vm.runInNewContext(code, sandbox, { filename: 'content.js' });
-  return { ...sandbox, user, pw, otp, form, audit: sandbox.audit, listener: (...a) => listener(...a), respond: r => callback(r) };
+  return { ...sandbox, user, pw, otp, form, requests, audit: sandbox.audit, listener: (...a) => listener(...a), respond: r => callback(r) };
 }
 const credentials = () => ({ ok: true, password: 'SYNTHETIC-PASSWORD', login: 'SYNTHETIC-USER', otp: '123456' });
 function changes(name, change, field = 'pw') {
   const p = page(), c = p.audit.fillContext(p[field]); change(p);
   check(name, !p.audit.contextValid(c) && !p.audit.apply(credentials(), c) && p.pw.value === '');
 }
+async function passkeyPageTests() {
+  const listeners=new Map(), requests=[]; let focused=true, reply={error:'TypeError'};
+  const native={create:async()=>({native:true}),get:async()=>({native:true}),store:async()=>{},preventSilentAccess:async()=>{}};
+  const document={hasFocus:()=>focused,addEventListener(type,fn){if(!listeners.has(type))listeners.set(type,new Set());listeners.get(type).add(fn);},
+    removeEventListener(type,fn){listeners.get(type)?.delete(fn);},dispatchEvent(e){
+      if(e.type==='winup-passkeys-request') { const request=JSON.parse(e.detail); requests.push(request);
+        if(request.action==='abort') return;
+        const result=request.action==='available'?{enabled:true}:reply;
+        for(const fn of [...listeners.get('winup-passkeys-response')||[]])fn({detail:JSON.stringify({...result,requestId:request.requestId})});
+      } else for(const fn of [...listeners.get(e.type)||[]])fn(e);
+    }};
+  const context={console,document,navigator:{credentials:native},crypto:require('crypto').webcrypto,ArrayBuffer,Uint8Array,TypeError,DOMException,
+    window:{atob:s=>Buffer.from(s,'base64').toString('binary'),btoa:s=>Buffer.from(s,'binary').toString('base64')},
+    CustomEvent:class{constructor(type,options){this.type=type;this.detail=options.detail;}},
+    PublicKeyCredential:class{},AuthenticatorAttestationResponse:class{},AuthenticatorAssertionResponse:class{},setTimeout,clearTimeout};
+  vm.runInNewContext(fs.readFileSync(path.join(src,'passkeys.js'),'utf8'),context,{filename:'passkeys.js'});
+  for(let n=0;n<30 && context.navigator.credentials===native;n++)await new Promise(r=>setTimeout(r,10));
+  check('passkey-main-provider-installed',context.navigator.credentials!==native);
+  let error;
+  try{await context.navigator.credentials.create({publicKey:{challenge:new Uint8Array(32)}});}catch(e){error=e;}
+  check('passkey-type-error-preserved',error?.name==='TypeError');
+  const controller=new AbortController();controller.abort(); const before=requests.length;
+  try{await context.navigator.credentials.get({publicKey:{challenge:new Uint8Array(32)},signal:controller.signal});}catch(e){error=e;}
+  check('passkey-already-aborted-does-not-request-signature',error?.name==='AbortError' && requests.slice(before).every(r=>r.action==='abort'));
+  const cyclic={challenge:new Uint8Array(32)};cyclic.extensions=cyclic;
+  try{await context.navigator.credentials.create({publicKey:cyclic});}catch(e){error=e;}
+  check('passkey-cyclic-request-has-no-pending-listener',error?.name==='TypeError' && listeners.get('winup-passkeys-response').size===0);
+  try{await context.navigator.credentials.create({publicKey:{challenge:new Uint8Array(32),extensions:{large:'x'.repeat(61000)}}});}catch(e){error=e;}
+  check('passkey-oversized-request-fails-without-native-call',error?.name==='TypeError' && listeners.get('winup-passkeys-response').size===0);
+  focused=false; reply={fallback:true};const abort=new AbortController();
+  const pending=context.navigator.credentials.get({publicKey:{challenge:new Uint8Array(32)},signal:abort.signal}).catch(e=>e);
+  await Promise.resolve(); await Promise.resolve();abort.abort();const cancelled=await pending;
+  check('passkey-fallback-focus-wait-respects-cancellation',cancelled.name==='AbortError' && listeners.get('focus').size===0);
+}
+async function popupTests() {
+  class Node {
+    constructor(){this.children=[];this.handlers=new Map();this._text='';}
+    get textContent(){return this._text;} set textContent(value){this._text=value;this.children=[];}
+    append(...nodes){this.children.push(...nodes);} focus(){}
+    addEventListener(type,fn){this.handlers.set(type,fn);}
+  }
+  const elements=new Map(),requests=[];let interval;
+  const document={createElement:()=>new Node(),getElementById:id=>{if(!elements.has(id))elements.set(id,new Node());return elements.get(id);}};
+  const context={console,document,performance:{now:()=>0},window:{addEventListener(){},close(){}},
+    setInterval:fn=>{interval=fn;return 1;},clearInterval:()=>{interval=null;},setTimeout,clearTimeout,
+    chrome:{tabs:{query:async()=>[{id:1,url:'https://example.com'}]},storage:{local:{get:async()=>({passkeysEnabled:true})}},
+      runtime:{sendMessage(msg,reply){requests.push(msg);if(msg.type==='otp')reply({ok:true,otp:'123456',id:'synthetic-otp',name:'SYNTHETIC',generation:1,serverTime:Date.now(),expiresAt:Date.now()+30000});}}}};
+  vm.createContext(context);vm.runInContext(fs.readFileSync(path.join(src,'popup.js'),'utf8'),context,{filename:'popup.js'});
+  vm.runInContext('watchReady=true;generation=1;lastWatch=Date.now()',context);
+  await context.otpView('synthetic-otp');
+  const display=elements.get('main').children[2],copy=elements.get('main').children[4],insert=elements.get('main').children[5];
+  check('popup-live-code-rendered',display.textContent==='123456');
+  context.problem({error:'locked'});
+  check('popup-lock-clears-detached-code-and-controls',display.textContent==='' && copy.disabled && insert.disabled && interval===null);
+  vm.runInContext('watchReady=true',context);const before=requests.length;await copy.handlers.get('click')();
+  check('popup-detached-copy-cannot-reuse-erased-code',requests.length===before);
+}
 async function main() {
   const stable = page(), c = stable.audit.fillContext(stable.pw);
   check('stable-form-fills', stable.audit.apply(credentials(), c) && stable.pw.value === 'SYNTHETIC-PASSWORD' && stable.otp.value === '123456');
+  const secondary=page(); secondary.user.type='email'; secondary.audit.apply({...credentials(),login:'nickname',login2:'synthetic@example.com'},secondary.audit.fillContext(secondary.pw));
+  check('email-field-selects-secondary-login',secondary.user.value==='synthetic@example.com');
+  const phone=page(); phone.user.type='tel'; phone.audit.apply({...credentials(),login:'nickname',login2:'+7 900 000 00 00'},phone.audit.fillContext(phone.pw));
+  check('phone-field-selects-secondary-login',phone.user.value==='+7 900 000 00 00');
+  const save=page(); save.user.value='synthetic';save.pw.value='Synthetic-Pass!';
+  check('save-candidate-uses-live-fields',save.audit.saveCandidate(save.pw).pw===save.pw);
+  save.window.top={};check('save-child-frame-rejected',save.audit.saveCandidate(save.pw)===null);save.window.top=save.window;
+  save.form.fields.push(new save.HTMLInputElement('password','confirmation'));
+  check('save-ambiguous-password-fields-rejected',save.audit.saveCandidate(save.pw)===null);
   changes('navigation-cancels-fill', p => p.location.href = 'https://example.com/other');
   changes('form-action-change-cancels-fill', p => p.form.action = 'https://attacker.example/');
   changes('detached-password-cancels-fill', p => p.pw.isConnected = false);
@@ -69,6 +137,21 @@ async function main() {
   let foreign = false;
   good.listener({ type: 'fillFromPopup', id: 'test' }, { id: 'other-extension' }, () => foreign = true);
   check('foreign-popup-message-rejected', !foreign);
+
+  const dropdown=page(); dropdown.audit.toggle(dropdown.pw); dropdown.audit.toggle(dropdown.otp);
+  dropdown.requests[0].reply({ok:true,items:[{id:'old',name:'OLD PASSWORD',login:'old'}]}); await Promise.resolve();
+  check('stale-list-does-not-replace-new-dropdown',dropdown.audit.dropdownState().dd.children[1].textContent==='Загрузка…');
+  dropdown.requests[1].reply({ok:true,items:[{id:'new',name:'LIVE OTP',login:'new',otp:true}]}); await Promise.resolve();
+  check('new-dropdown-keeps-its-own-response',dropdown.audit.dropdownState().dd.children[1].children[0].textContent==='LIVE OTP');
+  const search=page(); search.audit.toggle(search.pw); search.respond({ok:true,items:[]}); await Promise.resolve();
+  const box=search.document.createElement('div');
+  const first=search.audit.search('first',box), second=search.audit.search('second',box);
+  search.requests[2].reply({ok:true,items:[{id:'second',name:'SECOND',login:'second'}]}); await second;
+  search.requests[1].reply({ok:true,items:[{id:'first',name:'FIRST',login:'first'}]}); await first;
+  check('out-of-order-search-response-ignored',box.children.length===1 && box.children[0].children[0].textContent==='SECOND');
+  const pendingSearch=search.audit.search('pending',box); await search.audit.search('',box);
+  search.requests[3].reply({ok:true,items:[{id:'pending',name:'PENDING',login:'pending'}]}); await pendingSearch;
+  check('cleared-search-does-not-restore-old-results',box.children.length===0);
 
   let listener, nativeRequest;
   let passkeysEnabled=false;
@@ -100,6 +183,8 @@ async function main() {
   passkeysEnabled=true;
   await new Promise(resolve=>listener({type:'passkey-create',requestId:'test',url:'https://spoofed.example'},{id:'our-extension',tab:{},url:'https://actual.example',frameId:0},resolve));
   check('passkey-uses-browser-owned-origin',nativeRequest.type==='passkey-create' && nativeRequest.url==='https://actual.example' && nativeRequest.framed===false);
+  await passkeyPageTests();
+  await popupTests();
   console.log('TOTAL passes=' + count);
 }
 main().catch(e => { console.error(e); process.exitCode = 1; });

@@ -64,7 +64,10 @@ namespace WinUp
         void LoadRecoveryCode()
         {
             var code = UnwrapRc();
-            try { recoveryCode.Set(code); }
+            try {
+                recoveryCode.Set(code);
+                if (hasRc && string.IsNullOrEmpty(code)) { RecoveryNeedsRepair = true; hasRc = false; rcWrap = new byte[0]; }
+            }
             finally { Secure.Wipe(code); }
         }
         byte[] p2Salt, rcWrap;
@@ -78,6 +81,7 @@ namespace WinUp
         public List<OtpEntry> Otp = new List<OtpEntry>();
         public bool KeyFileRequired { get { return kfRequired; } }
         public bool HasRecovery { get { return hasRc; } }
+        public bool RecoveryNeedsRepair { get; private set; }
         // Вход создал tab.dat заново: счётчик попыток с нуля, код восстановления этой копии неизвестен.
         public bool TabRecreated { get { return tabRecreated; } }
 
@@ -93,6 +97,17 @@ namespace WinUp
         public static string KdbxFile { get { return KdbxPath; } }
         public static string RecoveryFile { get { return RecoveryPath; } }
         public static string TabFile { get { return TabPath; } }
+        internal static List<string> PurgeLocalOldCopies()
+        {
+            var errors = new List<string>();
+            foreach (var path in new[] { KdbxPath, RecoveryPath, TabPath, LegacyPath })
+                foreach (var copy in new[] { path + ".bak" }.Concat(Paths.AtomicRemnants(path)))
+                {
+                    string error;
+                    if (!Secure.WipeFile(copy, out error)) errors.Add(Path.GetFileName(copy) + ": " + error);
+                }
+            return errors;
+        }
 
         // Осталось попыток пароля базы по счётчику сайдкара.
         public static int AttemptsLeft()
@@ -106,7 +121,7 @@ namespace WinUp
         {
             var d = new PwDatabase();
             var bytes = keyFile.Read();
-            try { d.Open(IOConnectionInfo.FromPath(KdbxPath), MakeKey(pw, bytes), NullLog); return true; }
+            try { KdbxSafety.OpenDatabase(d, KdbxPath, MakeKey(pw, bytes), NullLog); return true; }
             catch (InvalidCompositeKeyException) { return false; }
             catch { return false; }
             finally { d.Close(); if (bytes != null) Array.Clear(bytes, 0, bytes.Length); }
@@ -158,7 +173,7 @@ namespace WinUp
         static readonly byte[] TabMagic = Encoding.ASCII.GetBytes("WUT2");
         static readonly byte[] TabMagicV1 = Encoding.ASCII.GetBytes("WUT1");
 
-        void WriteTab()
+        byte[] TabBytes()
         {
             var b = new byte[28 + (rcWrap == null ? 0 : rcWrap.Length)];
             Buffer.BlockCopy(TabMagic, 0, b, 0, 4);
@@ -168,8 +183,9 @@ namespace WinUp
             Buffer.BlockCopy(BitConverter.GetBytes((ushort)(rcWrap == null ? 0 : rcWrap.Length)), 0, b, 10, 2);
             if (p2Salt != null) Buffer.BlockCopy(p2Salt, 0, b, 12, 16);
             if (rcWrap != null) Buffer.BlockCopy(rcWrap, 0, b, 28, rcWrap.Length);
-            Paths.AtomicWrite(TabPath, b);
+            return b;
         }
+        void WriteTab() { Paths.AtomicWrite(TabPath, TabBytes()); }
 
         static KdbxStore ReadTab()
         {
@@ -178,7 +194,7 @@ namespace WinUp
             // Счётчик начинается с нуля: файл без защиты, атакующий с копией папки и так подбирает офлайн.
             if (!File.Exists(TabPath))
                 return new KdbxStore { p2Salt = Vault.Random(16), rcWrap = new byte[0], kfUnknown = true };
-            var b = File.ReadAllBytes(TabPath);
+            var b = SafeStorage.ReadBounded(TabPath, 80 + ushort.MaxValue);
             if (b.Length < 28) throw new InvalidDataException("Файл замка вкладки повреждён.");
             bool v1 = b[0] == TabMagicV1[0] && b[1] == TabMagicV1[1] && b[2] == TabMagicV1[2] && b[3] == TabMagicV1[3];
             bool v2 = b[0] == TabMagic[0] && b[1] == TabMagic[1] && b[2] == TabMagic[2] && b[3] == TabMagic[3];
@@ -190,7 +206,7 @@ namespace WinUp
                 // Старый формат: p2Fails(4)@8, kf@12, hasRc@13, rcLen@14, p2Salt@64, rcWrap@80.
                 // Счётчик попыток пароля 1 не переносится: попыток пароля 1 больше нет.
                 var rcLen1 = BitConverter.ToUInt16(b, 14);
-                if (rcLen1 > b.Length - 80) throw new InvalidDataException("Файл замка вкладки повреждён.");
+                if (rcLen1 != b.Length - 80) throw new InvalidDataException("Файл замка вкладки повреждён.");
                 s.p2Fails = Math.Max(0, BitConverter.ToInt32(b, 8));
                 s.kfRequired = b[12] == 1;
                 s.hasRc = b[13] == 1;
@@ -200,7 +216,7 @@ namespace WinUp
             else
             {
                 var rcLen = BitConverter.ToUInt16(b, 10);
-                if (rcLen > b.Length - 28) throw new InvalidDataException("Файл замка вкладки повреждён.");
+                if (rcLen != b.Length - 28) throw new InvalidDataException("Файл замка вкладки повреждён.");
                 s.p2Fails = Math.Max(0, BitConverter.ToInt32(b, 4));
                 s.kfRequired = b[8] == 1;
                 s.kfUnknown = b[8] == 2;
@@ -221,22 +237,12 @@ namespace WinUp
         static void WipeFiles()
         {
             WipeErrors.Clear();
-            var files = new[] { KdbxPath, RecoveryPath, TabPath, TabPath + ".bak", TabPath + ".tmp",
+            var files = new[] { KdbxPath, KdbxPath + ".bak", RecoveryPath, RecoveryPath + ".bak", TabPath, TabPath + ".bak", TabPath + ".tmp",
                 LegacyPath, LegacyPath + ".bak", LegacyPath + ".tmp", LegacyArchivePath };
-            foreach (var p in files)
+            foreach (var p in files.Concat(new[] { KdbxPath, RecoveryPath, TabPath, LegacyPath }.SelectMany(Paths.AtomicRemnants)).Distinct(StringComparer.OrdinalIgnoreCase))
             {
-                try
-                {
-                    if (!File.Exists(p)) continue;
-                    var len = new FileInfo(p).Length;
-                    var junk = Vault.Random((int)Math.Min(len, 4 * 1024 * 1024));
-                    using (var fs = new FileStream(p, FileMode.Open, FileAccess.Write))
-                        for (long off = 0; off < len; off += junk.Length)
-                            fs.Write(junk, 0, (int)Math.Min(junk.Length, len - off));
-                }
-                catch (Exception e) { WipeErrors.Add(Path.GetFileName(p) + ": " + e.Message); } // перезапись — лучшее усилие; удаление ниже обязательно
-                try { File.Delete(p); }
-                catch (Exception e) { WipeErrors.Add(Path.GetFileName(p) + ": " + e.Message); }
+                string error;
+                if (!Secure.WipeFile(p, out error)) WipeErrors.Add(Path.GetFileName(p) + ": " + error);
             }
             // Ключ базы под Windows Hello (вне папки WinUp) уничтожается вместе с базой.
             WindowsHello.Disable();
@@ -274,19 +280,19 @@ namespace WinUp
                 var tmp = Path.Combine(dir, "key.tmp");
                 try
                 {
-                    File.WriteAllBytes(tmp, keyFile);
-                    k.AddUserKey(new KcpKeyFile(tmp));
+                    using (Paths.HoldWriteDirectory(dir))
+                    {
+                        using (var output = new FileStream(tmp, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+                        { output.Write(keyFile, 0, keyFile.Length); output.Flush(true); }
+                        using (SafeStorage.OpenReadNoFollow(tmp)) k.AddUserKey(new KcpKeyFile(tmp));
+                    }
                 }
                 finally
                 {
-                    try
-                    {
-                        var zero = new byte[keyFile.Length];
-                        File.WriteAllBytes(tmp, zero);
-                        File.Delete(tmp);
-                    }
-                    catch { }
-                    try { Directory.Delete(dir, true); } catch { }
+                    string error;
+                    bool cleared = Secure.WipeFile(tmp, out error);
+                    try { Directory.Delete(dir, false); } catch { }
+                    if (!cleared) throw new IOException("Не удалось удалить временную копию ключ-файла: " + error);
                 }
             }
             return k;
@@ -297,10 +303,20 @@ namespace WinUp
         {
             if (string.IsNullOrEmpty(path)) throw new FileNotFoundException("Ключ-файл не выбран.");
             if (!File.Exists(path)) throw new FileNotFoundException("Ключ-файл не найден: " + path);
-            var b = File.ReadAllBytes(path);
-            if (b.Length == 0) throw new InvalidDataException("Ключ-файл пуст.");
-            if (b.Length > 4 * 1024 * 1024) throw new InvalidDataException("Ключ-файл слишком большой (максимум 4 МБ).");
-            return b;
+            using (var input = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read))
+            {
+                if (input.Length == 0) throw new InvalidDataException("Ключ-файл пуст.");
+                if (input.Length > 4 * 1024 * 1024) throw new InvalidDataException("Ключ-файл слишком большой (максимум 4 МБ).");
+                var b = new byte[(int)input.Length];
+                try
+                {
+                    int offset = 0, count;
+                    while (offset < b.Length && (count = input.Read(b, offset, b.Length - offset)) > 0) offset += count;
+                    if (offset != b.Length) throw new EndOfStreamException("Ключ-файл изменился во время чтения.");
+                    return b;
+                }
+                catch { Array.Clear(b, 0, b.Length); throw; }
+            }
         }
 
         public static KdbxStore Create(string p2, string keyFilePath)
@@ -359,8 +375,11 @@ namespace WinUp
             var kp = ArgonParams();
             kp.SetUInt64(Argon2Kdf.ParamMemory, (ulong)memoryMiB << 20);
             ulong floor = Math.Max(8UL, KdfIterations);
+            ulong ceiling = Math.Min(KdbxSafety.MaxArgonIterations, KdbxSafety.MaxArgonWork / ((ulong)memoryMiB << 20));
+            if (floor > ceiling) throw new InvalidOperationException("Параметры базы превышают бюджет WinUp. Защита не уменьшена.");
             kp.SetUInt64(Argon2Kdf.ParamIterations, floor);
             kdf.Randomize(kp);
+            KdbxSafety.ValidateKdfParameters(kp);
             var input = Vault.Random(32);
             byte[] output = null;
             try
@@ -369,7 +388,7 @@ namespace WinUp
                 output = kdf.Transform(input, kp);
                 watch.Stop();
                 Array.Clear(output, 0, output.Length); output = null;
-                ulong iterations = Math.Max(floor, (ulong)Math.Min(1024.0, Math.Ceiling((double)floor * targetMilliseconds / Math.Max(1L, watch.ElapsedMilliseconds))));
+                ulong iterations = Math.Max(floor, (ulong)Math.Min((double)ceiling, Math.Ceiling((double)floor * targetMilliseconds / Math.Max(1L, watch.ElapsedMilliseconds))));
                 kp.SetUInt64(Argon2Kdf.ParamIterations, iterations);
                 watch.Restart();
                 output = kdf.Transform(input, kp);
@@ -383,6 +402,7 @@ namespace WinUp
         {
             if (tuning == null || tuning.Parameters == null || tuning.MemoryMiB < KdfMemoryMiB || tuning.Iterations < KdfIterations)
                 throw new InvalidOperationException("Настройка уменьшает защиту базы.");
+            KdbxSafety.ValidateKdfParameters(tuning.Parameters);
             db.KdfParameters = tuning.Parameters;
         }
 
@@ -395,7 +415,7 @@ namespace WinUp
             try
             {
             var d = new PwDatabase();
-            try { d.Open(IOConnectionInfo.FromPath(KdbxPath), MakeKey(p2, kfBytes), NullLog); }
+            try { KdbxSafety.OpenDatabase(d, KdbxPath, MakeKey(p2, kfBytes), NullLog); }
             catch (InvalidCompositeKeyException)
             {
                 s.p2Fails++;
@@ -433,7 +453,7 @@ namespace WinUp
             var d = new PwDatabase();
             try
             {
-            try { d.Open(IOConnectionInfo.FromPath(RecoveryPath), MakeKey(norm, null), NullLog); }
+            try { KdbxSafety.OpenDatabase(d, RecoveryPath, MakeKey(norm, null), NullLog); }
             catch (InvalidCompositeKeyException)
             {
                 s.p2Fails++;
@@ -540,20 +560,38 @@ namespace WinUp
 
         public void Save()
         {
+            if (saveFailed) throw new InvalidOperationException("Предыдущее сохранение не завершено. Откройте базу заново.");
             SyncToDb();
             // Явный путь: база могла быть открыта из recovery.kdbx (вход кодом) — сохраняем в vault.kdbx.
-            db.SaveAs(IOConnectionInfo.FromPath(KdbxPath), true, NullLog);
+            var writes = new List<KeyValuePair<string, Action<Stream>>>();
+            writes.Add(new KeyValuePair<string, Action<Stream>>(KdbxPath, stream => new KdbxFile(db).Save(new Paths.LeaveOpenStream(stream), null, KdbxFormat.Default, NullLog)));
             // Свежая копия кодом восстановления: код развёрнут, пока база открыта полным входом.
             if (recoveryCode.HasValue && masterPassword.HasValue)
             {
-                var saveKey = db.MasterKey;
-                db.MasterKey = recoveryCode.Use(code => MakeKey(code, null));
+                var recoveryKey = recoveryCode.Use(code => MakeKey(code, null));
                 // finally: при сбое SaveAs мастер-ключом не должен остаться код восстановления —
                 // иначе следующий успешный Save зашифрует vault.kdbx кодом, и пароль базы «перестанет работать».
-                try { db.SaveAs(IOConnectionInfo.FromPath(RecoveryPath), false, NullLog); }
-                finally { db.MasterKey = saveKey; }
+                writes.Add(new KeyValuePair<string, Action<Stream>>(RecoveryPath, stream => {
+                    var saveKey = db.MasterKey; db.MasterKey = recoveryKey;
+                    try { new KdbxFile(db).Save(new Paths.LeaveOpenStream(stream), null, KdbxFormat.Default, NullLog); }
+                    finally { db.MasterKey = saveKey; }
+                }));
             }
-            WriteTab();
+            var tab = TabBytes();
+            writes.Add(new KeyValuePair<string, Action<Stream>>(TabPath, stream => stream.Write(tab, 0, tab.Length)));
+            try { Paths.AtomicWriteBatch(writes); db.Modified = false; }
+            catch { saveFailed = true; throw; }
+            finally { Array.Clear(tab, 0, tab.Length); }
+        }
+        bool saveFailed;
+        internal bool SaveFailed { get { return saveFailed; } }
+
+        void SaveDatabase(string path)
+        {
+            // KeePassLib's PwDatabase defaults to direct truncating writes. Keep
+            // its serializer, but commit the complete encrypted stream atomically.
+            Paths.AtomicWriteStream(path, stream => new KdbxFile(db).Save(new Paths.LeaveOpenStream(stream), null, KdbxFormat.Default, NullLog));
+            db.Modified = false;
         }
 
         // Смена пароля 2 (и ключ-файла). Код восстановления продолжает действовать — обёртка переписывается.
@@ -583,6 +621,7 @@ namespace WinUp
             for (int i = 0; i < 24; i++) raw[i] = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"[bytes[i] & 31];
             var code = new string(raw);
             rc = code;
+            RecoveryNeedsRepair = false;
             Array.Clear(raw, 0, raw.Length);
             Array.Clear(bytes, 0, bytes.Length);
             var parts = new List<string>();
@@ -675,7 +714,7 @@ namespace WinUp
             try
             {
             var s = ReadTab();
-            try { d.Open(IOConnectionInfo.FromPath(KdbxPath), MakeKey(p2s, kfb), NullLog); }
+            try { KdbxSafety.OpenDatabase(d, KdbxPath, MakeKey(p2s, kfb), NullLog); }
             catch (InvalidCompositeKeyException) { Secure.Wipe(p2s); return StoreResult.Wrong; }
             s.db = d; s.p2 = p2s; s.kf = kfb;
             Secure.Wipe(p2s);
@@ -805,6 +844,12 @@ namespace WinUp
             pe.Strings.Set(PwDefs.UrlField, new ProtectedString(false, le.Target ?? ""));
             pe.Strings.Set(PwDefs.NotesField, new ProtectedString(false, le.Notes ?? ""));
             SetStr(pe, "WinUp.Kind", le.Kind);
+            SetStr(pe, "WinUp.Login2", le.Login2);
+            SetStr(pe, "WinUp.AppTarget", le.AppTarget);
+            SetStr(pe, "WinUp.LoginUrl", le.LoginUrl);
+            SetStr(pe, "WinUp.LoginProfile", le.LoginProfile);
+            SetStr(pe, "WinUp.PasskeyRef", le.PasskeyId);
+            le.UseRecoveryCodes(codes => { pe.Strings.Set("WinUp.RecoveryCodes", ProtectedUtf8(codes)); return 0; });
             SetStr(pe, "WinUp.Args", le.Args);
             SetStr(pe, "WinUp.Browser", le.Browser);
             SetStr(pe, "WinUp.Window", le.Window);
@@ -858,6 +903,11 @@ namespace WinUp
                 Id = pe.Uuid.ToHexString(),
                 Name = pe.Strings.ReadSafe(PwDefs.TitleField),
                 Login = pe.Strings.ReadSafe(PwDefs.UserNameField),
+                Login2 = GetStr(pe, "WinUp.Login2"),
+                AppTarget = GetStr(pe, "WinUp.AppTarget"),
+                LoginUrl = GetStr(pe, "WinUp.LoginUrl"),
+                LoginProfile = GetStr(pe, "WinUp.LoginProfile"),
+                PasskeyId = GetStr(pe, "WinUp.PasskeyRef"),
                 Target = pe.Strings.ReadSafe(PwDefs.UrlField),
                 Notes = pe.Strings.ReadSafe(PwDefs.NotesField),
                 Kind = GetStr(pe, "WinUp.Kind") ?? "site",
@@ -884,6 +934,9 @@ namespace WinUp
                 try { entry.Password = password; }
                 finally { Secure.Wipe(password); }
             }
+            var codes = ReadSecret(pe, "WinUp.RecoveryCodes");
+            try { entry.RecoveryCodes = codes; }
+            finally { Secure.Wipe(codes); }
             return entry;
         }
 
@@ -968,13 +1021,13 @@ namespace WinUp
             s.Entries = legacy.Data.Entries.Select(Copy).ToList();
             s.Otp = legacy.Data.Otp.Select(Copy).ToList();
             s.SyncToDb();
-            s.db.Save(NullLog);
+            s.SaveDatabase(KdbxPath);
 
             // контрольная сверка: переоткрыть и сравнить всё. Сопоставление — по позиции:
             // s.Entries[i] — копия legacy.Data.Entries[i], после SyncToDb у неё UUID записи в kdbx
             // (по названию сопоставлять нельзя: две записи «Gmail» — обычное дело).
             var check = new PwDatabase();
-            check.Open(IOConnectionInfo.FromPath(KdbxPath), MakeKey(p2, kfBytes), NullLog);
+            KdbxSafety.OpenDatabase(check, KdbxPath, MakeKey(p2, kfBytes), NullLog);
             var diff = Compare(check, legacy, s);
             check.Close();
             if (diff != null) { try { File.Delete(KdbxPath); } catch { } throw new InvalidDataException("Перенос не прошёл сверку: " + diff); }
@@ -1023,6 +1076,8 @@ namespace WinUp
                 if (N(back.Name) != N(le.Name) || N(back.Login) != N(le.Login) || !back.UsePassword(a => le.UsePassword(b => N(a) == N(b))) ||
                     N(back.Target) != N(le.Target) || N(back.Notes) != N(le.Notes) || N(back.Window) != N(le.Window) ||
                     N(back.Args) != N(le.Args) || N(back.Browser) != N(le.Browser) ||
+                    N(back.Login2) != N(le.Login2) || N(back.AppTarget) != N(le.AppTarget) || N(back.PasskeyId) != N(le.PasskeyId) || N(back.LoginUrl)!=N(le.LoginUrl) || N(back.LoginProfile)!=N(le.LoginProfile) ||
+                    !back.UseRecoveryCodes(a => le.UseRecoveryCodes(b => N(a) == N(b))) ||
                     (le.Kind=="passkey" && (back.PasskeyBackupEligible!=le.PasskeyBackupEligible || back.PasskeyBackedUp!=(le.PasskeyBackupEligible && le.PasskeyBackedUp))) ||
                     back.Kind != KindOf(le.Kind) || back.TwoFa != TwoFaOf(le.TwoFa) || back.Delay != DelayOf(le.Delay) ||
                     back.AutoEnter != le.AutoEnter)
@@ -1045,14 +1100,16 @@ namespace WinUp
 
         static LoginEntry Copy(LoginEntry e)
         {
-            return e.UsePassword(pw => new LoginEntry
+            return e.UsePassword(pw => e.UseRecoveryCodes(codes => new LoginEntry
             {
                 Id = Uninterned(e.Id), Name = Uninterned(e.Name), Kind = Uninterned(e.Kind), Target = Uninterned(e.Target),
                 Args = Uninterned(e.Args), Browser = Uninterned(e.Browser), Window = Uninterned(e.Window),
                 PasskeyBackupEligible=e.PasskeyBackupEligible, PasskeyBackedUp=e.PasskeyBackedUp,
-                Login = Uninterned(e.Login), Password = pw, AutoEnter = e.AutoEnter,
+                Login = Uninterned(e.Login), Login2 = Uninterned(e.Login2), AppTarget = Uninterned(e.AppTarget),
+                LoginUrl = Uninterned(e.LoginUrl), LoginProfile = Uninterned(e.LoginProfile),
+                PasskeyId = Uninterned(e.PasskeyId), RecoveryCodes = codes, Password = pw, AutoEnter = e.AutoEnter,
                 TwoFa = Uninterned(e.TwoFa), OtpId = Uninterned(e.OtpId), Delay = e.Delay, Notes = Uninterned(e.Notes)
-            });
+            }));
         }
 
         static OtpEntry Copy(OtpEntry o)
@@ -1083,7 +1140,7 @@ namespace WinUp
             // состояние, RefreshOtp/RefreshEntries работают только при открытом vault.
             foreach (var e in Entries)
             {
-                e.ClearSecrets(); Secure.Wipe(e.Login); Secure.Wipe(e.Notes);
+                e.ClearSecrets(); Secure.Wipe(e.Login); Secure.Wipe(e.Login2);Secure.Wipe(e.LoginUrl);Secure.Wipe(e.AppTarget);Secure.Wipe(e.Notes);
                 Secure.Wipe(e.Target); Secure.Wipe(e.Args); Secure.Wipe(e.Window); Secure.Wipe(e.Browser);
             }
             foreach (var o in Otp) { o.ClearSecret(); Secure.Wipe(o.Account); Secure.Wipe(o.Notes); }

@@ -15,6 +15,7 @@ namespace WinUp {
             if(!Paths.Root.StartsWith(@"C:\WinUpAudit\feature-browser",StringComparison.OrdinalIgnoreCase)) throw new Exception("Sandbox synthetic lab only");
             if(args.Length==2 && args[0]=="--stage-package") { ComponentResources.Store.Install(args[1]); return; }
             if(args.Length>0 && args[0].StartsWith("chrome-extension://")) { BrowserBridge.Run(args[0]); return; }
+            if(args.Length>=2 && args[1]==BrowserSetup.FirefoxId) { BrowserBridge.Run(args[1]); return; }
             AppDomain.CurrentDomain.AssemblyResolve+=(s,e)=>new AssemblyName(e.Name).Name=="KeePassLib" ? CoreLoader.Resolve() : EmbeddedModules.Resolve(e.Name);
             Application.EnableVisualStyles();
             Directory.CreateDirectory(Paths.Data); Directory.CreateDirectory(Paths.Apps);
@@ -26,7 +27,7 @@ namespace WinUp {
                 if(form.VaultNow!=null) form.VaultNow.Lock();
                 var vault=KdbxStore.Create(Password,null);
                 vault.Otp.Add(new OtpEntry { Id="ui-otp",Issuer="Synthetic Test",Account="sandbox-user",Secret="JBSWY3DPEHPK3PXP" });
-                vault.Entries.Add(new LoginEntry { Id="ui-site",Name="Synthetic Test",Target="http://localhost:9265",Login="sandbox-user",Password="Synthetic-Site-Password!",TwoFa="link",OtpId="ui-otp" });
+                vault.Entries.Add(new LoginEntry { Id="ui-site",Name="Synthetic Test",Kind="both",Target="http://localhost:9265",Login="sandbox-user",Login2="synthetic@example.com",RecoveryCodes="Synthetic-Recovery-1\nSynthetic-Recovery-2",Password="Synthetic-Site-Password!",TwoFa="link",OtpId="ui-otp" });
                 typeof(MainForm).GetField("vault",Private).SetValue(form,vault);
                 typeof(MainForm).GetMethod("ShowOpen",Private).Invoke(form,null);
                 typeof(MainForm).GetMethod("RefreshPasskeys",Private).Invoke(form,null);
@@ -41,11 +42,20 @@ namespace WinUp {
                     if(command=="lock") typeof(MainForm).GetMethod("LockVault",Private).Invoke(form,null);
                     if(command=="lock") File.AppendAllText(@"C:\WinUp\test\features\command-proof.txt","locked="+(form.VaultNow==null)+" generation="+form.BrowserGeneration+"\n");
                     if(command=="reopen") open();
+                    if(command=="login-flow") {
+                        var entry=form.VaultNow.Entries.First(e=>e.Name=="Synthetic Test");
+                        entry.LoginUrl="http://localhost:9265/flow/user";entry.AutoEnter=true;
+                        File.WriteAllText(@"C:\WinUp\test\corrections\flow-launch.txt",form.BeginBrowserLogin(entry));
+                    }
                     if(command=="exit") form.Close();
                 }
                 foreach(Form dialog in Application.OpenForms.Cast<Form>().ToArray()) {
                     if(seen.Contains(dialog)) continue;
                     if(dialog is PasskeyConsentDialog) {
+                        seen.Add(dialog); ((Button)typeof(Dlg).GetField("Ok",Private).GetValue(dialog)).PerformClick();
+                    } else if(dialog is EntryDialog && dialog.Text.Contains("localhost")) {
+                        seen.Add(dialog); ((Button)typeof(Dlg).GetField("Ok",Private).GetValue(dialog)).PerformClick();
+                    } else if(dialog is ConfirmFillDialog) {
                         seen.Add(dialog); ((Button)typeof(Dlg).GetField("Ok",Private).GetValue(dialog)).PerformClick();
                     } else if(dialog is PasswordPrompt && dialog.Text.Contains("localhost")) {
                         seen.Add(dialog); ((TextBox)typeof(PasswordPrompt).GetField("box",Private).GetValue(dialog)).Text=Password;

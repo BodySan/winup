@@ -31,7 +31,8 @@ namespace WinUp {
                 request.AllowAutoRedirect=false; request.Timeout=15000; request.ReadWriteTimeout=15000;
                 request.UserAgent="WinUp components";
                 HttpWebResponse response;
-                using(cancellation.Register(request.Abort)) response=(HttpWebResponse)request.GetResponse();
+                try {using(cancellation.Register(request.Abort))response=(HttpWebResponse)request.GetResponse();}
+                catch(WebException) {cancellation.ThrowIfCancellationRequested();throw;}
                 int code=(int)response.StatusCode;
                 if(code==200) return response;
                 string location=response.Headers["Location"]; response.Dispose();
@@ -90,21 +91,23 @@ namespace WinUp {
                 throw ComponentPackage.Bad("Описание выпуска неверно или его срок действия истёк.");
             ComponentNetwork.Https(new Uri(new Uri(source),release.package).AbsoluteUri);
         }
-        internal static void Install(ComponentRelease release,string source,CancellationToken cancellation) {
+        internal static void Install(ComponentRelease release,string source,CancellationToken cancellation,Action<string> progress=null) {
             Validate(release,source,DateTimeOffset.UtcNow);
             if(release.sequence<=ComponentResources.Store.State().highest) throw ComponentPackage.Bad("Этот выпуск уже принят или старее установленного.");
             string folder=Path.Combine(Paths.Data,"components","downloads"); SafePaths.NoReparseParents(folder); Directory.CreateDirectory(folder);
             string path=Path.Combine(folder,Guid.NewGuid().ToString("N")+".partial");
             using(var lease=SourceLease.HoldDirectories(folder)) {
             try {
+                if(progress!=null)progress("Скачиваю подписанный комплект №"+release.sequence+"…");
                 using(var file=new FileStream(path,FileMode.CreateNew,FileAccess.ReadWrite,FileShare.None)) {
                     ComponentNetwork.Download(new Uri(new Uri(source),release.package).AbsoluteUri,file,release.size,cancellation);
                     if(file.Length!=release.size) throw ComponentPackage.Bad("Размер выпуска не совпадает.");
                     file.Position=0; if(ComponentPackage.Hash(file)!=release.sha256) throw ComponentPackage.Bad("Контрольная сумма выпуска не совпадает."); file.Flush(true);
                 }
+                if(progress!=null)progress("Проверяю подпись, целостность и совместимость комплекта…");
                 using(var inspected=ComponentResources.Store.Inspect(path)) if(inspected.Manifest.sequence!=release.sequence)
                     throw ComponentPackage.Bad("Версия пакета не совпадает с описанием выпуска.");
-                cancellation.ThrowIfCancellationRequested(); ComponentResources.Store.Install(path);
+                cancellation.ThrowIfCancellationRequested();if(progress!=null)progress("Сохраняю проверенный комплект для перезапуска…");ComponentResources.Store.Install(path);
             } finally { if(File.Exists(path)) File.Delete(path); }
             }
         }

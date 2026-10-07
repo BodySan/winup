@@ -178,11 +178,16 @@ namespace WinUp
         // Окно, в заголовке которого есть любая из частей "a|b|c" (без учёта регистра).
         public static IntPtr Find(string spec)
         {
+            return Find(spec,null);
+        }
+
+        public static IntPtr Find(string spec,Func<IntPtr,bool> predicate)
+        {
             if (string.IsNullOrWhiteSpace(spec)) return IntPtr.Zero;
             var parts = spec.Split('|').Select(p => p.Trim()).Where(p => p.Length > 0).ToArray();
             foreach (var w in Windows())
                 foreach (var p in parts)
-                    if (w.Value.IndexOf(p, StringComparison.OrdinalIgnoreCase) >= 0) return w.Key;
+                    if (w.Value.IndexOf(p, StringComparison.OrdinalIgnoreCase) >= 0 && (predicate==null || predicate(w.Key))) return w.Key;
             return IntPtr.Zero;
         }
 

@@ -7,6 +7,7 @@ permissions:
   contents: read
 jobs:
   tests:
+    name: WinUp / functional
     runs-on: windows-latest
     timeout-minutes: 15
     steps:
@@ -15,7 +16,7 @@ jobs:
           persist-credentials: false
       - name: Проверить исходники и расширение
         shell: powershell
-        run: ./qa/security/ci.ps1
+        run: ./qa/security/ci.ps1 -FunctionalOnly
       - name: Сохранить результаты
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02

@@ -12,6 +12,36 @@ namespace WinUp
     // Экспорт паролей в отдельные файлы, которые читаются без WinUp.
     static class Export
     {
+        // Exports are new files. A failed write or a racing target must never
+        // truncate an earlier backup; commit only a fully flushed temporary file.
+        internal static void WriteFresh(string path, Action<FileStream> write)
+        {
+            path = Path.GetFullPath(path);
+            SafePaths.NoReparseParents(path);
+            string parent = Path.GetDirectoryName(path);
+            using (var directories = SourceLease.HoldDirectories(parent))
+            {
+                if (File.Exists(path) || Directory.Exists(path)) throw new IOException("Файл экспорта уже существует. Выберите новое имя.");
+                string temporary = Path.Combine(parent, ".winup-export-" + Guid.NewGuid().ToString("N"));
+                try
+                {
+                    using (var output = new FileStream(temporary, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+                    {
+                        write(output);
+                        output.Flush(true);
+                    }
+                    File.Move(temporary, path);
+                }
+                finally { File.Delete(temporary); }
+            }
+        }
+
+        internal static void CopyEncryptedDatabase(string source, string destination)
+        {
+            using (var lease = SourceLease.Acquire(source, false))
+                WriteFresh(destination, output => { using (var input = File.OpenRead(source)) input.CopyTo(output); });
+        }
+
         // Ключ для экспорта: 24 символа без похожих (0/O, 1/l/I), удобно переписать вручную.
         public static string NewKey()
         {
@@ -58,10 +88,13 @@ namespace WinUp
             Action<string> q = v =>
             {
                 sb.Append('"');
+                // CSV is for viewing in spreadsheet software. Quoting alone does
+                // not stop formulas supplied through a site name/login/secret.
+                if (CsvFormula(v)) sb.Append('\'');
                 foreach (char c in v ?? "") { if (c == '"') sb.Append('"'); sb.Append(c); }
                 sb.Append('"');
             };
-            sb.Append("Название;Тип;Адрес или программа;Логин;Пароль;2FA;Секрет 2FA;Заметка\r\n");
+            sb.Append("Название;Тип;Адрес или программа;Логин;Пароль;2FA;Секрет 2FA;Заметка;Дополнительный логин;Приложение;Резервные коды;Ключ доступа (ID)\r\n");
             foreach (var e in entries)
             {
                 if (e.Kind == "passkey") continue;
@@ -70,9 +103,19 @@ namespace WinUp
                 e.UsePassword(pw => { q(pw); return 0; }); sb.Append(';'); q(TwoFaName(e)); sb.Append(';');
                 var otp = Linked(e, otps);
                 if (otp == null) q(""); else otp.UseSecret(s => { q(s); return 0; });
-                sb.Append(';'); q(e.Notes); sb.Append("\r\n");
+                sb.Append(';'); q(e.Notes); sb.Append(';'); q(e.Login2); sb.Append(';'); q(e.AppTarget); sb.Append(';');
+                e.UseRecoveryCodes(c => { q(c); return 0; }); sb.Append(';'); q(e.PasskeyId); sb.Append("\r\n");
             }
             return Secure.Utf8AndClear(sb, true);
+        }
+
+        static bool CsvFormula(string value)
+        {
+            if (string.IsNullOrEmpty(value)) return false;
+            if (value[0] == '\t' || value[0] == '\r' || value[0] == '\n') return true;
+            int first = 0;
+            while (first < value.Length && (char.IsWhiteSpace(value[first]) || value[first] == '\uFEFF')) first++;
+            return first < value.Length && "=+-@＝＋－＠".IndexOf(value[first]) >= 0;
         }
 
         public static byte[] Text(List<LoginEntry> entries, List<OtpEntry> otps)
@@ -85,7 +128,11 @@ namespace WinUp
                 sb.Append("== " + e.Name + " ==\r\n");
                 if (!string.IsNullOrEmpty(e.Target)) sb.Append((e.Kind == "app" ? "Программа: " : "Сайт: ") + e.Target + "\r\n");
                 sb.Append("Логин: " + e.Login + "\r\n");
+                if(!string.IsNullOrEmpty(e.Login2)) sb.Append("Дополнительный логин: "+e.Login2+"\r\n");
+                if(!string.IsNullOrEmpty(e.AppTarget)) sb.Append("Приложение: "+e.AppTarget+"\r\n");
                 e.UsePassword(pw => { sb.Append("Пароль: ").Append(pw).Append("\r\n"); return 0; });
+                e.UseRecoveryCodes(c => { if(!string.IsNullOrWhiteSpace(c)) sb.Append("Резервные коды:\r\n").Append(c).Append("\r\n"); return 0; });
+                if(!string.IsNullOrEmpty(e.PasskeyId)) sb.Append("Ключ доступа: "+e.PasskeyId+" (сам ключ сохраняется в экспорте KDBX)\r\n");
                 if (Linked(e, otps) != null) Linked(e, otps).UseSecret(s => { sb.Append("Секрет 2FA: ").Append(s).Append("\r\n"); return 0; });
                 if (!string.IsNullOrEmpty(e.Notes)) sb.Append("Заметка: " + e.Notes + "\r\n");
                 sb.Append("\r\n");
@@ -111,9 +158,10 @@ namespace WinUp
             {
             ushort time, date;
             DosTime(DateTime.Now, out time, out date);
-            using (var fs = new FileStream(path, FileMode.Create, FileAccess.Write))
-            using (var w = new BinaryWriter(fs))
+            WriteFresh(path, fs =>
             {
+                using (var w = new BinaryWriter(fs, Encoding.UTF8, true))
+                {
                 var central = new MemoryStream();
                 var cw = new BinaryWriter(central);
                 foreach (var f in files)
@@ -161,7 +209,8 @@ namespace WinUp
                 w.Write(0x06054b50u); w.Write((ushort)0); w.Write((ushort)0);
                 w.Write((ushort)files.Count); w.Write((ushort)files.Count);
                 w.Write((uint)cd.Length); w.Write(cdStart); w.Write((ushort)0);
-            }
+                }
+            });
             }
             finally
             {

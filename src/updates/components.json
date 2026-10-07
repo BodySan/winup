@@ -1,9 +1,9 @@
 {
     "schema":  1,
-    "api":  2,
+    "api":  3,
     "sequence":  0,
-    "minApp":  "1.13.0.0",
-    "maxApp":  "1.13.999.999",
+    "minApp":  "1.15.0.0",
+    "maxApp":  "1.15.999.999",
     "versions":  {
                      "cryptofs":  "2.8.0",
                      "cryptolib":  "2.2.0",
@@ -11,19 +11,19 @@
                      "cli":  "0.6.2",
                      "winfsp":  "2.1",
                      "passkeys":  "1",
-                     "bouncycastle":  "2.6.2",
+                     "bouncycastle":  "2.7.0",
                      "cbor":  "4.5.5",
                      "numbers":  "1.8.2",
-                     "browser":  "1.4.0",
+                     "browser":  "1.6.4",
                      "psl":  "2026-10-06_07-09-37_UTC"
                  },
     "files":  {
                   "file-engine.zip":  {
-                                          "sha256":  "01fde6234a41c4f1554c414b0e231a70700bbac196b2214b80297263b07e326b",
-                                          "size":  40885176
+                                          "sha256":  "e569de5bc6f687b7de926c7a9f2ddaa7c42a100975e9c3fb62d19b124fdcfdd1",
+                                          "size":  40885818
                                       },
                   "file-engine.json":  {
-                                           "sha256":  "26d8a8bfc03319414750e5ecfab701fbad3d2a24484c7061adc8d91c73fdb342",
+                                           "sha256":  "84e8a1951efac26a1b7409c02a0b5e56735ad613fc08336c32487e826b3a6e96",
                                            "size":  19555
                                        },
                   "winfsp.msi":  {
@@ -35,8 +35,8 @@
                                                   "size":  13312
                                               },
                   "BouncyCastle.Cryptography.dll":  {
-                                                        "sha256":  "d9a58c84baa55a12684cd2381bca03c8f2a9cbae21a6bf1e9ebd65f495629721",
-                                                        "size":  4694688
+                                                        "sha256":  "4f96977e9c67334742c683410b3a361258219f0d3084a5e0bc10fba96cf23a0d",
+                                                        "size":  4885392
                                                     },
                   "CBOR.dll":  {
                                    "sha256":  "48901ba7abfc79cfe84e1da7c0e024cf967b9c902b451a9ed98e06cbf8490941",
@@ -51,17 +51,45 @@
                                                  "size":  334827
                                              },
                   "THIRD-PARTY.md":  {
-                                         "sha256":  "9e3bdd882d64287591111a606174bb9fda76e1cdeb7c358ec1039b29247377fc",
+                                         "sha256":  "a3a36b2bc0a2cd9984ca75566b8240c1f0d165487cca8f854bbd54125c752c42",
                                          "size":  7604
                                      },
+                  "browser/autologin.js":  {
+                                               "sha256":  "6c3ffd85a743c3615057116296aa2966d9adbc298b5fd27eacf5d54f96f10d95",
+                                               "size":  10300
+                                           },
+                  "browser/background-v1.6.0.js":  {
+                                                       "sha256":  "17c5dd894249d7850c02b9647a4a814c7c80c3e5c00af414e9bd80386897bb5c",
+                                                       "size":  8261
+                                                   },
+                  "browser/background-v1.6.1.js":  {
+                                                       "sha256":  "17c5dd894249d7850c02b9647a4a814c7c80c3e5c00af414e9bd80386897bb5c",
+                                                       "size":  8261
+                                                   },
+                  "browser/background-v1.6.2.js":  {
+                                                       "sha256":  "17c5dd894249d7850c02b9647a4a814c7c80c3e5c00af414e9bd80386897bb5c",
+                                                       "size":  8261
+                                                   },
+                  "browser/background-v1.6.3.js":  {
+                                                       "sha256":  "a5ec3dec94fcead95678babf93342655768064db408c8e8023a7d9823120f0fd",
+                                                       "size":  8341
+                                                   },
+                  "browser/background-v1.6.4.js":  {
+                                                       "sha256":  "a5ec3dec94fcead95678babf93342655768064db408c8e8023a7d9823120f0fd",
+                                                       "size":  8341
+                                                   },
                   "browser/background.js":  {
-                                                "sha256":  "020af43c820dfe511084a60134c62f6980202dbf8e69f933ce3d29d0e8a0145c",
-                                                "size":  5963
+                                                "sha256":  "a5ec3dec94fcead95678babf93342655768064db408c8e8023a7d9823120f0fd",
+                                                "size":  8341
                                             },
                   "browser/content.js":  {
-                                             "sha256":  "3d0551013d41e2dfe34f3f1e69a5c4d1408468b2f1af79a89b74dcd97b59bcc5",
-                                             "size":  18978
+                                             "sha256":  "2f3883213ff7fe59158adc874674e8485c965774bfb29056b982cf99cf7e8523",
+                                             "size":  23099
                                          },
+                  "browser/firefox-manifest.json":  {
+                                                        "sha256":  "d3cc989588d1fe380ccbbec0cf267d0bbc845977481b23d367999f1a102d4564",
+                                                        "size":  4811
+                                                    },
                   "browser/icon128.png":  {
                                               "sha256":  "d120c10a53ae054393af3b03b119d2a02490388d738f727d083691af3d645f21",
                                               "size":  2460
@@ -78,25 +106,29 @@
                                              "sha256":  "5c1c5e5cb33e037e7187e751d671a8d664526945f807fcaaab64f6dff20b8b4f",
                                              "size":  910
                                          },
+                  "browser/login-profiles.json":  {
+                                                      "sha256":  "112059dc15d981403c36a7146e1384aa923029bfb5f63b5cd52ab00ab7ab1890",
+                                                      "size":  176490
+                                                  },
                   "browser/manifest.json":  {
-                                                "sha256":  "8f1b8edaf8a1995df9b39383feedd3e595a1745216d4a88bb3171e36e63dece4",
-                                                "size":  1673
+                                                "sha256":  "df4204e52655d0511210c2b606d9f3293c35b85795f0f4d3179900aa954f8636",
+                                                "size":  4348
                                             },
                   "browser/passkey-relay.js":  {
                                                    "sha256":  "93a8010403ff8eaf66cdebd4a6211fd5d8178038f7dcb8717220a4d95c752c29",
                                                    "size":  1848
                                                },
                   "browser/passkeys.js":  {
-                                              "sha256":  "25e0a00e141afc4d9bc9ba5cce0bfed384dd79141f9b7b89f69e8e50f373138b",
-                                              "size":  14242
+                                              "sha256":  "f9ccc4002e329d49343d93606f77116ce1a122cf21912e8397c9c5cf04d34279",
+                                              "size":  16755
                                           },
                   "browser/popup.html":  {
                                              "sha256":  "3c49d34f806ea6d6d506d35607eb5cfd99960f4d197fc0644563e818408da93d",
                                              "size":  2148
                                          },
                   "browser/popup.js":  {
-                                           "sha256":  "dd1c5440601fa1f2ce62dbbb53ac89114732879026b3627b53435eb67168c1e3",
-                                           "size":  12079
+                                           "sha256":  "69d3cd10db7ab5ab221de1a35177951ce3a6603709a5fcb71aa6f4209d1bfdf4",
+                                           "size":  12578
                                        },
                   "licenses/BouncyCastle.md":  {
                                                    "sha256":  "afc1653b666b64a2386b7b9b914406904f45c20b9571765d8c1121b513313179",

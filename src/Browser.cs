@@ -23,16 +23,6 @@ namespace WinUp
     // Хост записи сайта: регистрируемый домен для сравнения «тот же сайт».
     static class SiteDomain
     {
-        // Двухуровневые суффиксы, где сайт живёт на третьем уровне (esia.gosuslugi.ru → gosuslugi.ru,
-        // но gosuslugi.ru.evil.com → evil.com).
-        static readonly HashSet<string> Suffixes = new HashSet<string>
-        {
-            "com.ru", "net.ru", "org.ru", "pp.ru", "msk.ru", "spb.ru",
-            "com.ua", "co.uk", "org.uk", "com.au", "co.jp", "com.br", "com.tr", "com.kz",
-            "github.io", "gitlab.io", "vercel.app", "netlify.app", "herokuapp.com", "web.app",
-            "firebaseapp.com", "pages.dev", "blogspot.com", "narod.ru", "ucoz.ru"
-        };
-
         // Хост из адреса записи (без схемы → https://) или страницы. null для мусора.
         public static string HostOf(string url)
         {
@@ -45,7 +35,8 @@ namespace WinUp
                 if (!Uri.TryCreate("https://" + u, UriKind.Absolute, out uri)) return null;
             }
             if (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps) return null;
-            var host = uri.Host;
+            if (uri.UserInfo.Length != 0) return null;
+            var host = uri.IdnHost.TrimEnd('.');
             if (string.IsNullOrEmpty(host)) return null;
             return host.ToLowerInvariant();
         }
@@ -82,11 +73,7 @@ namespace WinUp
             if (string.IsNullOrEmpty(host)) return null;
             if (IsIp(host)) return host;
             if (host == "localhost" || host.EndsWith(".localhost")) return host;
-            var labels = host.Split('.');
-            if (labels.Length <= 2) return host;
-            if (Suffixes.Contains(labels[labels.Length - 2] + "." + labels[labels.Length - 1]))
-                return labels[labels.Length - 3] + "." + labels[labels.Length - 2] + "." + labels[labels.Length - 1];
-            return labels[labels.Length - 2] + "." + labels[labels.Length - 1];
+            return PasskeyPolicy.Registrable(host);
         }
 
         // Точно тот же адрес (без учёта «www.»): вставка без вопроса допускается только здесь.
@@ -104,7 +91,9 @@ namespace WinUp
             if (IsIp(hostA) || IsIp(hostB) || hostA == "localhost" || hostB == "localhost" ||
                 hostA.EndsWith(".localhost") || hostB.EndsWith(".localhost"))
                 return string.Equals(hostA, hostB, StringComparison.OrdinalIgnoreCase);
-            return string.Equals(Registrable(hostA), Registrable(hostB), StringComparison.OrdinalIgnoreCase);
+            var domainA = Registrable(hostA); var domainB = Registrable(hostB);
+            return !string.IsNullOrEmpty(domainA) && !string.IsNullOrEmpty(domainB) &&
+                string.Equals(domainA, domainB, StringComparison.OrdinalIgnoreCase);
         }
     }
 
@@ -182,14 +171,15 @@ namespace WinUp
 
         public static void Run(string origin)
         {
+            string msg = null;
             try
             {
-                if (!string.Equals(origin, AllowedOrigin, StringComparison.OrdinalIgnoreCase))
+                if (!string.Equals(origin, AllowedOrigin, StringComparison.OrdinalIgnoreCase) && origin != BrowserSetup.FirefoxId)
                 {
                     WriteOut("{\"ok\":false,\"error\":\"bad_origin\"}");
                     return;
                 }
-                string msg = ReadFrame();
+                msg = ReadFrame();
                 if (string.IsNullOrEmpty(msg)) return;
 
                 var js = new JavaScriptSerializer { MaxJsonLength = BrowserPipe.MaxRequestBytes };
@@ -212,6 +202,7 @@ namespace WinUp
                     return;
                 }
 
+                bool explainedWatchEnd=false;
                 try
                 {
                     using (var pipe = new NamedPipeClientStream(".", BrowserPipe.Name, PipeDirection.InOut))
@@ -225,22 +216,46 @@ namespace WinUp
                         // Канал с тем же именем могла создать другая программа (раньше, чем запустился WinUp):
                         // запрос с токеном сопряжения уходит только окну этого же WinUp.exe.
                         if (BrowserCaller.CheckServer(pipe) != null) { WriteOut("{\"ok\":false,\"error\":\"bad_server\"}"); return; }
+                        if(type=="watch") {
+                            // Closing a popup closes native stdin. Some browsers
+                            // leave the host alive until it finishes, so observe EOF
+                            // while waiting for state changes on the named pipe.
+                            var input=Console.OpenStandardInput();
+                            var disconnected=new Thread(delegate() {
+                                try { input.ReadByte(); } catch { }
+                                try { pipe.Dispose(); } catch { }
+                            });
+                            disconnected.IsBackground=true;disconnected.Start();
+                        }
                         using (var w = new StreamWriter(pipe, new UTF8Encoding(false)) { AutoFlush = true })
                         using (var r = new StreamReader(pipe, Encoding.UTF8))
                         {
-                            w.Write(msg + "\n");
+                            // Chromium may terminate its native JSON payload with
+                            // a newline. The pipe protocol needs one delimiter;
+                            // a second newline would end a state subscription.
+                            w.Write(msg.TrimEnd('\r','\n') + "\n");
                             do
                             {
                                 string resp = r.ReadLine();
+                                // A terminal response already explains why the watch
+                                // ended. EOF must not replace it with "not_running".
+                                if(type=="watch" && !string.IsNullOrEmpty(resp)) {
+                                    object success;
+                                    var reply=js.Deserialize<Dictionary<string,object>>(resp);
+                                    explainedWatchEnd=reply!=null && reply.TryGetValue("ok",out success) && success is bool && !(bool)success;
+                                }
+                                // WriteOut wipes its argument; inspect before sending.
+                                bool finished=string.IsNullOrEmpty(resp) || type!="watch" || explainedWatchEnd;
                                 WriteOut(string.IsNullOrEmpty(resp) ? "{\"ok\":false,\"error\":\"not_running\"}" : resp);
-                                if (string.IsNullOrEmpty(resp) || type != "watch") break;
+                                if(finished)break;
                             } while (true);
                         }
                     }
                 }
-                catch { WriteOut("{\"ok\":false,\"error\":\"not_running\"}"); }
+                catch { if(!explainedWatchEnd)WriteOut("{\"ok\":false,\"error\":\"not_running\"}"); }
             }
             catch { try { WriteOut("{\"ok\":false,\"error\":\"host_error\"}"); } catch { } }
+            finally { Secure.Wipe(msg); }
         }
 
         // Кадр Native Messaging: 4 байта длины (little-endian) + UTF-8 JSON.
@@ -252,8 +267,10 @@ namespace WinUp
             int n = len[0] | (len[1] << 8) | (len[2] << 16) | (len[3] << 24);
             if (n <= 0 || n > BrowserPipe.MaxRequestBytes) return null;
             var buf = new byte[n];
-            if (!ReadFull(s, buf, n)) return null;
-            return Encoding.UTF8.GetString(buf);
+            try {
+                if (!ReadFull(s, buf, n)) return null;
+                return new UTF8Encoding(false, true).GetString(buf);
+            } finally { Array.Clear(buf, 0, buf.Length); }
         }
 
         static bool ReadFull(Stream s, byte[] buf, int count)
@@ -291,10 +308,13 @@ namespace WinUp
     {
         public const string HostName = "ru.winup.browser";
         public const string ExtensionId = "dmbmnobicgmfcbaapndecbngkgdemefh";
+        public const string FirefoxId = "winup@winup.local";
 
         static string RootDir { get { return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "WinUp"); } }
         public static string BrowserDir { get { return Path.Combine(RootDir, "browser"); } }
         public static string HostManifestPath { get { return Path.Combine(RootDir, HostName + ".json"); } }
+        public static string FirefoxDir { get { return Path.Combine(RootDir,"browser-firefox"); } }
+        public static string FirefoxHostManifestPath { get { return Path.Combine(RootDir,HostName+"-firefox.json"); } }
 
         // Браузеры, в чьи ключи Native Messaging пишем путь манифеста моста.
         static readonly string[] RegBrowsers =
@@ -303,7 +323,9 @@ namespace WinUp
             @"Software\Microsoft\Edge\NativeMessagingHosts",
             @"Software\Chromium\NativeMessagingHosts",
             @"Software\BraveSoftware\Brave-Browser\NativeMessagingHosts",
-            @"Software\Yandex\YandexBrowser\NativeMessagingHosts"
+            @"Software\Yandex\YandexBrowser\NativeMessagingHosts",
+            @"Software\Vivaldi\NativeMessagingHosts",
+            @"Software\Opera Software\NativeMessagingHosts"
         };
 
         public static bool Enabled
@@ -340,6 +362,16 @@ namespace WinUp
                     }
                 }
             }
+            Directory.CreateDirectory(FirefoxDir);
+            foreach(var file in Directory.GetFiles(BrowserDir)) {
+                if(Path.GetFileName(file)=="manifest.json") continue;
+                var destination=Path.Combine(FirefoxDir,Path.GetFileName(file)=="firefox-manifest.json" ? "manifest.json" : Path.GetFileName(file));
+                var bytes=File.ReadAllBytes(file);
+                if(!File.Exists(destination) || !File.ReadAllBytes(destination).SequenceEqual(bytes)) { File.WriteAllBytes(destination,bytes); changed=true; }
+            }
+            var expected=new HashSet<string>(Directory.GetFiles(BrowserDir).Select(Path.GetFileName),StringComparer.OrdinalIgnoreCase);
+            expected.Remove("firefox-manifest.json");
+            foreach(var file in Directory.GetFiles(FirefoxDir)) if(!expected.Contains(Path.GetFileName(file))) { File.Delete(file); changed=true; }
             return changed;
         }
 
@@ -387,6 +419,10 @@ namespace WinUp
                 "}";
             Directory.CreateDirectory(RootDir);
             File.WriteAllText(HostManifestPath, manifest, new UTF8Encoding(false));
+            File.WriteAllText(FirefoxHostManifestPath,new JavaScriptSerializer().Serialize(new {
+                name=HostName,description="Мост WinUp для Firefox",path=Application.ExecutablePath,type="stdio",allowed_extensions=new[] { FirefoxId }
+            }),new UTF8Encoding(false));
+            using(var key=Microsoft.Win32.Registry.CurrentUser.CreateSubKey(@"Software\Mozilla\NativeMessagingHosts\"+HostName)) key.SetValue(null,FirefoxHostManifestPath);
         }
 
         static string JsonQuote(string s)
@@ -426,6 +462,7 @@ namespace WinUp
             catch { }
             try { File.Delete(HostManifestPath); }
             catch { }
+            try { Microsoft.Win32.Registry.CurrentUser.DeleteSubKey(@"Software\Mozilla\NativeMessagingHosts\"+HostName,false); File.Delete(FirefoxHostManifestPath); Directory.Delete(FirefoxDir,true); } catch { }
             try { Directory.Delete(BrowserDir, true); }
             catch { }
         }
@@ -583,6 +620,7 @@ namespace WinUp
         // Одна строка JSON на запрос, одна строка на ответ.
         void Serve(NamedPipeServerStream pipe)
         {
+            string line = null;
             try
             {
                 // Отвечаем только мосту — этому же WinUp.exe, запущенному браузером (BrowserCaller).
@@ -605,7 +643,7 @@ namespace WinUp
                 }
                 else
                 {
-                    var line = ReadRequest(pipe);
+                    line = ReadRequest(pipe);
                     if (stop || string.IsNullOrEmpty(line)) return;
                     if (WatchRequest(pipe, line)) return;
                     resp = Dispatch(line);
@@ -623,6 +661,7 @@ namespace WinUp
                 finally { if (buf != null) Array.Clear(buf, 0, buf.Length); Secure.Wipe(resp); }
             }
             catch { }
+            finally { Secure.Wipe(line); }
         }
 
         // Bounded frame and deadline even for an authenticated browser bridge.
@@ -632,6 +671,7 @@ namespace WinUp
             var bytes = new byte[1024];
             using (var data = new MemoryStream())
             {
+                try {
                 while (data.Length < BrowserPipe.MaxRequestBytes)
                 {
                     int remaining = 5000 - (int)clock.ElapsedMilliseconds;
@@ -644,8 +684,12 @@ namespace WinUp
                         if (n == 0) return null;
                         int end = Array.IndexOf(bytes, (byte)'\n', 0, n);
                         data.Write(bytes, 0, end >= 0 ? end : n);
-                        if (end >= 0) return new UTF8Encoding(false, true).GetString(data.ToArray());
+                        if (end >= 0) return new UTF8Encoding(false, true).GetString(data.GetBuffer(), 0, (int)data.Length);
                     }
+                }
+                } finally {
+                    Array.Clear(bytes, 0, bytes.Length);
+                    Array.Clear(data.GetBuffer(), 0, (int)data.Length);
                 }
             }
             return null;
@@ -671,11 +715,34 @@ namespace WinUp
             if (type == "unlock") return Unlock(token);
 
             if (type != "list" && type != "search" && type != "fill" && type != "otp-list" && type != "otp" && type != "otp-fill" && type != "otp-copy" &&
-                type != "passkey-create" && type != "passkey-get" && type != "passkey-cancel") return Err("bad_request");
+                type != "passkey-create" && type != "passkey-get" && type != "passkey-cancel" && type != "save" &&
+                type != "login-claim" && type != "login-step" && type != "login-end") return Err("bad_request");
             if (!BrowserPair.IsPaired(token)) return Err("not_paired");
             if (type != "fill" && type != "otp-fill" && lookups.Hit(BrowserPair.HashToken(token)) > LookupsPerMinute) return Err("rate_limited");
 
             if (type.StartsWith("passkey-", StringComparison.Ordinal)) return PasskeyRequest(token, type, d);
+            if(type.StartsWith("login-",StringComparison.Ordinal)) {
+                if(d.TryGetValue("framed",out o) && o is bool && (bool)o) return Err("bad_request");
+                string response=null;
+                string loginUrl=d.TryGetValue("url",out o) ? o as string : null;
+                string nonce=d.TryGetValue("nonce",out o) ? o as string : null;
+                string tab=d.TryGetValue("tab",out o) ? o as string : null;
+                string stage=d.TryGetValue("stage",out o) ? o as string : null;
+                if(!RunUi(delegate { response=owner.BrowserLoginRequest(token,type,loginUrl,nonce,tab,stage); })) return Err("host_error");
+                return response ?? Err("host_error");
+            }
+            if(type == "save") {
+                string result = null;
+                string saveUrl = d.TryGetValue("url",out o) ? o as string : null;
+                string login = d.TryGetValue("login",out o) ? o as string : null;
+                string password = d.TryGetValue("password",out o) ? o as string : null;
+                bool framed = d.TryGetValue("framed",out o) && o is bool && (bool)o;
+                try {
+                    if(framed || string.IsNullOrEmpty(password) || password.Length > 4096 || (login ?? "").Length > 1024) return Err("bad_request");
+                    if(!RunUi(delegate { if(askOpen) { result=Err("busy"); return; } askOpen=true; try { result=owner.BrowserSave(saveUrl,login ?? "",password,()=>BrowserPair.IsPaired(token)); } finally { askOpen=false; } })) return Err("host_error");
+                    return result ?? Err("host_error");
+                } finally { Secure.Wipe(password); }
+            }
 
             if (type == "otp-list") return OtpList(token, d.TryGetValue("query", out o) ? o as string : null);
             if (type == "otp" || type == "otp-fill" || type == "otp-copy")
@@ -688,7 +755,7 @@ namespace WinUp
             {
                 string id = d.TryGetValue("id", out o) && o != null ? o.ToString() : null;
                 bool framed = d.TryGetValue("framed", out o) && o is bool && (bool)o;
-                return Fill(token, url, id, framed);
+                return Fill(token, url, id, framed, d.TryGetValue("requireConfirmation",out o) && o is bool && (bool)o);
             }
             string query = d.TryGetValue("query", out o) && o != null ? o.ToString() : "";
             return type == "list" ? ListOrSearch(token, url, null) : ListOrSearch(token, url, query);
@@ -728,15 +795,19 @@ namespace WinUp
             string response = Err("host_error");
             RunUi(delegate {
                 if (cancelled()) { response = Err("AbortError"); return; }
-                if (askOpen) { response = Err("busy"); return; }
+                var existingForms = new HashSet<Form>(Application.OpenForms.Cast<Form>());
+                if (askOpen || existingForms.Any(form => form != owner && form.Owner == owner && form is ILockableDialog))
+                { response = Err("busy"); return; }
                 askOpen = true;
                 try {
                     using (var cancelTimer = new System.Windows.Forms.Timer { Interval = 100 }) {
                         cancelTimer.Tick += delegate {
                             if (cancelled()) foreach (var form in Application.OpenForms.Cast<Form>().ToArray())
-                                if (form != owner && form.Owner == owner && form is ILockableDialog) form.Close();
+                                if (!existingForms.Contains(form) && form != owner && form.Owner == owner && form is ILockableDialog) form.Close();
                         };
                         cancelTimer.Start();
+                        object unlock;
+                        if(owner.VaultNow==null && request.TryGetValue("unlockIfNeeded",out unlock) && unlock is bool && (bool)unlock && !cancelled()) owner.UnlockBrowser();
                         response = owner.BrowserPasskey(url, type == "passkey-create", options, cancelled);
                     }
                 }
@@ -928,10 +999,11 @@ namespace WinUp
             {
                 var v = owner.VaultNow;
                 if (v == null) { error = "locked"; return; }
+                if (!BrowserPair.IsPaired(token)) { error = "not_paired"; return; }
                 items = new List<object>();
                 foreach (var e in v.Entries)
                 {
-                    if (e.Kind != "site") continue;
+                    if (e.Kind != "site" && e.Kind != "both") continue;
                     var host = SiteDomain.HostOf(e.Target);
                     if (host == null) continue;
                     if (query != null)
@@ -942,7 +1014,7 @@ namespace WinUp
                         if (q.Length < 1) continue;
                         if (!((e.Name ?? "").ToLowerInvariant().Contains(q) ||
                               (e.Target ?? "").ToLowerInvariant().Contains(q) ||
-                              (e.Login ?? "").ToLowerInvariant().Contains(q))) continue;
+                              (e.Login ?? "").ToLowerInvariant().Contains(q) || (e.Login2 ?? "").ToLowerInvariant().Contains(q))) continue;
                         if (items.Count >= 30) return;
                     }
                     else if (!SiteDomain.SameSite(host, pageHost)) continue;
@@ -964,7 +1036,7 @@ namespace WinUp
             };
         }
 
-        string Fill(string token, string url, string id, bool framed)
+        string Fill(string token, string url, string id, bool framed, bool requireConfirmation = false)
         {
             if (string.IsNullOrEmpty(id)) return Err("bad_request");
             var pageHost = SiteDomain.HostOf(url);
@@ -981,7 +1053,7 @@ namespace WinUp
             {
                 var v = owner.VaultNow;
                 if (v == null) { error = "locked"; return; }
-                var e = v.Entries.Find(x => x.Id == id && x.Kind == "site");
+                var e = v.Entries.Find(x => x.Id == id && (x.Kind == "site" || x.Kind == "both"));
                 if (e == null) { error = "not_found"; return; }
                 var host = SiteDomain.HostOf(e.Target);
                 if (host == null) { error = "not_found"; return; }
@@ -999,7 +1071,7 @@ namespace WinUp
                 bool sameSite = SiteDomain.SameSite(host, pageHost);
                 bool exact = SiteDomain.SameHost(host, pageHost);
                 bool burst = recent > FillsWithoutQuestion;
-                if (burst || framed || !exact && !(sameSite && BrowserAllow.Has(e.Id, pageHost)))
+                if (requireConfirmation || burst || framed || !exact && !(sameSite && BrowserAllow.Has(e.Id, pageHost)))
                 {
                     if (askOpen) { error = "busy"; return; }
                     askOpen = true;
@@ -1050,7 +1122,7 @@ namespace WinUp
                 var v = owner.VaultNow;
                 if (v == null || v != authorizedVault) { response = Err("locked"); return; }
                 if (!BrowserPair.IsPaired(token)) { response = Err("not_paired"); return; }
-                var e = v.Entries.Find(x => x.Id == id && x.Kind == "site");
+                var e = v.Entries.Find(x => x.Id == id && (x.Kind == "site" || x.Kind == "both"));
                 if (e == null) { response = Err("not_found"); return; }
                 // An editor can change or replace the entry while OTP generation waits.
                 // The earlier site confirmation then no longer authorizes this response.
@@ -1059,7 +1131,7 @@ namespace WinUp
                 var o = e.TwoFa == "link" ? v.Otp.Find(x => x.Id == e.OtpId) : null;
                 response = e.UsePassword(pw =>
                 {
-                    var r = new Dictionary<string, object> { { "ok", true }, { "login", e.Login ?? "" }, { "password", pw ?? "" } };
+                    var r = new Dictionary<string, object> { { "ok", true }, { "login", e.Login ?? "" }, { "login2", e.Login2 ?? "" }, { "password", pw ?? "" } };
                     if (o != null) r["otp"] = Totp.Code(o);
                     return new JavaScriptSerializer().Serialize(r);
                 });
@@ -1136,7 +1208,7 @@ namespace WinUp
             remember.Text = "Больше не спрашивать для «" + entryName + "» на " + pageHost;
             remember.Enabled = sameSite && !framed && !exact;
             remember.Visible = !exact;
-            Grid.Controls.Add(remember); Grid.SetColumnSpan(remember, 2);
+            FullRow(remember);
             Buttons();
             Ok.Text = "Вставить";
             Cancel.Text = "Не вставлять";
@@ -1153,6 +1225,14 @@ namespace WinUp
 
     class BrowserDialog : Dlg
     {
+        sealed class BrowserChoice {public BrowserInfo Browser;public override string ToString(){return Browser.Name;}}
+        readonly ComboBox chosenBrowser=new ComboBox {DropDownStyle=ComboBoxStyle.DropDownList};
+        readonly TextBox extensionAddress=new TextBox {ReadOnly=true};
+        readonly Label installSteps=new Label {AutoSize=true,MaximumSize=new Size(580,0),ForeColor=SystemColors.GrayText};
+        readonly Button openPage=new Button {Text="Открыть в выбранном браузере",AutoSize=true};
+        readonly Button copyAddress=new Button {Text="Копировать адрес",AutoSize=true};
+        BrowserInfo Chosen {get {var item=chosenBrowser.SelectedItem as BrowserChoice;return item==null ? null : item.Browser;}}
+        string ChosenFolder {get{return BrowserPages.Firefox(Chosen) ? BrowserSetup.FirefoxDir : BrowserSetup.BrowserDir;}}
         readonly TextBox dirBox = new TextBox { ReadOnly = true, Dock = DockStyle.Fill };
         readonly Label state = new Label { AutoSize = true, MaximumSize = new System.Drawing.Size(580, 0), ForeColor = SystemColors.GrayText };
         readonly ListBox paired = new ListBox { Dock = DockStyle.Fill, Height = 90, IntegralHeight = false };
@@ -1165,32 +1245,39 @@ namespace WinUp
         {
             Ok.Text = "Закрыть";
             Cancel.Visible = false;
+            AutoSize=false;ClientSize=new Size(760,Math.Min(790,Screen.FromControl(this).WorkingArea.Height-100));
+            Controls.Remove(Grid);Grid.Dock=DockStyle.Top;
+            var scroll=new Panel {AutoScroll=true,Dock=DockStyle.Fill};scroll.Controls.Add(Grid);Controls.Add(scroll);
 
             Note("Расширение показывает значок WinUp в полях входа на сайтах: щелчок по значку — " +
                  "список учётных записей этого сайта и вставка логина, пароля и кода 2FA. " +
                  "Пароли остаются в базе WinUp, расширение их не хранит.");
             Note("Подключение:", null);
             Note("1. Нажмите «Подключить» — WinUp скопирует расширение и зарегистрирует мост для " +
-                 "Chrome, Edge, Яндекс Браузера и Brave (WinUp отвечает только браузеру с подписью его издателя).", SystemColors.GrayText);
-            Note("2. В браузере откройте страницу расширений (адрес chrome://extensions, в Edge — edge://extensions).",
-                 SystemColors.GrayText);
-            Note("3. Включите «Режим разработчика».", SystemColors.GrayText);
-            Note("4. Нажмите «Загрузить распакованное расширение» и выберите папку ниже. " +
-                 "Папка общая для всех браузеров: она не рядом с WinUp.exe и не зависит от флешки.",
-                 SystemColors.GrayText);
+                 "Chrome, Edge, Яндекс Браузера, Brave, Opera, Vivaldi и Firefox (WinUp проверяет подпись издателя браузера).", SystemColors.GrayText);
+            foreach(var browser in Browsers.Installed().Where(b=>BrowserPages.ExtensionUrl(b).Length>0))chosenBrowser.Items.Add(new BrowserChoice {Browser=browser});
+            Row("Выберите браузер:",chosenBrowser);
+            Row("Страница расширений:",WithButton(extensionAddress,copyAddress));
+            Row("",openPage);
+            FullRow(installSteps);
+            chosenBrowser.SelectedIndexChanged+=(s,e)=>RefreshSelectedBrowser();
+            if(chosenBrowser.Items.Count>0)chosenBrowser.SelectedIndex=0;
+            Shown+=(s,e)=>{var owner=Owner as MainForm;string preferred=owner==null ? "" : owner.PreferredBrowser;foreach(BrowserChoice item in chosenBrowser.Items)if(item.Browser.Name.Equals(preferred,StringComparison.OrdinalIgnoreCase)){chosenBrowser.SelectedItem=item;break;}};
+            openPage.Click+=(s,e)=>{try {System.Diagnostics.Process.Start(BrowserPages.ExtensionLaunch(Chosen));state.Text="Команда отправлена в «"+Chosen.Name+"». Если страница расширений не открылась, скопируйте адрес и вставьте его в этом браузере.";Log(state.Text);}catch(Exception ex){MessageBox.Show(this,ex.Message,"WinUp — браузер",MessageBoxButtons.OK,MessageBoxIcon.Information);}};
+            copyAddress.Click+=(s,e)=>{try{if(extensionAddress.Text.Length>0){Clipboard.SetText(extensionAddress.Text);copyAddress.Text="Скопировано";}}catch(Exception ex){MessageBox.Show(this,"Не удалось скопировать адрес: "+ex.Message,Text);}};
             Row("Папка:", dirBox);
-            Grid.Controls.Add(state); Grid.SetColumnSpan(state, 2);
+            Note("Страница открывается именно в выбранном браузере; браузер Windows по умолчанию не используется. Если браузер запрещает открыть внутреннюю страницу командой, скопируйте адрес и вставьте в его адресную строку.",SystemColors.GrayText);
+            FullRow(state);
             notify.Checked = MainForm.FillNotifyEnabled;
             notify.CheckedChanged += (s, e) =>
             {
                 var f = Owner as MainForm;
                 if (f != null) f.SetFillNotify(notify.Checked);
             };
-            Grid.Controls.Add(notify); Grid.SetColumnSpan(notify, 2);
+            FullRow(notify);
             Note("Сопряжённые браузеры (код подтверждается в окне WinUp при первой связи):", null);
             paired.SelectedIndexChanged += (s, e) => { forget.Enabled = paired.SelectedItem != null; };
-            Grid.Controls.Add(paired);
-            Grid.SetColumnSpan(paired, 2);
+            FullRow(paired);
 
             var open = new Button { Text = "Открыть папку", AutoSize = true };
             var copy = new Button { Text = "Скопировать путь", AutoSize = true };
@@ -1210,11 +1297,7 @@ namespace WinUp
                     return;
                 }
                 RefreshAll();
-                MessageBox.Show(this, "Готово. Теперь в браузере:\n\n" +
-                    "1) откройте страницу расширений (chrome://extensions);\n" +
-                    "2) включите «Режим разработчика»;\n" +
-                    "3) «Загрузить распакованное расширение» и выберите папку\n" + BrowserSetup.BrowserDir + "\n\n" +
-                    "Уже открытые браузеры увидят WinUp после перезапуска.",
+                MessageBox.Show(this, "Файлы расширения и мост подготовлены.\n\nВыберите браузер и нажмите «Открыть в выбранном браузере».\n"+installSteps.Text+"\n\nПапка: "+ChosenFolder+"\n\nЕсли расширение уже загружено, обновите его на странице расширений и перезагрузите открытые сайты.",
                     "WinUp — расширение браузера", MessageBoxButtons.OK, MessageBoxIcon.Information);
             };
             off.Click += (s, e) =>
@@ -1234,8 +1317,8 @@ namespace WinUp
             {
                 try
                 {
-                    if (!Directory.Exists(BrowserSetup.BrowserDir)) BrowserSetup.Connect();
-                    System.Diagnostics.Process.Start(BrowserSetup.BrowserDir);
+                    if (!Directory.Exists(ChosenFolder)) BrowserSetup.Connect();
+                    System.Diagnostics.Process.Start(ChosenFolder);
                 }
                 catch (Exception ex)
                 {
@@ -1245,7 +1328,7 @@ namespace WinUp
             };
             copy.Click += (s, e) =>
             {
-                try { Clipboard.SetText(BrowserSetup.BrowserDir); copy.Text = "Скопировано"; }
+                try { Clipboard.SetText(ChosenFolder); copy.Text = "Скопировано"; }
                 catch { }
             };
             forget.Click += (s, e) =>
@@ -1263,8 +1346,21 @@ namespace WinUp
                 Log("Расширение браузера: разрешённые адреса сброшены — на поддоменах WinUp снова будет спрашивать.");
                 resetAllow.Text = "Сброшено";
             };
-            Buttons(connect, off, forget, open, copy, resetAllow);
+            var actions=new FlowLayoutPanel {AutoSize=true,WrapContents=true,Dock=DockStyle.Fill};
+            actions.Controls.AddRange(new Control[] {connect,off,forget,open,copy,resetAllow});FullRow(actions);
+            var bottom=Buttons();Grid.Controls.Remove(bottom);bottom.Dock=DockStyle.Bottom;Controls.Add(bottom);scroll.BringToFront();
             RefreshAll();
+        }
+
+        void RefreshSelectedBrowser() {
+            extensionAddress.Text=BrowserPages.ExtensionUrl(Chosen);openPage.Enabled=copyAddress.Enabled=Chosen!=null;copyAddress.Text="Копировать адрес";dirBox.Text=ChosenFolder;
+            installSteps.Text=Chosen==null ? "Поддерживаемый браузер пока не найден. Установите браузер и снова откройте это окно." : BrowserPages.Firefox(Chosen) ?
+                "Firefox: «Этот Firefox» → «Загрузить временное дополнение» → manifest.json из указанной папки. Дополнение действует до закрытия Firefox. Для постоянной установки нужна подпись Mozilla." :
+                Chosen.Name.IndexOf("Edge",StringComparison.OrdinalIgnoreCase)>=0 ?
+                "Edge: откройте меню ☰ на странице расширений и включите «Режим разработчика». В «Параметрах разработчика» нажмите значок «Загрузить распакованное» и выберите указанную папку. Затем закрепите значок WinUp и выполните сопряжение." :
+                Chosen.Name.IndexOf("Яндекс",StringComparison.OrdinalIgnoreCase)>=0 || Chosen.Name.IndexOf("Yandex",StringComparison.OrdinalIgnoreCase)>=0 ?
+                "Яндекс: на странице browser://extensions/ включите «Режим разработчика» → «Загрузить распакованное расширение» → выберите указанную папку. После перезапуска браузер может отключить такое расширение: нажмите «Включить» в его уведомлении. Затем откройте значок WinUp. Повторное сопряжение не требуется." :
+                "На странице расширений включите «Режим разработчика» → «Загрузить распакованное расширение» (в Opera — «Загрузить расширение») → выберите указанную папку. Затем закрепите значок WinUp и выполните сопряжение.";
         }
 
         void Log(string m)
@@ -1275,7 +1371,7 @@ namespace WinUp
 
         void RefreshAll()
         {
-            dirBox.Text = BrowserSetup.BrowserDir;
+            RefreshSelectedBrowser();
             bool on = BrowserSetup.Enabled;
             state.Text = on
                 ? "Подключено. Путь к WinUp.exe обновляется при каждом запуске программы."
