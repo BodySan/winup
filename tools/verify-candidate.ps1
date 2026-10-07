@@ -46,15 +46,7 @@ foreach($spec in $specs) {
         if((Get-FileHash -LiteralPath "$candidatePath\lib\$($spec.dll)").Hash -ne $expected) { throw 'Candidate DLL differs from the official signed NuGet package.' }
     } finally { $zip.Dispose() }
 }
-$pslCheck=Join-Path $checks 'public-suffix-list.dat'
-Invoke-WebRequest ('https://publicsuffix.org/list/public_suffix_list.dat?winup='+[Guid]::NewGuid().ToString('N')) -Headers @{'Cache-Control'='no-cache'} -OutFile $pslCheck -UseBasicParsing
-$candidatePsl=(Get-FileHash -LiteralPath "$candidatePath\public-suffix-list.dat").Hash
-$trustedPsl=(Get-FileHash -LiteralPath "$trusted\public-suffix-list.dat").Hash
-if($candidatePsl -ne $trustedPsl) {
-    $stamp=[regex]::Match([IO.File]::ReadAllText("$candidatePath\public-suffix-list.dat"),'(?m)^// VERSION: (\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}_UTC)').Groups[1].Value
-    $bundledStamp=[regex]::Match([IO.File]::ReadAllText("$trusted\public-suffix-list.dat"),'(?m)^// VERSION: (\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}_UTC)').Groups[1].Value
-    if(!$stamp -or !$bundledStamp -or [string]::CompareOrdinal($stamp,$bundledStamp) -lt 0 -or $candidatePsl -ne (Get-FileHash -LiteralPath $pslCheck).Hash) { throw 'Candidate PSL is older than the trusted baseline or differs from current official bytes. Run new component checks.' }
-} else { Write-Output 'PSL matches the already trusted bundled snapshot; no downgrade from stale CDN data.' }
+& "$PSScriptRoot\verify-psl.ps1" -Candidate "$candidatePath\public-suffix-list.dat" -Trusted "$trusted\public-suffix-list.dat" -Output (Join-Path $checks 'psl-immutable.dat')
 $adapterHash=(Get-FileHash -LiteralPath "$candidatePath\lib\WinUp.PasskeyEngine.dll").Hash
 # This script was compared with the local trusted source above. Rebuild with verified dependencies.
 & "$candidatePath\vendor\passkeys\build.ps1"
