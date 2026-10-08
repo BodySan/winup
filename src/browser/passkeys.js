@@ -157,8 +157,8 @@
     const postMessageToExtension = function(request, signal) {
         return new Promise((resolve,reject)=> {
             const id=crypto.randomUUID().replaceAll('-','');
-            let timeout;
-            function cleanup() { clearTimeout(timeout); document.removeEventListener('winup-passkeys-response',listener); signal?.removeEventListener('abort',abort); }
+            let timeout,settled=false;
+            function cleanup() { settled=true;clearTimeout(timeout); document.removeEventListener('winup-passkeys-response',listener); signal?.removeEventListener('abort',abort); }
             function abort() {
                 cleanup(); document.dispatchEvent(new CustomEvent('winup-passkeys-request',{detail:JSON.stringify({action:'abort',requestId:id})}));
                 reject(new DOMException('Операция отменена','AbortError'));
@@ -191,7 +191,9 @@
             signal?.addEventListener('abort',abort,{once:true});
             const lifetime=Math.max(5000,Math.min(Number(request.publicKey?.timeout)||120000,120000));
             timeout=setTimeout(abort,lifetime);
-            document.dispatchEvent(new CustomEvent('winup-passkeys-request',{detail:payload}));
+            // MAIN and isolated document_start scripts can execute in either order.
+            // Queue dispatch so the isolated relay can install its listener first.
+            setTimeout(()=>{if(!settled)document.dispatchEvent(new CustomEvent('winup-passkeys-request',{detail:payload}));},0);
         });
     };
     const waitForFocus = function (signal) {
@@ -269,11 +271,17 @@
     };
 
     const originalCredentials = navigator.credentials;
+    const nativeCreate=originalCredentials.create.bind(originalCredentials);
+    const nativeGet=originalCredentials.get.bind(originalCredentials);
+    const nativeStore=originalCredentials.store.bind(originalCredentials);
+    const nativePrevent=originalCredentials.preventSilentAccess.bind(originalCredentials);
 
-    const passkeysCredentials = Object.assign(Object.create(originalCredentials), {
+    // Update the existing object synchronously. A site may retain this object
+    // during its initial script, before the settings message has returned.
+    const passkeysCredentials = {
         async create(options) {
             if (!options?.publicKey) {
-                return originalCredentials.create.call(originalCredentials,options);
+                return nativeCreate(options);
             }
 
             const response = await postMessageToExtension({
@@ -286,18 +294,18 @@
                     throwError(response?.errorCode, response?.errorMessage);
                 }
                 await waitForFocus(options?.signal);
-                return originalCredentials.create.call(originalCredentials,options);
+                return nativeCreate(options);
             }
 
             return createPublicKeyCredential(response.publicKey);
         },
         async get(options) {
             if (!options?.publicKey || options?.mediation === 'silent') {
-                return originalCredentials.get.call(originalCredentials,options);
+                return nativeGet(options);
             }
 
             if (options?.mediation === 'conditional') {
-                return originalCredentials.get.call(originalCredentials,options);
+                return nativeGet(options);
             }
 
             const response = await postMessageToExtension({
@@ -310,26 +318,23 @@
                     throwError(response?.errorCode, response?.errorMessage);
                 }
                 await waitForFocus(options?.signal);
-                return originalCredentials.get.call(originalCredentials,options);
+                return nativeGet(options);
             }
 
             return createPublicKeyCredential(response.publicKey);
         },
         async store(credential) {
-            return originalCredentials.store.call(originalCredentials,credential);
+            return nativeStore(credential);
         },
         async preventSilentAccess() {
-            return originalCredentials.preventSilentAccess.call(originalCredentials);
+            return nativePrevent();
         }
-    });
+    };
 
     // MAIN and isolated document_start scripts can run in different orders.
     // Let both install their event listeners before the first request.
-    await new Promise(resolve => setTimeout(resolve, 0));
-    const available=await postMessageToExtension({action:'available'});
-    if(!available.enabled) return;
     try {
-        Object.defineProperty(navigator,'credentials',{value:passkeysCredentials});
+        for(const [name,method] of Object.entries(passkeysCredentials))Object.defineProperty(originalCredentials,name,{configurable:true,writable:true,value:method});
         // Google and other sites probe platform UV before offering registration.
         // WinUp provides UV with its own verified master password / Windows Hello.
         const originalAvailable=PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable?.bind(PublicKeyCredential);

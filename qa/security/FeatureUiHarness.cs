@@ -42,10 +42,29 @@ namespace WinUp {
                     if(command=="lock") typeof(MainForm).GetMethod("LockVault",Private).Invoke(form,null);
                     if(command=="lock") File.AppendAllText(@"C:\WinUp\test\features\command-proof.txt","locked="+(form.VaultNow==null)+" generation="+form.BrowserGeneration+"\n");
                     if(command=="reopen") open();
+                    if(command=="confirmation-entry") {
+                        form.VaultNow.Entries.Add(new LoginEntry {Id="ui-confirmation",Name="Synthetic Foreign",Kind="site",Target="http://different.example.invalid/",Login="confirmation-user",Password="Synthetic-Confirmation-Password!"});
+                    }
+                    if(command=="many-entries") {
+                        for(int i=0;i<40;i++)form.VaultNow.Entries.Add(new LoginEntry {Id="ui-extra-"+i,Name="ZZ Synthetic Extra "+i.ToString("D2"),Kind="site",Target="http://localhost:9265/",Login="extra-user-"+i,Password="Synthetic-Extra-Password!"});
+                    }
                     if(command=="login-flow") {
                         var entry=form.VaultNow.Entries.First(e=>e.Name=="Synthetic Test");
                         entry.LoginUrl="http://localhost:9265/flow/user";entry.AutoEnter=true;
                         File.WriteAllText(@"C:\WinUp\test\corrections\flow-launch.txt",form.BeginBrowserLogin(entry));
+                    }
+                    if(command.StartsWith("launch-button|",StringComparison.Ordinal)) {
+                        string[] parts=command.Split('|');
+                        if(parts.Length!=3 || (parts[2]!="first" && parts[2]!="second"))throw new Exception("Unexpected launch fixture");
+                        var browser=Browsers.Installed().Single(b=>Path.GetFileName(b.Exe).Equals(parts[1],StringComparison.OrdinalIgnoreCase));
+                        var entry=form.VaultNow.Entries.First(e=>e.Id=="ui-site");
+                        entry.Kind="site";entry.Target="https://example.com/";entry.LoginUrl="https://example.com/?winup-launch="+parts[2];entry.Browser=browser.Name;entry.AutoEnter=false;
+                        typeof(MainForm).GetMethod("RefreshEntries",Private).Invoke(form,null);
+                        var list=(ListView)typeof(MainForm).GetField("pwList",Private).GetValue(form);
+                        foreach(ListViewItem row in list.Items)row.Selected=((LoginEntry)row.Tag).Id==entry.Id;
+                        FindButton(form,"Войти").PerformClick();
+                        File.AppendAllText(@"C:\WinUp\test\login-1.15.1\launch-button-native.txt",browser.Name+" "+parts[2]+" actual-button-click\n");
+                        File.AppendAllText(@"C:\WinUp\test\login-1.15.1\launch-button-native.txt",((TextBox)typeof(MainForm).GetField("pwLog",Private).GetValue(form)).Text+"\n");
                     }
                     if(command=="exit") form.Close();
                 }
@@ -56,7 +75,9 @@ namespace WinUp {
                     } else if(dialog is EntryDialog && dialog.Text.Contains("localhost")) {
                         seen.Add(dialog); ((Button)typeof(Dlg).GetField("Ok",Private).GetValue(dialog)).PerformClick();
                     } else if(dialog is ConfirmFillDialog) {
-                        seen.Add(dialog); ((Button)typeof(Dlg).GetField("Ok",Private).GetValue(dialog)).PerformClick();
+                        seen.Add(dialog);
+                        File.AppendAllText(@"C:\WinUp\test\login-1.15.1\confirmation-dialog-proof.txt",DateTime.UtcNow.ToString("o")+" visible="+dialog.Visible+" native-confirmation\n");
+                        ((Button)typeof(Dlg).GetField("Ok",Private).GetValue(dialog)).PerformClick();
                     } else if(dialog is PasswordPrompt && dialog.Text.Contains("localhost")) {
                         seen.Add(dialog); ((TextBox)typeof(PasswordPrompt).GetField("box",Private).GetValue(dialog)).Text=Password;
                         ((Button)typeof(Dlg).GetField("Ok",Private).GetValue(dialog)).PerformClick();
@@ -64,6 +85,13 @@ namespace WinUp {
                 }
             }; timer.Start();
             Application.Run(form); timer.Dispose();
+        }
+        static Button FindButton(Control parent,string text) {
+            foreach(Control child in parent.Controls) {
+                var button=child as Button;if(button!=null && button.Text==text)return button;
+                var found=FindButton(child,text);if(found!=null)return found;
+            }
+            return null;
         }
     }
 }

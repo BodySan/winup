@@ -95,6 +95,7 @@ async function handle(msg) {
     case "login-end":
       return native({type:msg.type,token:t,url:msg.url,nonce:msg.nonce,tab:msg.tab,stage:msg.stage,framed:!!msg.framed});
     case "forget":
+      saveFlows.clear();
       await chrome.storage.local.remove("token");
       return { ok: true };
   }
@@ -105,6 +106,10 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
   if (!msg || typeof msg !== "object" || typeof msg.type !== "string" || sender.id !== chrome.runtime.id) { reply({ ok: false, error: "bad_request" }); return; }
   // Listing/revealing codes is available only to our popup, never to a website's content script.
   const fromPopup = sender.url === chrome.runtime.getURL("popup.html");
+  if(msg.type.startsWith('save-')) {
+    if(fromPopup || !sender.tab || sender.frameId!==0 || !sender.url || !/^https:\/\//.test(sender.url) && !/^http:\/\/localhost(?::\d+)?\//.test(sender.url)) {reply({ok:false,error:'bad_request'});return;}
+    saveMessage(msg,sender).then(reply,()=>reply({ok:false,error:'host_error'}));return true;
+  }
   if(msg.type.startsWith("login-")) {
     if(fromPopup || !sender.tab || sender.frameId!==0 || !sender.url || !loginSession) {reply({ok:false,error:"bad_request"});return;}
     loginMessage(msg,sender).then(reply,()=>reply({ok:false,error:"host_error"}));return true;
@@ -141,13 +146,52 @@ async function loginMessage(msg,sender) {
   if(msg.type==="login-claim" && msg.nonce) {
     if(!/^[0-9a-f]{64}$/.test(msg.nonce)) return {ok:false,error:"bad_request"};
     job={nonce:msg.nonce,tab:String(sender.tab.id),expiresAt:Date.now()+180000};
+    // A redirect may replace the document before native messaging replies.
+    // Let the next document claim the SAME capability, still checked by WinUp.
+    await loginSession.set({[key]:job});
   }
   if(!job) return {ok:false,error:"not_found"};
   const result=await handle({...msg,nonce:job.nonce,tab:job.tab,url:sender.url,framed:false});
-  if(result.ok && msg.type==="login-claim") {job.expiresAt=result.expiresAt;await loginSession.set({[key]:job});}
-  if(msg.type==="login-end" || !result.ok && ["locked","expired","not_found","denied","wrong_origin"].includes(result.error)) await loginSession.remove(key);
+  const current=(await loginSession.get(key))[key];
+  if(current?.nonce===job.nonce) {
+    if(result.ok && msg.type==="login-claim") {job.expiresAt=result.expiresAt;await loginSession.set({[key]:job});}
+    if(msg.type==="login-end" || !result.ok && ["locked","expired","not_found","denied","wrong_origin"].includes(result.error)) await loginSession.remove(key);
+  }
   return result;
 }
+
+// Two-step login/save state is volatile memory only. A submitted password lives
+// at most 60 seconds, in its own tab and exact origin, until native review.
+const saveFlows=new Map();
+function expireSaveFlows() {for(const [id,s] of saveFlows)if(Date.now()>s.expiresAt)saveFlows.delete(id);}
+setInterval(expireSaveFlows,5000);
+async function saveMessage(msg,sender) {
+  expireSaveFlows();const key=sender.tab.id,origin=new URL(sender.url).origin;
+  let state=saveFlows.get(key);
+  if(state?.origin!==origin) {saveFlows.delete(key);state=null;}
+  if(msg.type==='save-login') {
+    if(typeof msg.login!=='string'||!msg.login||msg.login.length>1024)return {ok:false,error:'bad_request'};
+    if(saveFlows.size>=32&&!state)saveFlows.delete(saveFlows.keys().next().value);
+    saveFlows.set(key,{origin,login:msg.login,expiresAt:Date.now()+180000});return {ok:true};
+  }
+  if(msg.type==='save-context')return {ok:true,login:state?.login||'',pending:!!state?.password};
+  if(msg.type==='save-stage') {
+    if(typeof msg.password!=='string'||!msg.password||msg.password.length>4096)return {ok:false,error:'bad_request'};
+    const login=msg.login||state?.login||'';
+    if(typeof login!=='string'||!login||login.length>1024)return {ok:false,error:'missing_login'};
+    if(saveFlows.size>=32&&!state)saveFlows.delete(saveFlows.keys().next().value);
+    saveFlows.set(key,{origin,login,password:msg.password,url:sender.url,expiresAt:Date.now()+60000});return {ok:true};
+  }
+  if(msg.type==='save-dismiss') {saveFlows.delete(key);return {ok:true};}
+  if(msg.type==='save-commit') {
+    if(!state?.password)return {ok:false,error:'expired'};
+    // Consume before showing a native dialog; parallel clicks cannot duplicate it.
+    saveFlows.delete(key);
+    return handle({type:'save',url:state.url,login:state.login,password:state.password,framed:false});
+  }
+  return {ok:false,error:'bad_request'};
+}
+chrome.tabs?.onRemoved?.addListener(id=> {saveFlows.delete(id);loginSession?.remove('login-tab-'+id);});
 
 chrome.runtime.onConnect?.addListener(port => {
   if (port.name !== "otp-watch" || port.sender?.id !== chrome.runtime.id ||

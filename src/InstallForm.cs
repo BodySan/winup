@@ -45,6 +45,7 @@ namespace WinUp
             close.Click += (s, e) => Close();
             FormClosing += (s, e) => { cancelled = true; KillCurrent(); }; // закрытие окна = отмена установки
             Shown += (s, e) => Run();
+            Appearance.Apply(this);
         }
 
         void Log(string m)

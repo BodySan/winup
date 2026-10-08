@@ -50,6 +50,12 @@ namespace WinUp
             Win.ApplyCaptureProtection(this);
         }
 
+        protected override void OnLoad(EventArgs e)
+        {
+            Appearance.Apply(this);
+            base.OnLoad(e);
+        }
+
         public Dlg(string title)
         {
             Text = title;

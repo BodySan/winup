@@ -59,6 +59,12 @@ namespace WinUp
             { return new AssemblyName(e.Name).Name == "KeePassLib" ? CoreLoader.Resolve() : EmbeddedModules.Resolve(e.Name); };
             if(args.Length>0 && args[0].StartsWith("chrome-extension://")) { BrowserBridge.Run(args[0]); return 0; }
             Console.OutputEncoding=new UTF8Encoding(false);
+            if(args.Length==2 && args[0]=="--hold-directory-proof") {
+                string heldPath=Path.GetFullPath(args[1]);
+                if(!SafePaths.IsWithin(heldPath,Paths.Root))throw new InvalidOperationException("Unexpected directory proof path");
+                using(SourceLease.HoldDirectories(heldPath)) {Console.WriteLine("READY");Console.Out.Flush();Thread.Sleep(Timeout.Infinite);}
+                return 0;
+            }
             Application.EnableVisualStyles();
             Directory.CreateDirectory(Paths.Apps);
             Directory.CreateDirectory(Paths.Data);
@@ -72,7 +78,7 @@ namespace WinUp
             store.Save();
             form = new MainForm(store);
             server = (BrowserServer)typeof(MainForm).GetField("browserServer", Private).GetValue(form);
-            if (!trayUi) form.Shown += delegate { Task.Run(Array.IndexOf(args,"--files-only")>=0 ? (Action)DeliveryFilesOnly : Array.IndexOf(args,"--functional-only")>=0 ? (Action)DeliveryTests : Array.IndexOf(args,"--updates-only")>=0 ? (Action)UpdateRegressionTests : (Action)Tests); };
+            if (!trayUi) form.Shown += delegate { Task.Run(Array.IndexOf(args,"--directories-only")>=0 ? (Action)DirectoryRegressionTests : Array.IndexOf(args,"--files-only")>=0 ? (Action)DeliveryFilesOnly : Array.IndexOf(args,"--functional-only")>=0 ? (Action)DeliveryTests : Array.IndexOf(args,"--updates-only")>=0 ? (Action)UpdateRegressionTests : (Action)Tests); };
             Application.Run(form);
             Console.WriteLine("TOTAL failures=" + failures);
             return failures == 0 ? 0 : 1;
@@ -84,6 +90,10 @@ namespace WinUp
         static void SetVault(KdbxStore v) { typeof(MainForm).GetField("vault", Private).SetValue(form, v); }
         static void UpdateRegressionTests() {
             try {CoreIntegrityTests();ComponentUpdateTests();}catch(Exception ex){Console.WriteLine("FAIL unhandled "+ex);failures++;}
+            finally {Ui(delegate {form.Close();});}
+        }
+        static void DirectoryRegressionTests() {
+            try {DirectoryLeaseTests();}catch(Exception ex){Console.WriteLine("FAIL unhandled "+ex);failures++;}
             finally {Ui(delegate {form.Close();});}
         }
         static void Lock() { typeof(MainForm).GetMethod("LockVault", Private).Invoke(form, null); }

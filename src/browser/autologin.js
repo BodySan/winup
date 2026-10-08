@@ -14,7 +14,8 @@
   let job=null,stopped=false,running=false,openerUsed=false,methodUsed=false,nextUsed=false,host,root,progress,button;
   const done=new Set();
   const origin=()=>location.origin.toLowerCase();
-  function visible(e){if(!e?.isConnected || e.disabled || e.readOnly)return false;const r=e.getBoundingClientRect(),s=getComputedStyle(e);return r.width>=14&&r.height>=10&&s.display!=='none'&&s.visibility!=='hidden'&&Number(s.opacity||1)>.1;}
+  function displayed(e){if(!e?.isConnected)return false;const r=e.getBoundingClientRect(),s=getComputedStyle(e);return r.width>=14&&r.height>=10&&s.display!=='none'&&s.visibility!=='hidden'&&Number(s.opacity||1)>.1;}
+  const visible=e=>displayed(e)&&!e.disabled&&!e.readOnly;
   const hint=e=>[e.name,e.id,e.autocomplete,e.placeholder,e.getAttribute('aria-label')].join(' ');
   const user=e=>e.tagName==='INPUT'&&['text','email','tel',''].includes(e.type)&&/user|login|email|phone|identifier|логин|почт|телефон/i.test(hint(e))&&!/otp|one-time|search|код|verification/i.test(hint(e));
   const pw=e=>e.tagName==='INPUT'&&e.type==='password'&&!/new-password/.test(e.autocomplete);
@@ -23,13 +24,20 @@
     for(const selector of selectors||[]) {let els;try{els=Array.from(document.querySelectorAll(selector)).filter(visible).filter(predicate)}catch{return null}if(els.length===1)return els[0];if(els.length>1)return null;}
     const els=Array.from(document.querySelectorAll('input')).filter(visible).filter(predicate);return els.length===1?els[0]:null;
   }
-  function control(words,scope=document){
+  function control(words,scope=document,selectors,allowDisabled=false){
+    for(const selector of selectors||[]){
+      let controls;try{controls=Array.from(scope.querySelectorAll(selector)).filter(e=>displayed(e)&&(allowDisabled||!e.disabled&&!e.readOnly)).filter(e=>e.matches('button,a,input[type=submit],input[type=button],[role=button]'));}catch{return null;}
+      if(controls.length===1)return controls[0];if(controls.length>1)return null;
+    }
     const names=words||[];
-    const all=Array.from(scope.querySelectorAll('button,a,input[type=submit],[role=button]')).filter(visible).filter(e=>{
+    const all=Array.from(scope.querySelectorAll('button,a,input[type=submit],input[type=button],[role=button]')).filter(e=>displayed(e)&&(allowDisabled||!e.disabled&&!e.readOnly)).filter(e=>{
       const text=(e.innerText||e.value||e.getAttribute('aria-label')||'').trim().replace(/\s+/g,' ').toLowerCase();
       return names.some(w=>text===w.toLowerCase());
     });
-    return all.length===1?all[0]:null;
+    if(all.length===1)return all[0];
+    // Desktop/mobile navigation often contains the same login link twice.
+    if(all.length>1&&all.every(e=>e.tagName==='A'&&e.href===all[0].href))return all[0];
+    return null;
   }
   function safeAction(e){
     if(!e)return false;
@@ -50,15 +58,16 @@
   async function fill(stage,e){
     const context={url:location.href,form:e.form,action:e.form?.action,type:e.type};
     if(!safeAction(e)) {await end('unsafe_form','Адрес отправки формы изменён. Ввод остановлен.');return false;}
-    if(e.value && stage!=='password'){await end('existing_input','В поле уже есть данные. Проверьте их и выберите запись через значок WinUp.');return false;}
     const r=await send({type:'login-step',stage});
     try{
       if(!r.ok){await end(r.error,'Ввод остановлен: '+r.error);return false;}
       if(stopped || document.hidden || location.href!==context.url || !visible(e)||e.form!==context.form || e.form?.action!==context.action || e.type!==context.type || !safeAction(e)){await end('page_changed','Страница или форма изменились. Повторите вход.');return false;}
       const value=stage==='user'?loginFor(e,r):stage==='password'?r.password:r.otp;
       if(!value){await end('missing_secret','Для этого шага нет сохранённых данных.');return false;}
+      if(e.value&&stage!=='password'&&e.value!==value){await end('existing_input','В поле уже есть другие данные. Проверьте их и выберите запись через значок WinUp.');return false;}
       Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(e,value);
       e.dispatchEvent(new Event('input',{bubbles:true}));e.dispatchEvent(new Event('change',{bubbles:true}));done.add(stage);
+      if(stage==='user'&&e.isConnected&&location.href===context.url&&safeAction(e))await send({type:'save-login',login:value});
       return e.isConnected && location.href===context.url && e.form===context.form && e.form?.action===context.action && safeAction(e);
     }finally{r.login=r.login2=r.password=r.otp='';}
   }
@@ -70,31 +79,42 @@
       if(/captcha|recaptcha|hcaptcha|challenge-platform/i.test(Array.from(document.querySelectorAll('iframe')).map(e=>e.src).join(' ')) && !find(job.profile.Password,pw)){show('пройдите проверку сайта, затем вход продолжится.');return;}
       const p=find(job.profile.Password,pw),u=find(job.profile.User,user),o=find(job.profile.Otp,otp);
       if(job.profile.Mode==='none'||job.profile.Mode==='manual'){await end('manual',job.profile.Note||'У этого ресурса другой способ входа.');return;}
-      if(!p&&!methodUsed&&!done.size&&job.hasPassword){const method=control(job.profile.Method);if(method&&safeAction(method)){methodUsed=true;show('выбираю вход с паролем…');method.click();return;}}
-      if(u&&!done.has('user')&&(p||job.profile.Mode==='form')){
+      if(!p&&!methodUsed&&!done.size&&job.hasPassword){const method=control(job.profile.Method,document,job.profile.MethodSelectors);if(method&&safeAction(method)){methodUsed=true;show('выбираю вход с паролем…');method.click();return;}}
+      if(u&&!done.has('user')&&(p||job.profile.Mode==='form'||control(job.profile.Next,u.form||document,job.profile.NextSelectors,true))){
         if(!await fill('user',u))return;
-        if(!p&&!nextUsed){const next=control(job.profile.Next||['Далее','Продолжить','Next','Continue'],u.form||document);if(next&&safeAction(next)){nextUsed=true;show('логин введён, ожидаю следующий шаг…');next.click();return;}}
       }
+      if(u&&done.has('user')&&!p&&!nextUsed){const next=control(job.profile.Next||['Далее','Продолжить','Next','Continue'],u.form||document,job.profile.NextSelectors);if(next&&safeAction(next)){nextUsed=true;show('логин введён, ожидаю следующий шаг…');next.click();return;}}
       if(p&&!done.has('password')&&job.hasPassword){
         const all=Array.from((p.form||document).querySelectorAll('input[type=password]')).filter(visible);
         if(all.length!==1){await end('ambiguous_form','Обнаружено несколько полей пароля. Выберите запись вручную.');return;}
         if(!await fill('password',p))return;
-        const submit=control(job.profile.Submit||['Войти','Вход','Log in','Sign in','Login','Продолжить','Continue','Next','Далее'],p.form||document);
+        const submit=control(job.profile.Submit||['Войти','Вход','Log in','Sign in','Login','Продолжить','Continue','Next','Далее'],p.form||document,job.profile.SubmitSelectors);
         show(job.autoEnter?'пароль введён, ожидаю результат…':'поля заполнены. Нажмите кнопку входа на сайте.');
         if(job.autoEnter&&submit&&safeAction(submit))submit.click();
         if(!job.hasOtp){await end('filled',job.autoEnter&&submit?'данные введены и отправлены. Проверьте результат входа.':'данные заполнены. Нажмите кнопку входа на сайте.');return;}
       }
       if(o&&job.hasOtp&&!done.has('otp')&&done.has('password')){
         if(!await fill('otp',o))return;
-        const submit=control(job.profile.Submit||['Подтвердить','Продолжить','Войти','Verify','Continue','Next','Далее'],o.form||document);
+        const submit=control(job.profile.Submit||['Подтвердить','Продолжить','Войти','Verify','Continue','Next','Далее'],o.form||document,job.profile.SubmitSelectors);
         if(job.autoEnter&&submit&&safeAction(submit))submit.click();await end('filled','код 2FA введён. Проверьте результат входа.');return;
       }
-      if(!u&&!p&&!o&&!openerUsed&&!done.size){const opener=control(job.profile.Open||['Войти','Вход','Личный кабинет','Log in','Sign in','Login']);if(opener&&safeAction(opener)){openerUsed=true;show('открываю форму входа…');opener.click();return;}}
+      if(!u&&!p&&!o&&!openerUsed&&!done.size){const opener=control(job.profile.Open||['Войти','Вход','Личный кабинет','Log in','Sign in','Login'],document,job.profile.OpenSelectors);if(opener&&safeAction(opener)){openerUsed=true;show('открываю форму входа…');opener.click();return;}}
       if(done.has('password'))show('ожидаю следующий шаг. SMS, QR и подтверждение на телефоне выполните на сайте.');
       else if(!u&&!p)show('ожидаю форму входа. '+(job.profile.Note||'Если сайт просит подтверждение, выполните его.'));
       else if(!job.hasPassword&&p)show('выберите вход ключом доступа на сайте.');
     }catch{await end('failed','Не удалось определить форму. Выберите запись через значок WinUp.');}finally{running=false;}
   }
   const timer=setInterval(tick,650);
-  send({type:'login-claim',nonce}).then(r=>{if(!r.ok){clearInterval(timer);if(nonce)show('вход не запущен: '+r.error);return;}job=r;for(const stage of r.done||[])done.add(stage);show('ожидаю форму входа…');tick();});
+  async function claim() {
+    // A fast redirect can load the next document while the native claim is still
+    // being authorised. Retry briefly instead of permanently abandoning the flow.
+    for(let i=0;i<4;i++) {
+      const r=await send({type:'login-claim',nonce:i===0?nonce:undefined});
+      if(r.ok){job=r;for(const stage of r.done||[])done.add(stage);show('ожидаю форму входа…');tick();return;}
+      if(r.error!=='not_found') {clearInterval(timer);if(nonce)show('вход не запущен: '+r.error);return;}
+      await new Promise(resolve=>setTimeout(resolve,350));
+    }
+    clearInterval(timer);if(nonce)show('вход не запущен. Повторите «Войти» в WinUp.');
+  }
+  claim();
 })();

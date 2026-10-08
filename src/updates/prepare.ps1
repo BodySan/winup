@@ -17,7 +17,7 @@ foreach($name in 'file-engine.zip','file-engine.json','winfsp.msi') { $mapping[$
 foreach($name in 'WinUp.PasskeyEngine','BouncyCastle.Cryptography','CBOR','Numbers') { $mapping["$name.dll"]="$src\lib\$name.dll" }
 $mapping['public-suffix-list.dat']="$src\public-suffix-list.dat"
 $mapping['THIRD-PARTY.md']="$src\THIRD-PARTY.md"
-foreach($file in Get-ChildItem "$src\browser" -File | Where-Object { $_.Extension -in '.json','.js','.html','.png' }) { $mapping['browser/'+$file.Name]=$file.FullName }
+foreach($file in Get-ChildItem "$src\browser" -File | Where-Object { $_.Extension -in '.json','.js','.html','.png' -or $_.Name -eq 'winup-firefox.xpi' }) { $mapping['browser/'+$file.Name]=$file.FullName }
 foreach($file in Get-ChildItem "$src\licenses" -File) { $mapping['licenses/'+$file.Name]=$file.FullName }
 foreach($name in $mapping.Keys) { $f=Get-Item -LiteralPath $mapping[$name]; $files[$name]=@{size=$f.Length;sha256=(Get-FileHash -LiteralPath $f.FullName).Hash.ToLowerInvariant()} }
 $psl=[regex]::Match([IO.File]::ReadAllText("$src\public-suffix-list.dat"),'(?m)^// VERSION: (.+)$').Groups[1].Value.Trim()
@@ -29,5 +29,5 @@ $versions['browser']=(Get-Content "$src\browser\manifest.json" -Raw -Encoding UT
 $versions['psl']=$psl
 $appVersion=[regex]::Match([IO.File]::ReadAllText("$src\Properties\AssemblyInfo.cs"),'AssemblyVersion\("([0-9.]+)"\)').Groups[1].Value
 $v=[Version]$appVersion
-$manifest=[ordered]@{schema=1;api=3;sequence=0;minApp="$($v.Major).$($v.Minor).0.0";maxApp="$($v.Major).$($v.Minor).999.999";versions=$versions;files=$files}
+$manifest=[ordered]@{schema=1;api=4;sequence=0;minApp="$($v.Major).$($v.Minor).$($v.Build).0";maxApp="$($v.Major).$($v.Minor).999.999";versions=$versions;files=$files}
 [IO.File]::WriteAllText("$src\updates\components.json",($manifest | ConvertTo-Json -Depth 8),[Text.UTF8Encoding]::new($false))

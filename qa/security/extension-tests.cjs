@@ -32,7 +32,7 @@ function page() {
   let listener, callback; const requests=[];
   const window = {}; window.top = window;
   const sandbox = { window, document: doc, location: { href: 'https://example.com/login', origin: 'https://example.com' },
-    chrome: { runtime: { id: 'our-extension', getURL: x => x, sendMessage: (m, cb) => { callback = cb; requests.push({message:m,reply:cb}); }, onMessage: { addListener: fn => listener = fn } } },
+    chrome: { runtime: { id: 'our-extension', getURL: x => x, sendMessage: (m, cb) => { if(m.type==='save-context'){cb({ok:true});return;}callback = cb; requests.push({message:m,reply:cb}); }, onMessage: { addListener: fn => listener = fn } } },
     HTMLInputElement: Input, HTMLTextAreaElement: Input, Event: class { constructor(type) { this.type = type; } },
     getComputedStyle: e => ({ display: e.hidden ? 'none' : 'block', visibility: 'visible', opacity: '1', filter: 'none', clipPath: 'none' }),
     IntersectionObserver: class { observe() {} disconnect() {} }, MutationObserver: class { observe() {} },
@@ -50,6 +50,7 @@ function changes(name, change, field = 'pw') {
 async function passkeyPageTests() {
   const listeners=new Map(), requests=[]; let focused=true, reply={error:'TypeError'};
   const native={create:async()=>({native:true}),get:async()=>({native:true}),store:async()=>{},preventSilentAccess:async()=>{}};
+  const nativeCreate=native.create,cachedCredentials=native;
   const document={hasFocus:()=>focused,addEventListener(type,fn){if(!listeners.has(type))listeners.set(type,new Set());listeners.get(type).add(fn);},
     removeEventListener(type,fn){listeners.get(type)?.delete(fn);},dispatchEvent(e){
       if(e.type==='winup-passkeys-request') { const request=JSON.parse(e.detail); requests.push(request);
@@ -59,12 +60,14 @@ async function passkeyPageTests() {
       } else for(const fn of [...listeners.get(e.type)||[]])fn(e);
     }};
   const context={console,document,navigator:{credentials:native},crypto:require('crypto').webcrypto,ArrayBuffer,Uint8Array,TypeError,DOMException,
-    window:{atob:s=>Buffer.from(s,'base64').toString('binary'),btoa:s=>Buffer.from(s,'binary').toString('base64')},
+    window:{atob:s=>Buffer.from(s,'base64').toString('binary'),btoa:s=>Buffer.from(s,'binary').toString('base64'),
+      addEventListener:document.addEventListener.bind(document),removeEventListener:document.removeEventListener.bind(document)},
     CustomEvent:class{constructor(type,options){this.type=type;this.detail=options.detail;}},
     PublicKeyCredential:class{},AuthenticatorAttestationResponse:class{},AuthenticatorAssertionResponse:class{},setTimeout,clearTimeout};
   vm.runInNewContext(fs.readFileSync(path.join(src,'passkeys.js'),'utf8'),context,{filename:'passkeys.js'});
-  for(let n=0;n<30 && context.navigator.credentials===native;n++)await new Promise(r=>setTimeout(r,10));
-  check('passkey-main-provider-installed',context.navigator.credentials!==native);
+  for(let n=0;n<30 && context.navigator.credentials.create===nativeCreate;n++)await new Promise(r=>setTimeout(r,10));
+  check('passkey-main-provider-installed',context.navigator.credentials.create!==nativeCreate);
+  check('passkey-cached-credentials-reference-uses-provider',cachedCredentials.create===context.navigator.credentials.create);
   let error;
   try{await context.navigator.credentials.create({publicKey:{challenge:new Uint8Array(32)}});}catch(e){error=e;}
   check('passkey-type-error-preserved',error?.name==='TypeError');
@@ -78,7 +81,8 @@ async function passkeyPageTests() {
   check('passkey-oversized-request-fails-without-native-call',error?.name==='TypeError' && listeners.get('winup-passkeys-response').size===0);
   focused=false; reply={fallback:true};const abort=new AbortController();
   const pending=context.navigator.credentials.get({publicKey:{challenge:new Uint8Array(32)},signal:abort.signal}).catch(e=>e);
-  await Promise.resolve(); await Promise.resolve();abort.abort();const cancelled=await pending;
+  for(let i=0;i<30&&!listeners.get('focus')?.size;i++)await new Promise(r=>setTimeout(r,5));
+  abort.abort();const cancelled=await pending;
   check('passkey-fallback-focus-wait-respects-cancellation',cancelled.name==='AbortError' && listeners.get('focus').size===0);
 }
 async function popupTests() {
@@ -103,6 +107,22 @@ async function popupTests() {
   check('popup-lock-clears-detached-code-and-controls',display.textContent==='' && copy.disabled && insert.disabled && interval===null);
   vm.runInContext('watchReady=true',context);const before=requests.length;await copy.handlers.get('click')();
   check('popup-detached-copy-cannot-reuse-erased-code',requests.length===before);
+}
+function autoLoginControls(){
+ const make=(text,id,disabled=false)=>({innerText:text,id,disabled,isConnected:true,readOnly:false,tagName:'BUTTON',getAttribute:()=>'',getBoundingClientRect:()=>({width:120,height:30}),matches:()=>true});
+ const first=make('Войти','header'),second=make('Войти','modal'),next=make('Next','next',true);
+ const document={querySelectorAll:s=>s==='#modal'?[second]:s==='#next'?[next]:[first,second,next]};
+ const window={};window.top=window;
+ const sandbox={window,document,location:{hash:''},chrome:{runtime:{}},getComputedStyle:()=>({display:'block',visibility:'visible',opacity:'1'}),setInterval:()=>0,clearInterval:()=>{}};
+ const code=fs.readFileSync(path.join(src,'autologin.js'),'utf8').replace(/  claim\(\);\s*\}\)\(\);\s*$/,'  globalThis.autologinAudit={control};\n})();');
+ vm.runInNewContext(code,sandbox,{filename:'autologin.js'});
+ const control=sandbox.autologinAudit.control;
+ check('autologin-duplicate-buttons-require-profile-selector',control(['Войти'])===null);
+ check('autologin-observed-selector-picks-correct-modal',control(['Войти'],document,['#modal'])===second);
+ check('autologin-disabled-next-is-identifiable-before-input',control(['Next'],document,['#next'],true)===next);
+ check('autologin-disabled-next-is-not-clickable',control(['Next'],document,['#next'])===null);
+ next.disabled=false;
+ check('autologin-next-becomes-clickable-after-validation',control(['Next'],document,['#next'])===next);
 }
 async function main() {
   const stable = page(), c = stable.audit.fillContext(stable.pw);
@@ -153,11 +173,13 @@ async function main() {
   search.requests[3].reply({ok:true,items:[{id:'pending',name:'PENDING',login:'pending'}]}); await pendingSearch;
   check('cleared-search-does-not-restore-old-results',box.children.length===0);
 
-  let listener, nativeRequest;
+  let listener, nativeRequest, tabClosed;
+  let saveClock=Date.now();const persistentWrites=[];
   let passkeysEnabled=false;
-  const bg = { console, navigator: { userAgent: 'Chrome' }, chrome: { runtime: { id: 'our-extension', getURL:p=>'chrome-extension://our-extension/'+p,
+  const bg = { console,URL,Date:class extends Date {static now(){return saveClock;}},setInterval(){}, navigator: { userAgent: 'Chrome' }, chrome: { runtime: { id: 'our-extension', getURL:p=>'chrome-extension://our-extension/'+p,
     sendNativeMessage: (host, msg, cb) => { nativeRequest = msg; cb({ ok: true }); }, onMessage: { addListener: fn => listener = fn } },
-    storage: { local: { get: async () => ({ token: 'synthetic-token',passkeysEnabled }) } } } };
+    tabs:{onRemoved:{addListener:fn=>tabClosed=fn}},
+    storage: { local: { get: async () => ({ token: 'synthetic-token',passkeysEnabled }),set:async value=>persistentWrites.push(value),remove:async()=>{} } } } };
   vm.runInNewContext(fs.readFileSync(path.join(src, 'background.js'), 'utf8'), bg, { filename: 'background.js' });
   await new Promise(resolve => listener({ type: 'fill', id: 'test', url: 'https://spoofed.example', framed: false }, { id: 'our-extension', tab: {}, url: 'https://actual.example/login', frameId: 4 }, resolve));
   check('background-uses-browser-url-and-frame', nativeRequest.url === 'https://actual.example/login' && nativeRequest.framed === true);
@@ -183,8 +205,41 @@ async function main() {
   passkeysEnabled=true;
   await new Promise(resolve=>listener({type:'passkey-create',requestId:'test',url:'https://spoofed.example'},{id:'our-extension',tab:{},url:'https://actual.example',frameId:0},resolve));
   check('passkey-uses-browser-owned-origin',nativeRequest.type==='passkey-create' && nativeRequest.url==='https://actual.example' && nativeRequest.framed===false);
+  const sendSave=(msg,url='https://actual.example/password',tab=10,frameId=0)=>new Promise(resolve=>listener(msg,{id:'our-extension',tab:{id:tab},url,frameId},resolve));
+  await sendSave({type:'save-login',login:'two-step-user'});
+  let saveState=await sendSave({type:'save-context'});
+  check('save-two-step-login-kept-in-memory',saveState.login==='two-step-user'&&!('password' in saveState));
+  await sendSave({type:'save-stage',password:'SYNTHETIC-SAVE'});
+  saveState=await sendSave({type:'save-context'},'https://actual.example/after');
+  check('save-submit-survives-same-origin-navigation',saveState.pending===true&&!('password' in saveState));
+  const wrongTab=await sendSave({type:'save-context'},'https://actual.example/after',11);
+  check('save-submitted-secret-bound-to-tab',wrongTab.pending===false);
+  await sendSave({type:'save-commit'},'https://actual.example/after');
+  check('save-commit-reviews-original-origin-and-login',nativeRequest.type==='save'&&nativeRequest.url==='https://actual.example/password'&&nativeRequest.login==='two-step-user'&&nativeRequest.password==='SYNTHETIC-SAVE');
+  const consumed=await sendSave({type:'save-commit'});
+  check('save-commit-cannot-duplicate-record',consumed.error==='expired');
+  await sendSave({type:'save-login',login:'test-user'});await sendSave({type:'save-stage',password:'SECRET'});
+  const otherOrigin=await sendSave({type:'save-context'},'https://different.example/after');
+  check('save-cross-origin-navigation-discards-state',!otherOrigin.pending&&!otherOrigin.login);
+  const childSave=await sendSave({type:'save-stage',login:'user',password:'SECRET'},'https://actual.example/',10,1);
+  check('save-stage-child-frame-rejected',childSave.error==='bad_request');
+  await sendSave({type:'save-stage',login:'expires-user',password:'EXPIRES-SECRET'});saveClock+=60001;
+  const expiredSave=await sendSave({type:'save-commit'});
+  check('save-submitted-password-expires-after-sixty-seconds',expiredSave.error==='expired');
+  await sendSave({type:'save-login',login:'expires-login'});saveClock+=180001;
+  check('save-first-step-login-expires-after-three-minutes',!(await sendSave({type:'save-context'})).login);
+  await sendSave({type:'save-stage',login:'closed-tab',password:'CLOSED-SECRET'});tabClosed(10);
+  check('save-tab-close-discards-pending-secret',!(await sendSave({type:'save-context'})).pending);
+  check('save-oversized-login-rejected',(await sendSave({type:'save-login',login:'x'.repeat(1025)})).error==='bad_request');
+  check('save-oversized-password-rejected',(await sendSave({type:'save-stage',login:'user',password:'x'.repeat(4097)})).error==='bad_request');
+  for(let tab=100;tab<133;tab++)await sendSave({type:'save-stage',login:'bounded-'+tab,password:'BOUNDED-SECRET'},'https://actual.example/password',tab);
+  check('save-pending-memory-is-bounded-to-thirty-two-tabs',!(await sendSave({type:'save-context'},'https://actual.example/password',100)).pending&&(await sendSave({type:'save-context'},'https://actual.example/password',132)).pending);
+  check('save-secrets-never-written-to-browser-storage',persistentWrites.length===0);
+  vm.runInNewContext(fs.readFileSync(path.join(src,'background.js'),'utf8'),{...bg},{filename:'restarted-background.js'});
+  check('save-worker-restart-discards-pending-secret',!(await sendSave({type:'save-context'},'https://actual.example/password',132)).pending);
   await passkeyPageTests();
   await popupTests();
+  autoLoginControls();
   console.log('TOTAL passes=' + count);
 }
 main().catch(e => { console.error(e); process.exitCode = 1; });

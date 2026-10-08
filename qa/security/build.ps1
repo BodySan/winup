@@ -11,7 +11,7 @@ $common = @('/nologo','/platform:anycpu','/langversion:5','/unsafe+',"/win32mani
   "/resource:$src\help.html,help.html","/resource:$src\THIRD-PARTY.md,THIRD-PARTY.md",
   "/resource:$src\lib\KeePassLib.dll,KeePassLib.dll")
 foreach ($file in Get-ChildItem "$src\browser" -File) {
-  if ($file.Extension -in '.json','.js','.html','.png') { $common += "/resource:$($file.FullName),browser/$($file.Name)" }
+  if ($file.Extension -in '.json','.js','.html','.png' -or $file.Name -eq 'winup-firefox.xpi') { $common += "/resource:$($file.FullName),browser/$($file.Name)" }
 }
 $sources = @((Get-ChildItem $src -Filter '*.cs').FullName) + "$src\Properties\AssemblyInfo.cs"
 $common += "/resource:$src\file-engine\file-engine.zip,file-engine.zip", "/resource:$src\file-engine\file-engine.json,file-engine.json"

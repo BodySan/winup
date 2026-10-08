@@ -14,11 +14,15 @@ namespace WinUp {
         public string LoginUrl { get; set; }
         public string[] Origins { get; set; }
         public string[] Open { get; set; }
+        public string[] OpenSelectors { get; set; }
         public string[] Method { get; set; }
+        public string[] MethodSelectors { get; set; }
         public string[] User { get; set; }
         public string[] Password { get; set; }
         public string[] Next { get; set; }
+        public string[] NextSelectors { get; set; }
         public string[] Submit { get; set; }
+        public string[] SubmitSelectors { get; set; }
         public string[] Otp { get; set; }
         public string Mode { get; set; }
         public string Note { get; set; }
@@ -44,8 +48,12 @@ namespace WinUp {
         internal static LoginProfile Resolve(LoginEntry entry) {
             string origin=Origin(entry.Target); if(origin==null) return null;
             var profile=All.FirstOrDefault(p=>p.Id==entry.LoginProfile && p.Sites.Contains(origin,StringComparer.OrdinalIgnoreCase)) ??
+                All.FirstOrDefault(p=>p.Id==AppStore.TemplateName(entry.Name) && p.Sites.Contains(origin,StringComparer.OrdinalIgnoreCase)) ??
                 All.FirstOrDefault(p=>p.Sites.Contains(origin,StringComparer.OrdinalIgnoreCase));
             string route=string.IsNullOrWhiteSpace(entry.LoginUrl) ? profile==null ? entry.Target : profile.LoginUrl : entry.LoginUrl;
+            // Older built-in templates copied the site's home URL into LoginUrl.
+            // Prefer the reviewed login route in that case; keep custom paths intact.
+            if(profile!=null && string.Equals((route ?? "").TrimEnd('/'),(entry.Target ?? "").TrimEnd('/'),StringComparison.OrdinalIgnoreCase)) route=profile.LoginUrl;
             string routeOrigin=Origin(route); if(routeOrigin==null) return null;
             if(profile==null) {
                 if(routeOrigin!=origin) return null;
@@ -53,8 +61,12 @@ namespace WinUp {
             }
             if(!profile.Origins.Contains(routeOrigin,StringComparer.OrdinalIgnoreCase)) return null;
             return new LoginProfile { Id=profile.Id,Sites=profile.Sites,Origins=profile.Origins,LoginUrl=route,
-                Open=profile.Open,Method=profile.Method,User=profile.User,Password=profile.Password,Next=profile.Next,Submit=profile.Submit,Otp=profile.Otp,
+                Open=profile.Open,OpenSelectors=profile.OpenSelectors,Method=profile.Method,MethodSelectors=profile.MethodSelectors,User=profile.User,Password=profile.Password,Next=profile.Next,NextSelectors=profile.NextSelectors,Submit=profile.Submit,SubmitSelectors=profile.SubmitSelectors,Otp=profile.Otp,
                 Mode=profile.Mode,Note=profile.Note,Evidence=profile.Evidence };
+        }
+        internal static bool MatchesLoginOrigin(LoginEntry entry,string url) {
+            var profile=Resolve(entry);string origin=Origin(url);
+            return origin!=null && profile!=null && profile.Mode!="none" && profile.Mode!="manual" && profile.Origins.Contains(origin,StringComparer.OrdinalIgnoreCase);
         }
     }
     partial class MainForm {
@@ -68,8 +80,8 @@ namespace WinUp {
             internal HashSet<string> Done=new HashSet<string>();
         }
         readonly Dictionary<string,BrowserLoginJob> browserLogins=new Dictionary<string,BrowserLoginJob>();
-        internal string BeginBrowserLogin(LoginEntry entry) {
-            foreach(var key in browserLogins.Where(p=>p.Value.Expires<DateTime.UtcNow || p.Value.Vault!=vault).Select(p=>p.Key).ToArray()) browserLogins.Remove(key);
+        internal string BeginBrowserLogin(LoginEntry entry,bool replaceOutstanding=false) {
+            foreach(var key in browserLogins.Where(p=>replaceOutstanding || p.Value.Entry==entry || p.Value.Expires<DateTime.UtcNow || p.Value.Vault!=vault).Select(p=>p.Key).ToArray()) browserLogins.Remove(key);
             if(vault==null || !vault.Entries.Contains(entry)) throw new InvalidOperationException("База закрыта или запись изменена.");
             if(!BrowserSetup.Enabled || BrowserPair.List().Count==0) throw new InvalidOperationException("Подключите и свяжите расширение: Меню → Расширение для браузера. Затем повторите вход.");
             var profile=LoginProfiles.Resolve(entry);

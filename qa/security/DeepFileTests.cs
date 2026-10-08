@@ -8,6 +8,8 @@ using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Runtime.InteropServices;
+using System.Security.AccessControl;
+using System.Security.Principal;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -20,6 +22,60 @@ namespace WinUp
         [DllImport("kernel32.dll", EntryPoint = "SetFileInformationByHandle", SetLastError = true)]
         static extern bool DeepSetFileDisposition(Microsoft.Win32.SafeHandles.SafeFileHandle handle, int kind, ref int info, uint size);
         static bool DeepFailsIo(Action action) { try { action(); return false; } catch (IOException) { return true; } }
+        [DllImport("kernel32.dll", SetLastError=true)]
+        static extern bool DeviceIoControl(Microsoft.Win32.SafeHandles.SafeFileHandle handle, uint code, byte[] input, int length, IntPtr output, int outputLength, out int returned, IntPtr overlapped);
+        static bool DeepSetJunction(string folder, string target) {
+            byte[] substitute=Encoding.Unicode.GetBytes(@"\??\"+target), print=Encoding.Unicode.GetBytes(target);
+            byte[] buffer=new byte[16+substitute.Length+2+print.Length+2];
+            Buffer.BlockCopy(BitConverter.GetBytes(0xA0000003u),0,buffer,0,4);
+            Buffer.BlockCopy(BitConverter.GetBytes((ushort)(buffer.Length-8)),0,buffer,4,2);
+            Buffer.BlockCopy(BitConverter.GetBytes((ushort)substitute.Length),0,buffer,10,2);
+            Buffer.BlockCopy(BitConverter.GetBytes((ushort)(substitute.Length+2)),0,buffer,12,2);
+            Buffer.BlockCopy(BitConverter.GetBytes((ushort)print.Length),0,buffer,14,2);
+            Buffer.BlockCopy(substitute,0,buffer,16,substitute.Length);Buffer.BlockCopy(print,0,buffer,18+substitute.Length,print.Length);
+            using(var handle=CreateFileW(folder,0x40000000u,7,IntPtr.Zero,3,0x02200000u,IntPtr.Zero)) {
+                if(handle.IsInvalid)return false;int returned;
+                return DeviceIoControl(handle,0x900A4u,buffer,buffer.Length,IntPtr.Zero,0,out returned,IntPtr.Zero);
+            }
+        }
+        static void DirectoryLeaseTests() {
+            string root=Path.Combine(Paths.Root,"directory-leases-"+Guid.NewGuid().ToString("N"));Directory.CreateDirectory(root);
+            string parent=Path.Combine(root,"parent"),folder=Path.Combine(parent,"empty"),outside=Path.Combine(root,"outside");
+            Directory.CreateDirectory(folder);Directory.CreateDirectory(outside);
+            using(var lease=SourceLease.HoldDirectories(folder)) {
+                Check("paths-held-empty-directory-reparse-blocked",!DeepSetJunction(folder,outside) && (File.GetAttributes(folder)&FileAttributes.ReparsePoint)==0,"direct FSCTL_SET_REPARSE_POINT attack cannot redirect an empty output directory");
+                Check("paths-held-directory-and-parent-rename-blocked",DeepFailsIo(()=>Directory.Move(folder,folder+"-moved")) && DeepFailsIo(()=>Directory.Move(parent,parent+"-moved")),"selected directory and ancestor cannot be replaced");
+                string first=Path.Combine(folder,"first.txt"),second=Path.Combine(folder,"second.txt");
+                File.WriteAllText(first,"SYNTHETIC-LEASE");File.Move(first,second);
+                File.WriteAllText(first,"SYNTHETIC-REPLACED");File.Replace(first,second,null);
+                Check("paths-held-directory-allows-child-commit",File.ReadAllText(second)=="SYNTHETIC-REPLACED","ordinary non-replacing move and atomic replacement remain usable");
+                File.Delete(second);
+                Check("paths-held-directory-stays-anchored-after-child-removal",!DeepSetJunction(folder,outside),"removing all ordinary children cannot enable a junction race");
+            }
+            Check("paths-directory-guard-cleans-up",Directory.GetFileSystemEntries(folder).Length==0,"no lease marker remains after normal disposal");
+            Check("paths-directory-unlocked-after-dispose",!DeepFailsIo(()=>Directory.Move(folder,folder+"-moved")),"normal directory management resumes after release");
+            string control=Path.Combine(root,"unheld");Directory.CreateDirectory(control);
+            Check("paths-junction-attack-positive-control",DeepSetJunction(control,outside) && (File.GetAttributes(control)&FileAttributes.ReparsePoint)!=0,"same direct attack succeeds against an unheld empty directory");
+            string readOnly=Path.Combine(root,"read-only-source");Directory.CreateDirectory(readOnly);
+            string readOnlyFile=Path.Combine(readOnly,"input.txt");File.WriteAllText(readOnlyFile,"SYNTHETIC-READONLY-SOURCE");
+            var originalAcl=new DirectoryInfo(readOnly).GetAccessControl();
+            var readAcl=new DirectorySecurity();readAcl.SetAccessRuleProtection(true,false);
+            readAcl.AddAccessRule(new FileSystemAccessRule(WindowsIdentity.GetCurrent().User,FileSystemRights.ReadAndExecute|FileSystemRights.Synchronize,InheritanceFlags.ContainerInherit|InheritanceFlags.ObjectInherit,PropagationFlags.None,AccessControlType.Allow));
+            try {
+                new DirectoryInfo(readOnly).SetAccessControl(readAcl);
+                using(var lease=SourceLease.Acquire(readOnlyFile,false)) {
+                    Check("paths-readonly-source-held-without-parent-write",lease.Snapshot.SequenceEqual(new[]{""}) && File.ReadAllText(readOnlyFile)=="SYNTHETIC-READONLY-SOURCE","copying/reading does not create files beside the input");
+                    Check("paths-readonly-source-parent-rename-blocked",DeepFailsIo(()=>Directory.Move(readOnly,readOnly+"-moved")),"the held input anchors its parent even without a guard file");
+                }
+            } finally {new DirectoryInfo(readOnly).SetAccessControl(originalAcl);}
+            string crash=Path.Combine(root,"crash");Directory.CreateDirectory(crash);
+            using(var child=Process.Start(new ProcessStartInfo(Assembly.GetExecutingAssembly().Location,"--hold-directory-proof \""+crash+"\"") {UseShellExecute=false,CreateNoWindow=true,RedirectStandardOutput=true})) {
+                var ready=child.StandardOutput.ReadLineAsync();bool started=ready.Wait(10000) && ready.Result=="READY";
+                try {Check("paths-child-holds-guard-before-crash",started && DeepFailsIo(()=>Directory.Move(crash,crash+"-moved")),"separate process holds the actual production directory lease");}
+                finally {if(!child.HasExited)child.Kill();child.WaitForExit();}
+            }
+            Check("paths-process-crash-removes-guard",Directory.GetFileSystemEntries(crash).Length==0 && !DeepFailsIo(()=>Directory.Move(crash,crash+"-moved")),"Windows removes delete-on-close guard and releases directory handles after termination");
+        }
         static bool DeepStageStarted(string folder, Task task)
         {
             var deadline = DateTime.UtcNow.AddSeconds(30);
@@ -41,6 +97,7 @@ namespace WinUp
         static void DeepFileTests()
         {
             if (!Paths.Root.StartsWith(@"C:\WinUpAudit\", StringComparison.OrdinalIgnoreCase)) throw new InvalidOperationException("Sandbox only");
+            DirectoryLeaseTests();
             string root = Path.Combine(Paths.Root, "deep-files-" + Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(root);
             const string marker = "SYNTHETIC-DO-NOT-OVERWRITE";
@@ -116,6 +173,7 @@ namespace WinUp
                 Check("files-reserved-child-preserves-move", DeepFailsIo(() => client.Import(reservedSource, "reserved", true)) && File.ReadAllText(reserved) == marker,
                     "a user file cannot disappear behind the internal staging filter");
                 string lateAdsSource = Path.Combine(root, "late-ads.txt"); File.WriteAllText(lateAdsSource, marker);
+                bool lateAdsAdded=false, lateAdsPreserved=false;
                 using (var lease = SourceLease.Acquire(lateAdsSource, true))
                 {
                     client.Call("import", lateAdsSource, "late-ads.txt", new JavaScriptSerializer().Serialize(lease.Snapshot));
@@ -123,10 +181,10 @@ namespace WinUp
                     bool added = !handle.IsInvalid;
                     if (added) using (var stream = new FileStream(handle, FileAccess.Write)) { stream.WriteByte(99); }
                     else handle.Dispose();
-                    bool preserved = DeepFailsIo(lease.DeleteVerifiedOriginals);
-                    Check("files-late-ads-preserves-all-originals", added && preserved && File.ReadAllText(lateAdsSource) == marker,
-                        "named stream added after encryption is detected before any original deletion");
+                    lateAdsAdded=added;lateAdsPreserved=DeepFailsIo(lease.DeleteVerifiedOriginals);
                 }
+                Check("files-late-ads-preserves-all-originals",lateAdsAdded && lateAdsPreserved && File.ReadAllText(lateAdsSource)==marker,
+                    "named stream added after encryption is detected before any original deletion; content checked after releasing DELETE access");
                 client.Import(big, "large.bin", false);
                 Check("files-export-inside-ciphertext-rejected", DeepFailsIo(() => client.Call("export", "large.bin", Path.Combine(encrypted, "plaintext.bin"))) &&
                     !File.Exists(Path.Combine(encrypted, "plaintext.bin")) && client.Open, "no plaintext is written into the encrypted storage folder");
@@ -166,6 +224,45 @@ namespace WinUp
                 Check("files-cancel-export-removes-plaintext-stage", started && cancelled && !File.Exists(cancelDestination) &&
                     Directory.GetFiles(outFolder, ".winup-export-*").Length == 0, "kill during decryption cleans the exact parent-owned plaintext staging file");
             }
+            FileFormatBoundaryTests(root);
+        }
+
+        static void FileFormatBoundaryTests(string root)
+        {
+            string encrypted=Path.Combine(root,"format-boundary"), source=Path.Combine(root,"format-source");
+            Directory.CreateDirectory(source);
+            string first=Path.Combine(source,"first.txt"), second=Path.Combine(source,"second.txt");
+            File.WriteAllText(first,"SYNTHETIC-FIRST");File.WriteAllText(second,"SYNTHETIC-SECOND-CONTENT");
+            const string password="Synthetic-Format-Boundary-2026!";
+            using(var client=new FileVaultClient(encrypted,password,true)) {client.Import(first,"first.txt",false);client.Import(second,"second.txt",false);}
+            string config=Path.Combine(encrypted,"vault.cryptomator"), original=File.ReadAllText(config);
+            string[] segments=original.Trim().Split('.');
+            if(segments.Length!=3)throw new InvalidDataException("Unexpected synthetic vault configuration format");
+            foreach(string keyId in new[] {"masterkeyfile:../outside/masterkey.cryptomator","masterkeyfile:C:/WinUpAudit/outside/masterkey.cryptomator","masterkeyfile://127.0.0.1/WinUpAuditMissing/masterkey.cryptomator","hub+http://127.0.0.1/WinUpAuditMissing"}) {
+                byte[] decoded=PasskeyPolicy.Decode(segments[0],1,65536);
+                var header=new JavaScriptSerializer().Deserialize<Dictionary<string,object>>(Encoding.UTF8.GetString(decoded));
+                header["kid"]=keyId;
+                string edited=PasskeyPolicy.Encode(Encoding.UTF8.GetBytes(new JavaScriptSerializer().Serialize(header)))+"."+segments[1]+"."+segments[2];
+                bool denied=false;string error="";
+                try {File.WriteAllText(config,edited);using(var client=new FileVaultClient(encrypted,password,false)) {}}
+                catch(IOException e){denied=true;error=e.Message;}
+                finally {File.WriteAllText(config,original);}
+                Check("files-untrusted-key-id-rejected",denied&&error.Contains("unknown_key"),"fixed internal key loader rejects "+keyId+" before resolving a supplied key path");
+            }
+            var payloads=Directory.GetFiles(encrypted,"*.c9r",SearchOption.AllDirectories).Where(p=>Path.GetFileName(p)!="dirid.c9r" && new FileInfo(p).Length>32).ToArray();
+            Check("files-swap-fixture-has-two-payloads",payloads.Length==2,"separate encrypted files in a fresh synthetic vault");
+            if(payloads.Length!=2)return;
+            byte[] a=File.ReadAllBytes(payloads[0]),b=File.ReadAllBytes(payloads[1]);
+            try {
+                File.WriteAllBytes(payloads[0],b);File.WriteAllBytes(payloads[1],a);
+                string outFirst=Path.Combine(root,"swap-first.txt"),outSecond=Path.Combine(root,"swap-second.txt");
+                bool rejected=false;
+                try {using(var client=new FileVaultClient(encrypted,password,false)) {client.Call("export","first.txt",outFirst);client.Call("export","second.txt",outSecond);}}
+                catch(IOException){rejected=true;}
+                bool exchanged=!rejected&&File.ReadAllText(outFirst)=="SYNTHETIC-SECOND-CONTENT"&&File.ReadAllText(outSecond)=="SYNTHETIC-FIRST";
+                if(exchanged)Console.WriteLine("LIMITATION files-whole-ciphertext-swap: authenticated file contents are not bound to their filename; no plaintext disclosure; upstream format limitation GHSA-qwfw-w5qf-7wcj");
+                else Check("files-whole-ciphertext-swap-rejected",rejected,"whole encrypted-file substitution was not accepted");
+            } finally {File.WriteAllBytes(payloads[0],a);File.WriteAllBytes(payloads[1],b);Array.Clear(a,0,a.Length);Array.Clear(b,0,b.Length);}
         }
     }
 }

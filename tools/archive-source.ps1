@@ -12,7 +12,7 @@ foreach($taskTree in @(@{root=$taskSource;prefix='src'},@{root=(Join-Path $taskR
  }
 }
 foreach($taskName in 'README.md','LICENSE','.gitignore','.gitattributes') {$taskItems+=@{path=(Join-Path $taskRoot $taskName);name=$taskName}}
-foreach($taskName in 'Инструкция.html','manual-1.15.src.html','build-manual.ps1','UPDATES-SIMPLE-RU.md','DELIVERY-1.15.md') {
+foreach($taskName in 'Инструкция.html','manual-1.15.src.html','build-manual.ps1','UPDATES-SIMPLE-RU.md','DELIVERY-1.15.md','DELIVERY-1.15.1.md','EXTENSION-PRIVACY-RU.md','LOGIN-CORRECTIONS-1.15.1.md','LOGIN-ROUTES-2026-10-08.md','update-login-routes.ps1','QUESTIONS-AND-UX-2026-10-08.md','SECURITY-AUDIT-2026-10-08.md') {
  $taskPath=Join-Path (Join-Path $taskRoot 'doc') $taskName
  if(Test-Path -LiteralPath $taskPath){$taskItems+=@{path=$taskPath;name=('doc/'+$taskName)}}
 }
