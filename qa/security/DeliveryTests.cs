@@ -98,14 +98,18 @@ namespace WinUp {
             try {
                 var registration=Request(new {type="passkey-create",token=token,url="https://example.com/login",requestId=Guid.NewGuid().ToString("N"),publicKey=PasskeyOptions(true,"example.com")});
                 if(!(bool)registration["ok"])throw new Exception("Synthetic passkey registration failed");
-                string challenge=PasskeyPolicy.Encode(Enumerable.Range(0,4096).Select(i=>(byte)(i%251)).ToArray());
-                var assertion=Request(new {type="passkey-get",token=token,url="https://example.com/login",requestId=Guid.NewGuid().ToString("N"),publicKey=new {challenge=challenge,rpId="example.com"}});
-                Check("delivery-passkey-long-challenge-signs",(bool)assertion["ok"],"4096-byte RP challenge reaches native consent and signs");
-                if((bool)assertion["ok"]) {
-                    var key=(Dictionary<string,object>)assertion["publicKey"];
-                    var response=(Dictionary<string,object>)key["response"];
-                    var client=Parse(Encoding.UTF8.GetString(PasskeyPolicy.Decode((string)response["clientDataJSON"],1,16384)));
-                    Check("delivery-passkey-long-challenge-preserved",(string)client["challenge"]==challenge,"complete opaque challenge returned in signed client data");
+                string credentialId=(string)((Dictionary<string,object>)registration["publicKey"])["id"];
+                foreach(int length in new[] {10,4096}) {
+                    string label=length==10 ? "short" : "long";
+                    string challenge=PasskeyPolicy.Encode(Enumerable.Range(0,length).Select(i=>(byte)(i%251)).ToArray());
+                    var assertion=Request(new {type="passkey-get",token=token,url="https://example.com/login",requestId=Guid.NewGuid().ToString("N"),publicKey=new {challenge=challenge,rpId="example.com",allowCredentials=new[] {new {type="public-key",id=PasskeyPolicy.Encode(Enumerable.Repeat((byte)0xa7,32).ToArray())},new {type="public-key",id=credentialId}}}});
+                    Check("delivery-passkey-"+label+"-challenge-signs",(bool)assertion["ok"],length+"-byte RP challenge reaches consent and signs");
+                    if((bool)assertion["ok"]) {
+                        var key=(Dictionary<string,object>)assertion["publicKey"];
+                        var response=(Dictionary<string,object>)key["response"];
+                        var client=Parse(Encoding.UTF8.GetString(PasskeyPolicy.Decode((string)response["clientDataJSON"],1,16384)));
+                        Check("delivery-passkey-"+label+"-challenge-preserved",(string)client["challenge"]==challenge && (string)key["id"]==credentialId,"complete challenge and permitted credential returned unchanged");
+                    }
                 }
             } finally {Ui(delegate {timer.Dispose();});}
         }

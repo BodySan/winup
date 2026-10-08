@@ -4,7 +4,7 @@
   "java": "24",
   "cli": "0.6.2",
   "winfsp": "2.1",
-  "passkeys": "1",
+  "passkeys": "1.1",
   "bouncycastle": "2.7.0",
   "cbor": "4.5.5",
   "numbers": "1.8.2"
