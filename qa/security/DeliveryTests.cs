@@ -117,22 +117,65 @@ namespace WinUp {
             File.WriteAllText(Path.Combine(source,"Учебный файл.txt"),marker,Encoding.UTF8);
             File.WriteAllBytes(Path.Combine(source,"nested","binary.bin"),Enumerable.Range(0,200000).Select(x=>(byte)x).ToArray());
             using(var client=new FileVaultClient(vault,"Synthetic-Files-2026!",true)) {
+                string downloaded=Path.Combine(root,"Скачанный документ.pdf");
+                byte[] zone=Encoding.UTF8.GetBytes("[ZoneTransfer]\r\nZoneId=3\r\nHostUrl=https://example.invalid/synthetic.pdf\r\n");
+                File.WriteAllText(downloaded,marker,Encoding.UTF8);
+                using(var stream=AlternateStream(downloaded+":Zone.Identifier",true))stream.Write(zone,0,zone.Length);
+                client.Import(downloaded,"downloaded-copy.pdf",false);
+                string restored=Path.Combine(root,"restored-copy.pdf");client.Call("export","downloaded-copy.pdf",restored);
+                using(var stream=AlternateStream(restored+":Zone.Identifier",false)) {
+                    var actual=new byte[stream.Length];int n=stream.Read(actual,0,actual.Length);
+                    Check("delivery-files-download-copy-preserves-zone",n==zone.Length && actual.SequenceEqual(zone) && File.ReadAllText(restored)==marker && File.Exists(downloaded),"download marker and document restored byte for byte; original retained");
+                }
+                client.Import(downloaded,"downloaded-move.pdf",true);
+                Check("delivery-files-download-move-removes-only-verified-original",!File.Exists(downloaded),"download marker encrypted before original deletion");
+                restored=Path.Combine(root,"restored-move.pdf");client.Call("export","downloaded-move.pdf",restored);
+                using(var stream=AlternateStream(restored+":Zone.Identifier",false)) {
+                    var actual=new byte[stream.Length];int n=stream.Read(actual,0,actual.Length);
+                    Check("delivery-files-download-move-preserves-zone",n==zone.Length && actual.SequenceEqual(zone) && File.ReadAllText(restored)==marker,"moved document and Windows marker restored exactly");
+                }
+                string nestedDownload=Path.Combine(source,"nested","downloaded.pdf");File.WriteAllText(nestedDownload,marker);
+                using(var stream=AlternateStream(nestedDownload+":Zone.Identifier",true))stream.Write(zone,0,zone.Length);
                 client.Import(source,"copied",false);
                 Check("delivery-files-copy",Directory.Exists(source) && ((ArrayList)client.Call("list","copied")["items"]).Count==2,"folder and nested file copied");
+                string restoredNested=Path.Combine(root,"nested-restored.pdf");client.Call("export","copied/nested/downloaded.pdf",restoredNested);
+                using(var stream=AlternateStream(restoredNested+":Zone.Identifier",false)) {
+                    var actual=new byte[stream.Length];int n=stream.Read(actual,0,actual.Length);
+                    Check("delivery-files-folder-copy-download-zone",n==zone.Length && actual.SequenceEqual(zone),"download marker of nested file preserved in folder copy");
+                }
                 string exported=Path.Combine(root,"export.txt");client.Call("export","copied/Учебный файл.txt",exported);
                 Check("delivery-files-export",File.ReadAllText(exported)==marker,"Unicode name and content round trip");
                 client.Import(source,"moved",true);
                 Check("delivery-files-move",!Directory.Exists(source) && ((ArrayList)client.Call("list","moved")["items"]).Count==2,"verified move");
+                restoredNested=Path.Combine(root,"nested-moved-restored.pdf");client.Call("export","moved/nested/downloaded.pdf",restoredNested);
+                using(var stream=AlternateStream(restoredNested+":Zone.Identifier",false)) {
+                    var actual=new byte[stream.Length];int n=stream.Read(actual,0,actual.Length);
+                    Check("delivery-files-folder-move-download-zone",n==zone.Length && actual.SequenceEqual(zone),"nested download marker restored after folder move");
+                }
+                Check("delivery-files-internal-download-metadata-hidden",!((ArrayList)client.Call("list","")["items"]).Cast<Dictionary<string,object>>().Any(x=>((string)x["name"]).StartsWith(".winup-import-")),"internal encrypted records absent from user file list");
                 client.Call("mkdir","Новая папка");
                 Check("delivery-files-mkdir",((ArrayList)client.Call("list","")["items"]).Cast<Dictionary<string,object>>().Any(x=>(string)x["name"]=="Новая папка"),"Unicode folder visible");
                 client.Mount("R:\\");
                 File.WriteAllText(@"R:\Проводник.txt",marker,Encoding.UTF8);
                 Check("delivery-files-explorer",File.ReadAllText(@"R:\copied\Учебный файл.txt")==marker,"real mounted filesystem");
+                File.Delete(@"R:\downloaded-copy.pdf");
+                string replacement=Path.Combine(root,"replacement.pdf");File.WriteAllText(replacement,marker+"-replacement");
+                client.Import(replacement,"downloaded-copy.pdf",false);
+                string replacementExport=Path.Combine(root,"replacement-export.pdf");client.Call("export","downloaded-copy.pdf",replacementExport);
+                bool staleZone=false;try{using(var stream=AlternateStream(replacementExport+":Zone.Identifier",false))staleZone=true;}catch(IOException){}
+                Check("delivery-files-reimport-after-explorer-delete",File.ReadAllText(replacementExport)==marker+"-replacement" && !staleZone,"reusing deleted filename does not retain previous file's marker");
                 client.Call("close");
                 Check("delivery-files-unmount",!Directory.Exists("R:\\"),"drive closed");
             }
-            using(var client=new FileVaultClient(vault,"Synthetic-Files-2026!",false))
+            using(var client=new FileVaultClient(vault,"Synthetic-Files-2026!",false)) {
                 Check("delivery-files-reopen",((ArrayList)client.Call("list","")["items"]).Count>=3,"reopen persisted vault");
+                string reopenedExport=Path.Combine(root,"reopened-download.pdf");client.Call("export","downloaded-move.pdf",reopenedExport);
+                using(var stream=AlternateStream(reopenedExport+":Zone.Identifier",false)) {
+                    byte[] expected=Encoding.UTF8.GetBytes("[ZoneTransfer]\r\nZoneId=3\r\nHostUrl=https://example.invalid/synthetic.pdf\r\n");
+                    var actual=new byte[stream.Length];int n=stream.Read(actual,0,actual.Length);
+                    Check("delivery-files-download-zone-survives-reopen",n==expected.Length && actual.SequenceEqual(expected),"encrypted marker persists across helper termination and vault reopen");
+                }
+            }
             // Stop immediately after native filesystem writes. The old jfuse
             // teardown freed WinFsp's object while its native loop still ran.
             byte[] payload=Enumerable.Range(0,65537).Select(x=>(byte)(x*17)).ToArray();
