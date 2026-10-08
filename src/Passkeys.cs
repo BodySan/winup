@@ -102,10 +102,11 @@ namespace WinUp {
             rp=new IdnMapping().GetAscii(rp).ToLowerInvariant();
             byte[] challenge; string userId=null, userName=null; int algorithm=0;
             try {
-                // Google account verification uses a challenge of several KB.
-                // It is opaque RP data; do not confuse its size with a credential
-                // ID. Keep a bounded size within the browser message limit.
-                challenge=PasskeyPolicy.Decode(PString(options,"challenge"),16,8192);
+                // The challenge is opaque RP data. The 16-byte recommendation
+                // concerns the RP's nonce generation, not a client minimum:
+                // Google's "Try it" check sends 10 bytes; reauth sends several KB.
+                // Preserve it exactly, with a nonempty bounded representation.
+                challenge=PasskeyPolicy.Decode(PString(options,"challenge"),1,8192);
                 if(create) {
                     var user=PObject(options,"user"); userId=PString(user,"id");
                     PasskeyPolicy.Decode(userId,1,64); userName=PString(user,"name");

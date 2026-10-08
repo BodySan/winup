@@ -2,7 +2,7 @@
   "schema": 1,
   "api": 5,
   "sequence": 0,
-  "minApp": "1.15.2.0",
+  "minApp": "1.15.3.0",
   "maxApp": "1.15.999.999",
   "versions": {
     "cryptofs": "2.8.0",
@@ -10,7 +10,7 @@
     "java": "24",
     "cli": "0.6.2",
     "winfsp": "2.1",
-    "passkeys": "1",
+    "passkeys": "1.1",
     "bouncycastle": "2.7.0",
     "cbor": "4.5.5",
     "numbers": "1.8.2",
@@ -31,7 +31,7 @@
       "size": 2191360
     },
     "WinUp.PasskeyEngine.dll": {
-      "sha256": "edf1e61352d9e791c0b9eb3efc041e6960118919827c100c04e151b722ce3f55",
+      "sha256": "ea623a9e6dbcd86db058c2f847ee5bd2e0f7080785db640fa090813ffd38ed77",
       "size": 13312
     },
     "BouncyCastle.Cryptography.dll": {

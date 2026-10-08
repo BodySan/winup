@@ -11,6 +11,15 @@ using Org.BouncyCastle.X509;
 
 namespace WinUp.PasskeyEngine {
     public static class Keys {
+        // One RFC 4122 model identifier for WinUp's software authenticator.
+        // It identifies this implementation, never a user, device or credential.
+        // Do not borrow an upstream or platform provider's identity. Existing
+        // credentials keep their original registration data; assertions have
+        // no AAGUID and their backup flags are read from the saved entry.
+        static readonly byte[] ModelAaguid = {
+            0xd4,0x9d,0xfb,0x48,0x1e,0xc0,0x40,0xa6,
+            0xac,0xe0,0xb4,0x72,0x03,0xe4,0x34,0xe1
+        };
         public static void Generate(int algorithm, out string pem, out byte[] cose, out byte[] spki) {
             var alg=(PasskeyAlgorithm)algorithm;
             var pair=PasskeyKeyHelper.GenerateKeyPair(alg);
@@ -26,7 +35,7 @@ namespace WinUp.PasskeyEngine {
             spki=SubjectPublicKeyInfoFactory.CreateSubjectPublicKeyInfo(key).GetEncoded();
         }
         public static byte[] RegisterData(string rp, byte[] id, byte[] cose) {
-            return AuthenticatorData.BuildForRegistration(rp,new byte[16],id,cose,true,false);
+            return AuthenticatorData.BuildForRegistration(rp,ModelAaguid,id,cose,true,false);
         }
         public static byte[] AssertionData(string rp, bool eligible, bool backedUp) { return AuthenticatorData.BuildForAuthentication(rp,0,eligible,eligible && backedUp); }
         public static byte[] Attestation(byte[] auth) {
