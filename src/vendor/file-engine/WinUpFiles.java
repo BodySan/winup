@@ -6,6 +6,7 @@ import java.nio.*;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.nio.channels.*;
+import java.nio.file.attribute.UserDefinedFileAttributeView;
 import java.security.*;
 import java.util.*;
 import org.cryptomator.cryptofs.*;
@@ -98,16 +99,69 @@ public final class WinUpFiles {
             for (Path p : walk.sorted(Comparator.reverseOrder()).toList()) Files.delete(p);
         }
     }
+    public static final class ImportSnapshot {
+        public String[] entries;
+        public Map<String,String> zoneIdentifiers = new LinkedHashMap<>();
+    }
+    private static Path zoneRecord(Path destination) throws Exception {
+        byte[] id=MessageDigest.getInstance("SHA-256").digest(destination.toString().getBytes(StandardCharsets.UTF_8));
+        return fs.getPath("/.winup-import-metadata").resolve(HexFormat.of().formatHex(id)+".json");
+    }
+    private static byte[] zoneBytes(String encoded) throws IOException {
+        if(encoded==null || encoded.length()>87384) throw new IOException("download_metadata_too_large");
+        byte[] bytes=Base64.getDecoder().decode(encoded);
+        if(bytes.length>65536) throw new IOException("download_metadata_too_large");
+        return bytes;
+    }
+    private static byte[] restoredZone(Path file) throws Exception {
+        // A folder import has one encrypted record for its immutable snapshot.
+        // A later individual import has its own record, consulted first.
+        for(Path ancestor=file;ancestor!=null;ancestor=ancestor.getParent()) {
+            Path record=zoneRecord(ancestor);if(!Files.exists(record)) continue;
+            if(Files.size(record)>6*1024*1024)throw new IOException("download_metadata_too_large");
+            var zones=JSON.readValue(Files.readAllBytes(record),ImportSnapshot.class).zoneIdentifiers;
+            String relative=ancestor.relativize(file).toString().replace('\\','/');
+            if(zones.containsKey(relative))return zoneBytes(zones.get(relative));
+        }
+        return null;
+    }
+    private static void restoreZone(Path encryptedFile,Path staging) throws Exception {
+        byte[] bytes=restoredZone(encryptedFile);if(bytes==null)return;
+        try {
+            var view=Files.getFileAttributeView(staging,UserDefinedFileAttributeView.class);
+            if(view==null)throw new IOException("destination_cannot_preserve_download_metadata");
+            view.write("Zone.Identifier",ByteBuffer.wrap(bytes));
+            if(view.size("Zone.Identifier")!=bytes.length)throw new IOException("download_metadata_verification_failed");
+            var check=ByteBuffer.allocate(bytes.length);view.read("Zone.Identifier",check);
+            if(!MessageDigest.isEqual(bytes,check.array()))throw new IOException("download_metadata_verification_failed");
+            Arrays.fill(check.array(),(byte)0);
+        }finally{Arrays.fill(bytes,(byte)0);}
+    }
     private static void importPath(Path source, Path destination, String manifest) throws Exception {
         // The parent WinUp process holds non-write/non-delete handles to every source.
         // Only it can delete originals, and only after this verified commit succeeds.
         // Iterate its immutable snapshot: a new child may be added to a directory
         // while the existing entries are held, but that child has no held handle.
-        String[] entries = JSON.readValue(manifest, String[].class);
+        ImportSnapshot snapshot;
+        if(manifest.stripLeading().startsWith("[")) { snapshot=new ImportSnapshot();snapshot.entries=JSON.readValue(manifest,String[].class); }
+        else snapshot=JSON.readValue(manifest,ImportSnapshot.class);
+        String[] entries = snapshot.entries;
         if (entries.length == 0 || entries.length > 10000 || !entries[0].isEmpty()) throw new IOException("bad_snapshot");
+        if(snapshot.zoneIdentifiers==null || snapshot.zoneIdentifiers.size()>entries.length)throw new IOException("bad_download_metadata");
+        Set<String> names=new HashSet<>(Arrays.asList(entries));
+        Map<String,String> normalizedZones=new LinkedHashMap<>();
+        for(var entry:snapshot.zoneIdentifiers.entrySet()) {
+            if(!names.contains(entry.getKey()))throw new IOException("bad_download_metadata");
+            byte[] bytes=zoneBytes(entry.getValue());Arrays.fill(bytes,(byte)0);
+            String normalized=entry.getKey().replace('\\','/');if(normalizedZones.put(normalized,entry.getValue())!=null)throw new IOException("bad_download_metadata");
+        }
+        snapshot.zoneIdentifiers=normalizedZones;
         source = source.toAbsolutePath().normalize();
         if (Files.exists(destination)) throw new FileAlreadyExistsException("destination_exists");
         Path staging = destination.resolveSibling(".winup-import-" + UUID.randomUUID());
+        Path metadata=zoneRecord(destination),metadataStage=null,metadataBackup=null;
+        boolean metadataCommitted=false;
+        boolean dataCommitted=false;
         boolean committed = false;
         try {
             if (Files.isDirectory(source, LinkOption.NOFOLLOW_LINKS)) {
@@ -123,9 +177,9 @@ public final class WinUpFiles {
                     Path p = source.resolve(relativePath).normalize();
                     if (!p.startsWith(source) || !seen.add(p)) throw new IOException("bad_snapshot");
                     if (Files.isSymbolicLink(p) || Files.readAttributes(p, java.nio.file.attribute.BasicFileAttributes.class, LinkOption.NOFOLLOW_LINKS).isOther()) throw new IOException("reparse_source");
-                    if (p.equals(source)) continue;
+                    if (p.equals(source)) { if(snapshot.zoneIdentifiers.containsKey(""))throw new IOException("directory_download_metadata_not_supported");continue; }
                     Path dst = staging.resolve(source.relativize(p).toString().replace('\\','/'));
-                    if (Files.isDirectory(p, LinkOption.NOFOLLOW_LINKS)) Files.createDirectory(dst);
+                    if (Files.isDirectory(p, LinkOption.NOFOLLOW_LINKS)) {if(snapshot.zoneIdentifiers.containsKey(relative.replace('\\','/')))throw new IOException("directory_download_metadata_not_supported");Files.createDirectory(dst);}
                     else if (Files.isRegularFile(p, LinkOption.NOFOLLOW_LINKS)) copyVerified(p,dst);
                     else throw new IOException("unsupported_source");
                 }
@@ -133,9 +187,27 @@ public final class WinUpFiles {
                 if (entries.length != 1 || !Files.isRegularFile(source, LinkOption.NOFOLLOW_LINKS)) throw new IOException("bad_snapshot");
                 copyVerified(source, staging);
             }
+            // A file may have been removed through Explorer while its encrypted
+            // marker record remains. Retain that stale record until the new
+            // non-replacing file commit succeeds, then retire it.
+            if(Files.exists(metadata)) {
+                metadataBackup=metadata.resolveSibling(".winup-import-zone-backup-"+UUID.randomUUID());
+                Files.move(metadata,metadataBackup);
+            }
+            if(!snapshot.zoneIdentifiers.isEmpty()) {
+                Files.createDirectories(metadata.getParent());
+                metadataStage=metadata.resolveSibling(".winup-import-zone-"+UUID.randomUUID());
+                byte[] bytes=JSON.writeValueAsBytes(snapshot);
+                try {
+                    try(FileChannel channel=FileChannel.open(metadataStage,StandardOpenOption.CREATE_NEW,StandardOpenOption.WRITE)){ByteBuffer data=ByteBuffer.wrap(bytes);while(data.hasRemaining())channel.write(data);channel.force(true);}
+                    if(!MessageDigest.isEqual(MessageDigest.getInstance("SHA-256").digest(bytes),hash(metadataStage)))throw new IOException("download_metadata_verification_failed");
+                }finally{Arrays.fill(bytes,(byte)0);}
+                Files.move(metadataStage,metadata);metadataCommitted=true;
+            }
             // ATOMIC_MOVE on the Windows provider implicitly replaces an existing
             // target. The ordinary same-directory move uses a non-replacing rename.
             Files.move(staging, destination);
+            dataCommitted=true;
             // Persist encrypted data and metadata before allowing the parent to remove originals.
             try(var files=Files.walk(storage)) {
                 for(Path file : files.filter(p -> !p.equals(pathGuard) && Files.isRegularFile(p,LinkOption.NOFOLLOW_LINKS)).toList()) {
@@ -143,7 +215,14 @@ public final class WinUpFiles {
                 }
             }
             committed = true;
-        } finally { if (!committed) removeStage(staging); }
+        } finally {
+            if(metadataStage!=null)Files.deleteIfExists(metadataStage);
+            if (!committed)removeStage(staging);
+            if(!dataCommitted) {
+                if(metadataCommitted)Files.deleteIfExists(metadata);
+                if(metadataBackup!=null)Files.move(metadataBackup,metadata);
+            }else if(metadataBackup!=null)Files.deleteIfExists(metadataBackup);
+        }
     }
     private static Object command(String[] p) throws Exception {
         String op = p[0];
@@ -172,7 +251,7 @@ public final class WinUpFiles {
                 if (Files.exists(destination)) throw new FileAlreadyExistsException("destination_exists");
                 Path staging = Path.of(decode(p[3]));
                 if (!staging.getParent().equals(destination.getParent()) || !staging.getFileName().toString().startsWith(".winup-export-")) throw new IOException("unsafe_export_stage");
-                try { copyVerified(inside(decode(p[1])), staging); Files.move(staging,destination); }
+                try { Path file=inside(decode(p[1]));copyVerified(file, staging);restoreZone(file,staging);Files.move(staging,destination); }
                 finally { Files.deleteIfExists(staging); }
                 yield Map.of("ok",true);
             }

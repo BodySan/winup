@@ -193,7 +193,7 @@ namespace WinUp
                     throw new IOException("Исходник и файловое хранилище не должны находиться друг внутри друга.");
                 // Import exactly the locked snapshot. Files created after acquisition
                 // are never read by an unprotected second directory traversal.
-                string manifest = new JavaScriptSerializer { MaxJsonLength = 6 * 1024 * 1024 }.Serialize(lease.Snapshot);
+                string manifest = new JavaScriptSerializer { MaxJsonLength = 6 * 1024 * 1024 }.Serialize(lease.ImportSnapshot);
                 try { Call("import", Path.GetFullPath(source), destination, manifest); }
                 finally { Secure.Wipe(manifest); }
                 if (move) lease.DeleteVerifiedOriginals();
@@ -251,6 +251,10 @@ namespace WinUp
     internal sealed class SourceLease : IDisposable
     {
         readonly List<SafeFileHandle> files = new List<SafeFileHandle>();
+        readonly List<FileStream> zoneLocks = new List<FileStream>();
+        readonly Dictionary<string,string> zones = new Dictionary<string,string>(StringComparer.OrdinalIgnoreCase);
+        readonly HashSet<string> zonePaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        int zoneBytes;
         readonly List<string> filePaths = new List<string>();
         readonly List<string> directories = new List<string>();
         readonly List<SafeFileHandle> directoryLocks = new List<SafeFileHandle>();
@@ -262,6 +266,7 @@ namespace WinUp
         readonly List<string> snapshot = new List<string>();
         string sourceRoot;
         internal string[] Snapshot { get { return snapshot.ToArray(); } }
+        internal object ImportSnapshot { get { return new { entries=Snapshot,zoneIdentifiers=zones }; } }
         [StructLayout(LayoutKind.Sequential)] struct HandleInfo {
             public uint Attributes, CreationLow, CreationHigh, AccessLow, AccessHigh, WriteLow, WriteHigh,
                 Volume, SizeHigh, SizeLow, Links, IndexHigh, IndexLow;
@@ -274,20 +279,25 @@ namespace WinUp
         [DllImport("kernel32.dll",CharSet=CharSet.Unicode,SetLastError=true)] static extern IntPtr FindFirstStreamW(string path,int info,out StreamData data,uint flags);
         [DllImport("kernel32.dll",CharSet=CharSet.Unicode,SetLastError=true)] static extern bool FindNextStreamW(IntPtr handle,out StreamData data);
         [DllImport("kernel32.dll")] static extern bool FindClose(IntPtr handle);
-        static void RejectNamedStreams(string path) {
+        static bool IsZone(string name) { return string.Equals(name,":Zone.Identifier:$DATA",StringComparison.OrdinalIgnoreCase); }
+        static void RejectNamedStreams(string path) { RejectNamedStreams(path,false); }
+        static bool RejectNamedStreams(string path,bool allowZone) {
             StreamData stream; IntPtr h=FindFirstStreamW(path,0,out stream,0);
             if(h==new IntPtr(-1)) {
                 int error=Marshal.GetLastWin32Error();
-                if(error==38 || error==1 || error==87) return;
+                if(error==38 || error==1 || error==87) return false;
                 throw new IOException("Не удалось проверить дополнительные потоки файла: "+path);
             }
             try {
-                do { if(stream.Name!="::$DATA") throw new IOException("У файла есть дополнительные потоки NTFS. Такой файл нельзя перенести без потери данных: "+path); } while(FindNextStreamW(h,out stream));
+                bool hasZone=false;
+                do { if(IsZone(stream.Name))hasZone=true;if(stream.Name!="::$DATA" && !(allowZone && IsZone(stream.Name))) throw new IOException("У файла есть дополнительные данные NTFS, которые хранилище пока не поддерживает. Исходник сохранён: "+path); } while(FindNextStreamW(h,out stream));
                 if (Marshal.GetLastWin32Error() != 38) throw new IOException("Не удалось полностью проверить дополнительные потоки файла: " + path);
+                return hasZone;
             }
             finally { FindClose(h); }
         }
-        static void RejectNamedStreams(SafeFileHandle handle) {
+        static void RejectNamedStreams(SafeFileHandle handle) { RejectNamedStreams(handle,false); }
+        static void RejectNamedStreams(SafeFileHandle handle,bool allowZone) {
             // Query the already-held object. Delete-pending paths intentionally
             // cannot be reopened, including newly created alternate streams.
             const int capacity = 65536;
@@ -305,12 +315,39 @@ namespace WinUp
                     int next = Marshal.ReadInt32(buffer, offset), length = Marshal.ReadInt32(buffer, offset + 4);
                     if (length <= 0 || (length & 1) != 0 || length > capacity - offset - 24) throw new IOException("Повреждён список потоков исходника.");
                     string name = Marshal.PtrToStringUni(new IntPtr(buffer.ToInt64() + offset + 24), length / 2);
-                    if (name != "::$DATA") throw new IOException("У исходника появился дополнительный поток NTFS. Исходники сохранены.");
+                    if (name != "::$DATA" && !(allowZone && IsZone(name))) throw new IOException("У исходника появился дополнительный поток NTFS. Исходники сохранены.");
                     if (next == 0) break;
                     if (next < 24 + length || (next & 7) != 0 || next > capacity - offset) throw new IOException("Повреждён список потоков исходника.");
                     offset += next;
                 }
             } finally { Marshal.FreeHGlobal(buffer); }
+        }
+        void CaptureZone(string path,SafeFileHandle original,bool directory) {
+            // A download marker is preserved as encrypted metadata. Other ADS
+            // can contain arbitrary user data and must still prevent deletion.
+            bool hasZone=RejectNamedStreams(path,!directory);
+            if(directory || !hasZone) return;
+            var zone=CreateFile(path+":Zone.Identifier",0x80000000u,5,IntPtr.Zero,3,0x00200000u,IntPtr.Zero);
+            if(zone.IsInvalid) {
+                int error=Marshal.GetLastWin32Error();zone.Dispose();
+                throw new IOException("Не удалось сохранить отметку загрузки файла. Исходник сохранён: "+path);
+            }
+            FileStream stream=null;
+            try {
+                HandleInfo fileInfo,zoneInfo;
+                if(!GetFileInformationByHandle(original,out fileInfo) || !GetFileInformationByHandle(zone,out zoneInfo) ||
+                    fileInfo.Volume!=zoneInfo.Volume || fileInfo.IndexHigh!=zoneInfo.IndexHigh || fileInfo.IndexLow!=zoneInfo.IndexLow || (zoneInfo.Attributes&0x400u)!=0)
+                    throw new IOException("Исходный файл изменился при чтении отметки загрузки.");
+                stream=new FileStream(zone,FileAccess.Read);zone=null;
+                if(stream.Length>65536 || zoneBytes+stream.Length>4*1024*1024) throw new IOException("Слишком большой объём отметок загрузки. Исходники сохранены; добавьте файлы меньшими группами.");
+                var bytes=new byte[(int)stream.Length];int read=0;
+                try {
+                    while(read<bytes.Length) { int n=stream.Read(bytes,read,bytes.Length-read);if(n==0)throw new IOException("Отметка загрузки прочитана не полностью.");read+=n; }
+                    string relative=path.Equals(sourceRoot,StringComparison.OrdinalIgnoreCase)?"":path.Substring(sourceRoot.Length+1);
+                    zones.Add(relative,Convert.ToBase64String(bytes));zoneBytes+=bytes.Length;
+                } finally { Array.Clear(bytes,0,bytes.Length); }
+                zonePaths.Add(path);zoneLocks.Add(stream);stream=null;
+            } finally { if(stream!=null)stream.Dispose();if(zone!=null)zone.Dispose(); }
         }
         public static SourceLease Acquire(string source, bool move) {
             var result = new SourceLease();
@@ -381,7 +418,7 @@ namespace WinUp
             if(!GetFileInformationByHandle(handle,out info) || (info.Attributes & 0x400u)!=0 || ((info.Attributes & 0x10u)!=0)!=directory) {
                 handle.Dispose(); throw new IOException("Исходный путь изменился или содержит ссылку: "+path);
             }
-            try { RejectNamedStreams(path); } catch { handle.Dispose(); throw; }
+            try { CaptureZone(path,handle,directory); } catch { handle.Dispose(); throw; }
             snapshot.Add(path.Equals(sourceRoot, StringComparison.OrdinalIgnoreCase) ? "" : path.Substring(sourceRoot.Length + 1));
             if (!directory) { files.Add(handle); filePaths.Add(path); return; }
             directoryLocks.Add(handle); directories.Add(path);
@@ -392,7 +429,7 @@ namespace WinUp
             // NTFS share modes apply per stream. A newly added named stream can
             // appear after the initial snapshot without changing default data.
             // Validate the complete set before deleting even the first original.
-            foreach (string path in filePaths.Concat(directories)) RejectNamedStreams(path);
+            foreach (string path in filePaths.Concat(directories)) RejectNamedStreams(path,zonePaths.Contains(path));
             var marked = new List<SafeFileHandle>();
             try {
                 // Do not close the first file until every original has passed the
@@ -402,13 +439,14 @@ namespace WinUp
                     if (!SetFileInformationByHandle(file, 4, ref disposition, 4)) throw new IOException("Зашифрованная копия проверена, но исходники не удалось удалить.");
                     marked.Add(file);
                 }
-                foreach (var file in marked) RejectNamedStreams(file);
+                for(int i=0;i<marked.Count;i++) RejectNamedStreams(marked[i],zonePaths.Contains(filePaths[i]));
             } catch {
                 bool restored = true;
                 foreach (var file in marked) { int disposition = 0; if (!SetFileInformationByHandle(file, 4, ref disposition, 4)) restored = false; }
                 if (!restored) throw new IOException("Не удалось отменить удаление части исходников. Их зашифрованная копия уже проверена.");
                 throw;
             }
+            foreach (var zone in zoneLocks) zone.Dispose();zoneLocks.Clear();
             foreach (var file in files) file.Dispose();
             foreach (string dir in directories.OrderByDescending(x => x.Length)) {
                 var handle = originalDirectories[dir]; int disposition = 1;
@@ -420,6 +458,6 @@ namespace WinUp
             }
             foreach (var handle in directoryLocks) handle.Dispose(); directoryLocks.Clear();
         }
-        public void Dispose() { foreach (var f in files) f.Dispose(); foreach (var g in directoryGuards) g.Dispose(); foreach (var d in directoryLocks) d.Dispose(); }
+        public void Dispose() { foreach(var zone in zoneLocks)zone.Dispose();zoneLocks.Clear();foreach(string value in zones.Values)Secure.Wipe(value);zones.Clear();foreach (var f in files) f.Dispose(); foreach (var g in directoryGuards) g.Dispose(); foreach (var d in directoryLocks) d.Dispose(); }
     }
 }
