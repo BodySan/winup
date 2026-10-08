@@ -314,6 +314,17 @@ namespace WinUp
         public static string BrowserDir { get { return Path.Combine(RootDir, "browser"); } }
         public static string HostManifestPath { get { return Path.Combine(RootDir, HostName + ".json"); } }
         public static string FirefoxDir { get { return Path.Combine(RootDir,"browser-firefox"); } }
+        public static string FirefoxPackagePath { get { return Path.Combine(FirefoxDir,"winup-firefox.xpi"); } }
+        public static bool FirefoxPackageReady {
+            get {
+                try {
+                    using(var source=ComponentResources.Open("browser/winup-firefox.xpi")) {
+                        if(source==null || !File.Exists(FirefoxPackagePath))return false;
+                        using(var memory=new MemoryStream()) {source.CopyTo(memory);return memory.ToArray().SequenceEqual(File.ReadAllBytes(FirefoxPackagePath));}
+                    }
+                } catch {return false;}
+            }
+        }
         public static string FirefoxHostManifestPath { get { return Path.Combine(RootDir,HostName+"-firefox.json"); } }
 
         // Браузеры, в чьи ключи Native Messaging пишем путь манифеста моста.
@@ -1017,8 +1028,9 @@ namespace WinUp
                               (e.Login ?? "").ToLowerInvariant().Contains(q) || (e.Login2 ?? "").ToLowerInvariant().Contains(q))) continue;
                         if (items.Count >= 30) return;
                     }
-                    else if (!SiteDomain.SameSite(host, pageHost)) continue;
-                    items.Add(Item(e, host, SiteDomain.SameSite(host, pageHost), SiteDomain.SameHost(host, pageHost) || BrowserAllow.Has(e.Id, pageHost)));
+                    else if (!SiteDomain.SameSite(host, pageHost) && !LoginProfiles.MatchesLoginOrigin(e,url)) continue;
+                    bool reviewed=LoginProfiles.MatchesLoginOrigin(e,url);
+                    items.Add(Item(e, host, SiteDomain.SameSite(host, pageHost) || reviewed, SiteDomain.SameHost(host, pageHost) || reviewed || BrowserAllow.Has(e.Id, pageHost)));
                 }
             });
             if (error != null) return Err(error);
@@ -1069,7 +1081,7 @@ namespace WinUp
                 // Больше FillsWithoutQuestion паролей за минуту — необычно для человека: каждый следующий только
                 // после подтверждения, даже на точном адресе записи.
                 bool sameSite = SiteDomain.SameSite(host, pageHost);
-                bool exact = SiteDomain.SameHost(host, pageHost);
+                bool exact = SiteDomain.SameHost(host, pageHost) || LoginProfiles.MatchesLoginOrigin(e,url);
                 bool burst = recent > FillsWithoutQuestion;
                 if (requireConfirmation || burst || framed || !exact && !(sameSite && BrowserAllow.Has(e.Id, pageHost)))
                 {
@@ -1231,6 +1243,7 @@ namespace WinUp
         readonly Label installSteps=new Label {AutoSize=true,MaximumSize=new Size(580,0),ForeColor=SystemColors.GrayText};
         readonly Button openPage=new Button {Text="Открыть в выбранном браузере",AutoSize=true};
         readonly Button copyAddress=new Button {Text="Копировать адрес",AutoSize=true};
+        readonly Button showFirefoxPackage=new Button {Text="Показать пакет Firefox",AutoSize=true};
         BrowserInfo Chosen {get {var item=chosenBrowser.SelectedItem as BrowserChoice;return item==null ? null : item.Browser;}}
         string ChosenFolder {get{return BrowserPages.Firefox(Chosen) ? BrowserSetup.FirefoxDir : BrowserSetup.BrowserDir;}}
         readonly TextBox dirBox = new TextBox { ReadOnly = true, Dock = DockStyle.Fill };
@@ -1259,12 +1272,21 @@ namespace WinUp
             Row("Выберите браузер:",chosenBrowser);
             Row("Страница расширений:",WithButton(extensionAddress,copyAddress));
             Row("",openPage);
+            Row("",showFirefoxPackage);
             FullRow(installSteps);
             chosenBrowser.SelectedIndexChanged+=(s,e)=>RefreshSelectedBrowser();
             if(chosenBrowser.Items.Count>0)chosenBrowser.SelectedIndex=0;
             Shown+=(s,e)=>{var owner=Owner as MainForm;string preferred=owner==null ? "" : owner.PreferredBrowser;foreach(BrowserChoice item in chosenBrowser.Items)if(item.Browser.Name.Equals(preferred,StringComparison.OrdinalIgnoreCase)){chosenBrowser.SelectedItem=item;break;}};
             openPage.Click+=(s,e)=>{try {System.Diagnostics.Process.Start(BrowserPages.ExtensionLaunch(Chosen));state.Text="Команда отправлена в «"+Chosen.Name+"». Если страница расширений не открылась, скопируйте адрес и вставьте его в этом браузере.";Log(state.Text);}catch(Exception ex){MessageBox.Show(this,ex.Message,"WinUp — браузер",MessageBoxButtons.OK,MessageBoxIcon.Information);}};
             copyAddress.Click+=(s,e)=>{try{if(extensionAddress.Text.Length>0){Clipboard.SetText(extensionAddress.Text);copyAddress.Text="Скопировано";}}catch(Exception ex){MessageBox.Show(this,"Не удалось скопировать адрес: "+ex.Message,Text);}};
+            showFirefoxPackage.Click+=(s,e)=>{
+                try {
+                    BrowserSetup.Connect();
+                    if(!BrowserSetup.FirefoxPackageReady)throw new InvalidOperationException("Подписанный пакет Firefox пока не включён в эту сборку.");
+                    System.Diagnostics.Process.Start("explorer.exe","/select,\""+BrowserSetup.FirefoxPackagePath+"\"");
+                    state.Text="В Firefox откройте about:addons → шестерёнка → «Установить дополнение из файла…» и выберите показанный winup-firefox.xpi.";
+                }catch(Exception ex){MessageBox.Show(this,ex.Message,Text,MessageBoxButtons.OK,MessageBoxIcon.Information);}
+            };
             Row("Папка:", dirBox);
             Note("Страница открывается именно в выбранном браузере; браузер Windows по умолчанию не используется. Если браузер запрещает открыть внутреннюю страницу командой, скопируйте адрес и вставьте в его адресную строку.",SystemColors.GrayText);
             FullRow(state);
@@ -1354,7 +1376,9 @@ namespace WinUp
 
         void RefreshSelectedBrowser() {
             extensionAddress.Text=BrowserPages.ExtensionUrl(Chosen);openPage.Enabled=copyAddress.Enabled=Chosen!=null;copyAddress.Text="Копировать адрес";dirBox.Text=ChosenFolder;
+            showFirefoxPackage.Visible=BrowserPages.Firefox(Chosen);showFirefoxPackage.Enabled=BrowserSetup.FirefoxPackageReady;
             installSteps.Text=Chosen==null ? "Поддерживаемый браузер пока не найден. Установите браузер и снова откройте это окно." : BrowserPages.Firefox(Chosen) ?
+                BrowserSetup.FirefoxPackageReady ? "Firefox: откройте about:addons → шестерёнка → «Установить дополнение из файла…». Кнопка «Показать пакет Firefox» выделит winup-firefox.xpi в Проводнике. Выберите этот файл, подтвердите установку и выполните сопряжение. Дополнение останется после перезапуска Firefox. При обновлении установите новый пакет таким же способом." :
                 "Firefox: «Этот Firefox» → «Загрузить временное дополнение» → manifest.json из указанной папки. Дополнение действует до закрытия Firefox. Для постоянной установки нужна подпись Mozilla." :
                 Chosen.Name.IndexOf("Edge",StringComparison.OrdinalIgnoreCase)>=0 ?
                 "Edge: откройте меню ☰ на странице расширений и включите «Режим разработчика». В «Параметрах разработчика» нажмите значок «Загрузить распакованное» и выберите указанную папку. Затем закрепите значок WinUp и выполните сопряжение." :

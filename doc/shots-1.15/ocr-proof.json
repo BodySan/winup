@@ -27,37 +27,43 @@
         "file":  "10-application-picker.png",
         "usernameFound":  false,
         "profilePathFound":  false,
-        "characters":  274
+        "characters":  179
     },
     {
         "file":  "12-account-filled.png",
         "usernameFound":  false,
         "profilePathFound":  false,
-        "characters":  1230
+        "characters":  1206
     },
     {
         "file":  "13-recovery-codes.png",
         "usernameFound":  false,
         "profilePathFound":  false,
-        "characters":  211
+        "characters":  213
     },
     {
         "file":  "14-passwords-record.png",
         "usernameFound":  false,
         "profilePathFound":  false,
-        "characters":  602
+        "characters":  737
     },
     {
         "file":  "15-generator.png",
         "usernameFound":  false,
         "profilePathFound":  false,
-        "characters":  440
+        "characters":  431
     },
     {
         "file":  "16-browser-dialog.png",
         "usernameFound":  false,
         "profilePathFound":  false,
-        "characters":  1213
+        "characters":  1397
+    },
+    {
+        "file":  "16-firefox-package.png",
+        "usernameFound":  false,
+        "profilePathFound":  false,
+        "characters":  1498
     },
     {
         "file":  "17-extension-field.png",
@@ -75,25 +81,25 @@
         "file":  "19-otp-editor.png",
         "usernameFound":  false,
         "profilePathFound":  false,
-        "characters":  452
+        "characters":  460
     },
     {
         "file":  "20-otp-tab.png",
         "usernameFound":  false,
         "profilePathFound":  false,
-        "characters":  455
+        "characters":  433
     },
     {
         "file":  "21-otp-import.png",
         "usernameFound":  false,
         "profilePathFound":  false,
-        "characters":  1053
+        "characters":  927
     },
     {
         "file":  "22-passkey-wizard.png",
         "usernameFound":  false,
         "profilePathFound":  false,
-        "characters":  215
+        "characters":  202
     },
     {
         "file":  "23-passkey-tab.png",
@@ -105,19 +111,19 @@
         "file":  "24-file-vault-create.png",
         "usernameFound":  false,
         "profilePathFound":  false,
-        "characters":  107
+        "characters":  112
     },
     {
         "file":  "25-file-vault-tab.png",
         "usernameFound":  false,
         "profilePathFound":  false,
-        "characters":  466
+        "characters":  452
     },
     {
         "file":  "26-locked.png",
         "usernameFound":  false,
         "profilePathFound":  false,
-        "characters":  172
+        "characters":  404
     },
     {
         "file":  "27-pin.png",
@@ -129,19 +135,19 @@
         "file":  "28-run-tab.png",
         "usernameFound":  false,
         "profilePathFound":  false,
-        "characters":  395
+        "characters":  249
     },
     {
         "file":  "29-winget.png",
         "usernameFound":  false,
         "profilePathFound":  false,
-        "characters":  662
+        "characters":  563
     },
     {
         "file":  "30-install-tab.png",
         "usernameFound":  false,
         "profilePathFound":  false,
-        "characters":  389
+        "characters":  391
     },
     {
         "file":  "31-installer-queue.png",
@@ -153,24 +159,24 @@
         "file":  "32-download-tab.png",
         "usernameFound":  false,
         "profilePathFound":  false,
-        "characters":  2182
+        "characters":  2123
     },
     {
         "file":  "33-component-updates.png",
         "usernameFound":  false,
         "profilePathFound":  false,
-        "characters":  892
+        "characters":  888
     },
     {
         "file":  "34-about.png",
         "usernameFound":  false,
         "profilePathFound":  false,
-        "characters":  1116
+        "characters":  1117
     },
     {
         "file":  "35-export.png",
         "usernameFound":  false,
         "profilePathFound":  false,
-        "characters":  740
+        "characters":  746
     }
 ]

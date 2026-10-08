@@ -9,7 +9,7 @@ namespace WinUp
         public static string ExtensionUrl(BrowserInfo browser) {
             if(browser==null)return "";
             switch(Path.GetFileName(browser.Exe).ToLowerInvariant()) {
-                case "firefox.exe":return "about:debugging#/runtime/this-firefox";
+                case "firefox.exe":return BrowserSetup.FirefoxPackageReady ? "about:addons" : "about:debugging#/runtime/this-firefox";
                 case "msedge.exe":return "edge://extensions/";
                 case "chrome.exe":return "chrome://extensions/";
                 case "brave.exe":return "brave://extensions/";
@@ -19,7 +19,7 @@ namespace WinUp
                 default:return "";
             }
         }
-        public static bool Firefox(BrowserInfo browser) {return ExtensionUrl(browser).StartsWith("about:",StringComparison.Ordinal);}
+        public static bool Firefox(BrowserInfo browser) {return browser!=null && Path.GetFileName(browser.Exe).Equals("firefox.exe",StringComparison.OrdinalIgnoreCase);}
         public static ProcessStartInfo ExtensionLaunch(BrowserInfo browser) {
             string address=ExtensionUrl(browser);
             if(address.Length==0 || !File.Exists(browser.Exe))throw new InvalidOperationException("Выбранный браузер не найден или для него не предусмотрена страница расширений. Скопируйте адрес и откройте его вручную.");

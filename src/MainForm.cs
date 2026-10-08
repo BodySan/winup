@@ -90,7 +90,7 @@ namespace WinUp
             Font = new Font("Segoe UI", 9f);
             Icon = AppIcons.Open;
             Size = new Size(900, 620);
-            MinimumSize = new Size(700, 450);
+            MinimumSize = new Size(700, 550);
             StartPosition = FormStartPosition.CenterScreen;
 
             Controls.Add(tabs);
@@ -107,6 +107,8 @@ namespace WinUp
             BuildWingetTab();
             BuildInstallTab();
             BuildLinksTab();
+            Appearance.Apply(this);
+            Appearance.MainStatus(status);
             RefreshApps();
             ShowLocked();
             // Файл базы мог появиться или исчезнуть, пока окно открыто (восстановили vault-*.kdbx из резерва):
@@ -2564,7 +2566,7 @@ namespace WinUp
                 {
                     if (ct.IsCancellationRequested) { PwLog("Ввод остановлен: база заблокирована."); break; }
                     PwLog("—— " + (i + 1) + " из " + list.Count + ": " + list[i].Name);
-                    try { await Login(list[i], ct); }
+                    try { await Login(list[i], ct, false); }
                     catch (Exception ex) { PwLog(list[i].Name + ": ошибка — " + ex.Message); }
                     if (i + 1 < list.Count) await Task.Delay(1500);
                 }
@@ -2602,7 +2604,7 @@ namespace WinUp
             return true;
         }
 
-        async Task Login(LoginEntry e, CancellationToken ct)
+        async Task Login(LoginEntry e, CancellationToken ct, bool replaceOutstanding = true)
         {
             if(vault==null || ct.IsCancellationRequested) return;
             bool desktop=e.Kind=="app";
@@ -2632,7 +2634,7 @@ namespace WinUp
                 var copy=e.Copy();try {copy.Kind="app";copy.Target=appValue;if(LocalApplications.IsShell(appValue))copy.Args="";await LoginDesktop(copy,ct);}finally {copy.ClearSecrets();}
                 return;
             }
-            string url=BeginBrowserLogin(e);
+            string url=BeginBrowserLogin(e,replaceOutstanding);
             var browserName=string.IsNullOrEmpty(e.Browser) ? store.Settings.Browser : e.Browser;
             var browser=Browsers.Find(browserName);
             if (!string.IsNullOrEmpty(browserName) && browser == null) { PwLog(e.Name + ": выбранный браузер не установлен. Выберите другой браузер для входа."); return; }

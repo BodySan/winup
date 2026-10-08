@@ -52,12 +52,13 @@
   const host = document.createElement("winup-layer");
   host.style.cssText = "position:absolute;left:0;top:0;width:0;height:0;z-index:2147483647;";
   const root = host.attachShadow({ mode: "closed" });
-  root.innerHTML = `<style>
+  const style = document.createElement("style");
+  style.textContent = `
     .ic{position:absolute;width:20px;height:20px;cursor:pointer;border-radius:5px;background:#fff url(${ICON}) center/16px no-repeat;
         box-shadow:0 0 0 1px rgba(0,0,0,.12);opacity:.85;transition:opacity .1s}
     .ic:hover{opacity:1;box-shadow:0 0 0 2px #2563eb}
     .dd{position:absolute;min-width:280px;max-width:380px;background:#fff;color:#111;border-radius:10px;font:13px/1.35 -apple-system,"Segoe UI",sans-serif;
-        box-shadow:0 8px 28px rgba(0,0,0,.22),0 0 0 1px rgba(0,0,0,.08);overflow:hidden}
+        box-shadow:0 8px 28px rgba(0,0,0,.22),0 0 0 1px rgba(0,0,0,.08);overflow:auto;box-sizing:border-box}
     .hd{display:flex;align-items:center;gap:6px;padding:8px 10px;background:#f4f6fa;font-weight:600;font-size:12px;color:#334}
     .hd img{width:16px;height:16px}
     .it{display:block;width:100%;text-align:left;border:0;background:none;padding:8px 12px;cursor:pointer;font:inherit;color:inherit}
@@ -67,7 +68,8 @@
     .bt{margin:0 12px 10px;padding:6px 10px;border:0;border-radius:6px;background:#2563eb;color:#fff;cursor:pointer;font:inherit}
     .sr{display:block;width:calc(100% - 24px);margin:8px 12px;padding:6px 8px;border:1px solid #ccd;border-radius:6px;font:inherit;box-sizing:border-box}
     .ft{border-top:1px solid #eef;padding:2px 0}
-  </style>`;
+  `;
+  root.appendChild(style);
   (document.documentElement || document.body).appendChild(host);
 
   const icons = new Map(); // input -> значок
@@ -120,8 +122,22 @@
     }
     if (dd && ddFor) {
       const r = ddFor.getBoundingClientRect();
-      dd.style.left = (r.left + scrollX) + "px";
-      dd.style.top = (r.bottom + scrollY + 4) + "px";
+      const width = document.documentElement.clientWidth || window.innerWidth;
+      const height = window.innerHeight;
+      if (width > 0 && height > 0) {
+        dd.style.minWidth = Math.min(280, Math.max(40, width - 16)) + "px";
+        dd.style.maxWidth = Math.min(380, Math.max(40, width - 16)) + "px";
+        dd.style.maxHeight = Math.max(40, height - 16) + "px";
+        const size = dd.getBoundingClientRect();
+        const below = r.bottom + 4;
+        const above = r.top - size.height - 4;
+        const top = below + size.height <= height - 8 ? below : above >= 8 ? above : Math.max(8, height - size.height - 8);
+        dd.style.left = (Math.max(8, Math.min(r.left, width - size.width - 8)) + scrollX) + "px";
+        dd.style.top = (top + scrollY) + "px";
+      } else {
+        dd.style.left = (r.left + scrollX) + "px";
+        dd.style.top = (r.bottom + scrollY + 4) + "px";
+      }
     }
   }
 
@@ -167,6 +183,7 @@
     const img = node("img"); img.src = ICON;
     hd.append(img, node("span", null, "WinUp"));
     dd.append(hd, ...children);
+    place();
   }
 
   const ERRORS = {
@@ -297,6 +314,10 @@
     if (user && (r.login || r.login2)) setValue(user, loginFor(user,r));
     // input/change handlers may synchronously replace the form or navigate.
     if (!contextValid(c)) return false;
+    if(window===window.top&&(r.login||r.login2)){
+      savedLogin=user?.value||r.login||r.login2;
+      send({type:'save-login',login:savedLogin});
+    }
     if (pw && r.password) setValue(pw, r.password);
     if (!contextValid(c)) return false;
     if (otp && r.otp) setValue(otp, r.otp);
@@ -340,16 +361,21 @@
 
   // The website already owns these input values. Keep field references only; never
   // persist passwords in extension storage. Saving always requires native review.
-  let saveCard=null, saveTimer=null, offeredPw=null, dismissedPw=null, saveShown=0;
+  let saveCard=null, saveTimer=null, offeredPw=null, dismissedPw=null, saveShown=0, savedLogin='';
+  const editedPasswords=new WeakSet();
   function hideSave() { if(saveCard) saveCard.remove(); saveCard=null; offeredPw=null; clearTimeout(saveTimer); }
   function saveCandidate(pw) {
     if(window !== window.top || document.hidden || !visible(pw) || pw.type !== "password" || !pw.value || pw.value.length > 4096) return null;
-    const user=userFor(pw);
-    if(!user || !user.value || user.value.length > 1024 || !visible(user)) return null;
-    // Two password fields can be a registration/change form. Require a single current
-    // password rather than guessing which of several secrets is the account password.
-    if(passwords(scope(pw)).length !== 1) return null;
-    return { user, pw, url:location.href };
+    const user=userFor(pw),login=user?.value||savedLogin;
+    if(!login || login.length > 1024) return null;
+    // For registration/change forms, accept only explicitly marked new passwords
+    // whose confirmation agrees. Never choose between unrelated password fields.
+    const fields=passwords(scope(pw));
+    if(fields.length!==1) {
+      const fresh=fields.filter(e=>e.autocomplete==='new-password');
+      if(!fresh.includes(pw)||fresh.length<1||fresh.length>2||fresh.some(e=>e.value!==pw.value))return null;
+    }
+    return { user, login, pw, url:location.href };
   }
   function offerSave(pw) {
     const c=saveCandidate(pw);
@@ -360,16 +386,16 @@
     card.append(node("div","hd","WinUp — сохранить пароль?"),node("div","msg",location.hostname));
     const save=node("button","bt","Сохранить / обновить…"), cancel=node("button","bt","Не сейчас");
     card.append(save,cancel); root.appendChild(card);
-    cancel.addEventListener("click",e=> { if(e.isTrusted) { dismissedPw=pw; hideSave(); } });
+    cancel.addEventListener("click",e=> { if(e.isTrusted) { dismissedPw=pw; send({type:'save-dismiss'});hideSave(); } });
     save.addEventListener("click",async e=> {
       const now=saveCandidate(pw), rect=save.getBoundingClientRect();
       if(!e.isTrusted || Date.now()-saveShown<SHOW_MS || !pageLooksNormal() || !now || now.url!==c.url ||
         rect.left<0 || rect.top<0 || rect.right>innerWidth || rect.bottom>innerHeight || document.elementFromPoint(e.clientX,e.clientY)!==host) return;
       save.disabled=true;
-      let msg={type:"save",login:now.user.value,password:pw.value};
+      let msg={type:"save",login:now.login,password:pw.value};
       const result=await send(msg); msg.password=msg.login=""; msg=null;
       if(saveCard!==card) return;
-      if(result.ok) { dismissedPw=pw; hideSave(); }
+      if(result.ok) { dismissedPw=pw; send({type:'save-dismiss'});hideSave(); }
       else { save.disabled=false; const status=node("div","msg",ERRORS[result.error] || "Сохранение не выполнено: "+result.error); card.append(status); }
     });
   }
@@ -378,10 +404,52 @@
     // A fresh edit of the password is a new save candidate, even when the site
     // reuses the same input after a previous save or dismissal.
     if(e.target===dismissedPw && e.target.type==="password") dismissedPw=null;
+    if(isUser(e.target)&&e.target.value) {
+      if(e.target.value!==savedLogin)dismissedPw=null;
+      savedLogin=e.target.value;
+      send({type:'save-login',login:savedLogin});
+    }
+    if(e.target.type==='password')editedPasswords.add(e.target);
     const pw=e.target.type==="password" ? e.target : passwords(scope(e.target))[0];
     if(!pw) return; clearTimeout(saveTimer); saveTimer=setTimeout(()=>offerSave(pw),700);
   },true);
-  document.addEventListener("submit",e=> { if(e.isTrusted) { const pw=passwords(e.target)[0]; if(pw) offerSave(pw); } },true);
+  function stageSave(scopeRoot) {
+    const candidates=passwords(scopeRoot);
+    const pw=candidates.find(e=>e.autocomplete==='new-password')||candidates[0];
+    if(!pw||pw===dismissedPw||!editedPasswords.has(pw))return;
+    const c=saveCandidate(pw);if(!c)return;
+    send({type:'save-stage',login:c.login,password:pw.value});offerSave(pw);
+  }
+  document.addEventListener("submit",e=> { if(e.isTrusted) stageSave(e.target); },true);
+  document.addEventListener('keydown',e=> {if(e.isTrusted&&e.key==='Enter'&&kindOf(e.target))stageSave(scope(e.target));},true);
+  document.addEventListener('click',e=> {
+    if(!e.isTrusted||e.composedPath().includes(host))return;
+    const b=e.target.closest?.('button,input[type=submit],[role=button]');
+    if(b&&(b.type==='submit'||/^(войти|вход|продолжить|далее|log\s?in|sign\s?in|continue|next|сохранить)$/i.test((b.innerText||b.value||'').trim())))stageSave(b.form||document);
+  },true);
+  async function restoreSaveOffer() {
+    if(window!==window.top)return;
+    const state=await send({type:'save-context'});if(!state.ok)return;
+    // A delayed initial reply must not erase a username just typed in this page.
+    if(!savedLogin&&state.login)savedLogin=state.login;
+    if(!state.pending||document.hidden||saveCard)return;
+    saveShown=Date.now();const card=saveCard=node('div','dd');
+    card.style.cssText='position:fixed;right:18px;bottom:18px;max-width:360px;min-width:280px';
+    card.append(node('div','hd','WinUp — сохранить введённый пароль?'),node('div','msg',location.hostname));
+    const save=node('button','bt','Сохранить / обновить…'),cancel=node('button','bt','Не сейчас');card.append(save,cancel);root.append(card);
+    cancel.addEventListener('click',e=>{if(e.isTrusted){send({type:'save-dismiss'});hideSave();}});
+    save.addEventListener('click',async e=>{
+      const rect=save.getBoundingClientRect();
+      if(!e.isTrusted||Date.now()-saveShown<SHOW_MS||!pageLooksNormal()||document.hidden||rect.left<0||rect.top<0||rect.right>innerWidth||rect.bottom>innerHeight||document.elementFromPoint(e.clientX,e.clientY)!==host)return;
+      save.disabled=true;const result=await send({type:'save-commit'});
+      if(saveCard!==card)return;
+      if(result.ok)hideSave();else {save.disabled=false;card.append(node('div','msg',ERRORS[result.error]||'Повторите ввод пароля: '+result.error));}
+    });
+  }
+  restoreSaveOffer();
+  new MutationObserver(()=> {
+    if(saveCard&&offeredPw&&!visible(offeredPw)) {hideSave();restoreSaveOffer();}
+  }).observe(document.documentElement,{childList:true,subtree:true});
   addEventListener("pagehide",hideSave);
-  document.addEventListener("visibilitychange",()=> { if(document.hidden) hideSave(); });
+  document.addEventListener("visibilitychange",()=> { if(document.hidden) hideSave();else restoreSaveOffer(); });
 })();

@@ -19,6 +19,7 @@ public final class WinUpFiles {
     private static FileSystem fs;
     private static Mount mount;
     private static Path storage;
+    private static Path pathGuard;
     private static final ObjectMapper JSON = new ObjectMapper();
     private static final SecureRandom RNG = new SecureRandom();
     // The native launcher can choose a Windows console code page for System.out.
@@ -34,10 +35,13 @@ public final class WinUpFiles {
         return p;
     }
     private static void reply(Object value) throws IOException { PROTOCOL.println("WUP2\t" + JSON.writeValueAsString(value)); PROTOCOL.flush(); }
-    private static void open(String folder, String encoded, boolean create) throws Exception {
+    private static void open(String folder, String encoded, String guard, boolean create) throws Exception {
         if (fs != null) throw new IOException("already_open");
         Path vault = Path.of(folder).toAbsolutePath().normalize();
         storage = vault;
+        if (!guard.matches("\\.winup-path-lease-[0-9a-f]{32}")) throw new IOException("unsafe_path_guard");
+        pathGuard = vault.resolve(guard);
+        if (!Files.isRegularFile(pathGuard, LinkOption.NOFOLLOW_LINKS)) throw new IOException("missing_path_guard");
         byte[] bytes = Base64.getDecoder().decode(encoded);
         CharBuffer chars = StandardCharsets.UTF_8.decode(ByteBuffer.wrap(bytes));
         try {
@@ -47,7 +51,7 @@ public final class WinUpFiles {
                 // verified root before launching us. Never create/reopen an
                 // unheld root between directory creation and key persistence.
                 if (!Files.isDirectory(vault, LinkOption.NOFOLLOW_LINKS) || Files.isSymbolicLink(vault)) throw new IOException("unsafe_vault_root");
-                try (var entries = Files.list(vault)) { if (entries.findAny().isPresent()) throw new IOException("vault_root_not_empty"); }
+                try (var entries = Files.list(vault)) { if (entries.anyMatch(p -> !p.equals(pathGuard))) throw new IOException("vault_root_not_empty"); }
                 try (Masterkey key = Masterkey.generate(RNG)) {
                     access.persist(key, vault.resolve("masterkey.cryptomator"), chars);
                     var props = CryptoFileSystemProperties.cryptoFileSystemProperties()
@@ -134,7 +138,7 @@ public final class WinUpFiles {
             Files.move(staging, destination);
             // Persist encrypted data and metadata before allowing the parent to remove originals.
             try(var files=Files.walk(storage)) {
-                for(Path file : files.filter(p -> Files.isRegularFile(p,LinkOption.NOFOLLOW_LINKS)).toList()) {
+                for(Path file : files.filter(p -> !p.equals(pathGuard) && Files.isRegularFile(p,LinkOption.NOFOLLOW_LINKS)).toList()) {
                     try(FileChannel channel=FileChannel.open(file,StandardOpenOption.WRITE)) { channel.force(true); }
                 }
             }
@@ -144,7 +148,8 @@ public final class WinUpFiles {
     private static Object command(String[] p) throws Exception {
         String op = p[0];
         if (op.equals("open") || op.equals("create")) {
-            open(decode(p[1]), p[2], op.equals("create")); return Map.of("ok",true);
+            if (p.length != 4) throw new IOException("bad_open_command");
+            open(decode(p[1]), p[2], decode(p[3]), op.equals("create")); return Map.of("ok",true);
         }
         if (fs == null) throw new IOException("locked");
         return switch (op) {

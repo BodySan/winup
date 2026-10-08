@@ -1,5 +1,5 @@
 {
-  "Version": 3,
+  "Version": 4,
   "Links": [
     {
       "Id": "8636f7d6",
@@ -714,7 +714,7 @@
       "TwoFa": "none",
       "Note": "\nВход: Вход через видимую форму: логин, пароль, затем связанный код 2FA, если он настроен. Проверки сайта и SMS — вручную.",
       "LoginProfile": "Купер",
-      "LoginUrl": "https://kuper.ru/"
+      "LoginUrl": "https://web.kuper.ru/"
     },
     {
       "Name": "Купибилет",
@@ -783,7 +783,7 @@
       "TwoFa": "none",
       "Note": "\nВход: Вход через видимую форму: логин, пароль, затем связанный код 2FA, если он настроен. Проверки сайта и SMS — вручную.",
       "LoginProfile": "Масленка",
-      "LoginUrl": "https://maslenka-store.com/"
+      "LoginUrl": "https://maslenka-store.com/auth"
     },
     {
       "Name": "Мегамаркет",
@@ -797,7 +797,7 @@
       "TwoFa": "none",
       "Note": "\nВход: Вход через видимую форму: логин, пароль, затем связанный код 2FA, если он настроен. Проверки сайта и SMS — вручную.",
       "LoginProfile": "Мегамаркет",
-      "LoginUrl": "https://sbermegamarket.ru/"
+      "LoginUrl": "https://megamarket.ru/"
     },
     {
       "Name": "МегаФон (личный кабинет)",
@@ -1043,7 +1043,7 @@
       "TwoFa": "none",
       "Note": "\nВход: Вход через видимую форму: логин, пароль, затем связанный код 2FA, если он настроен. Проверки сайта и SMS — вручную.",
       "LoginProfile": "Юла",
-      "LoginUrl": "https://youla.ru/"
+      "LoginUrl": "https://youla.ru/login"
     },
     {
       "Name": "ЮMoney",
@@ -1057,7 +1057,7 @@
       "TwoFa": "none",
       "Note": "\nВход: Вход через видимую форму: логин, пароль, затем связанный код 2FA, если он настроен. Проверки сайта и SMS — вручную.",
       "LoginProfile": "ЮMoney",
-      "LoginUrl": "https://yoomoney.ru/"
+      "LoginUrl": "https://yoomoney.ru/yooid/login"
     },
     {
       "Name": "Яндекс Еда",
@@ -1360,7 +1360,7 @@
       "TwoFa": "none",
       "Note": "\nВход: Вход через видимую форму: логин, пароль, затем связанный код 2FA, если он настроен. Проверки сайта и SMS — вручную.",
       "LoginProfile": "Cloudflare",
-      "LoginUrl": "https://dash.cloudflare.com/"
+      "LoginUrl": "https://dash.cloudflare.com/login"
     },
     {
       "Name": "Coop-Land",
@@ -1416,7 +1416,7 @@
       "TwoFa": "none",
       "Note": "\nВход: Вход через видимую форму: логин, пароль, затем связанный код 2FA, если он настроен. Проверки сайта и SMS — вручную. На проверке сайт ограничил доступ или возникла сетевая ошибка; полный сценарий не подтверждён.",
       "LoginProfile": "DeepSeek",
-      "LoginUrl": "https://chat.deepseek.com/"
+      "LoginUrl": "https://chat.deepseek.com/sign_in"
     },
     {
       "Name": "Discord",
@@ -1708,7 +1708,7 @@
       "TwoFa": "none",
       "Note": "\nВход: Вход через видимую форму: логин, пароль, затем связанный код 2FA, если он настроен. Проверки сайта и SMS — вручную.",
       "LoginProfile": "JetBrains",
-      "LoginUrl": "https://account.jetbrains.com/"
+      "LoginUrl": "https://account.jetbrains.com/login"
     },
     {
       "Name": "Jut.su",

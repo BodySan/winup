@@ -127,7 +127,7 @@ namespace WinUp {
             Check("installed-missing-app-after-removal",!LocalApplications.Exists(System.IO.Path.Combine(Paths.Root,"removed-application.exe"),catalog),"removed executable cannot start");
             foreach(var item in new[] {new[] {"chrome.exe","chrome://extensions/"},new[] {"msedge.exe","edge://extensions/"},new[] {"brave.exe","brave://extensions/"},new[] {"opera.exe","opera://extensions/"},new[] {"firefox.exe","about:debugging#/runtime/this-firefox"},new[] {"browser.exe","browser://extensions/"}}) {
                 var browser=new BrowserInfo {Name=item[0]=="browser.exe" ? "Яндекс Браузер" : item[0],Exe=System.IO.Path.Combine(Paths.Root,item[0])};
-                Check("selected-browser-page-"+item[0],BrowserPages.ExtensionUrl(browser)==item[1],"browser-specific internal page");
+                Check("selected-browser-page-"+item[0],BrowserPages.ExtensionUrl(browser)==(item[0]=="firefox.exe" && BrowserSetup.FirefoxPackageReady ? "about:addons" : item[1]),"browser-specific internal page");
             }
             Check("selected-browser-unknown-executable",BrowserPages.ExtensionUrl(new BrowserInfo {Name="Unknown",Exe=fixture})=="","unknown internal protocol not launched");
             var selected=new BrowserInfo {Name="Synthetic selected browser",Exe=fixture};
@@ -139,6 +139,33 @@ namespace WinUp {
             Check("passkey-site-rejects-custom-protocol",protocolRejected,"HTTPS-only site launcher");
         }
         static void BrowserLoginJobTests() {
+            Ui(delegate {
+                NewVault(false);form.VaultNow.Entries.Clear();
+                form.VaultNow.Entries.Add(new LoginEntry {Id="google-demo",Name="Google",Kind="site",Target="https://www.google.com/",Login="shared@example.invalid"});
+                form.VaultNow.Entries.Add(new LoginEntry {Id="youtube-demo",Name="YouTube",Kind="site",Target="https://www.youtube.com/",Login2="shared@example.invalid"});
+                var matches=MainForm.BrowserSaveMatches(form.VaultNow,"https://accounts.google.com/v3/signin/identifier","shared@example.invalid");
+                Check("save-shared-provider-keeps-all-matching-records",matches.Count==2,"same account across services requires a deliberate choice");
+                using(var dialog=new BrowserSaveChoiceDialog("https://accounts.google.com",matches)) {
+                    dialog.Show(form);Application.DoEvents();
+                    var choose=ControlsIn(dialog).OfType<Button>().Single(b=>b.Text=="Выбрать");
+                    Check("save-ambiguous-record-has-no-default",dialog.Selected==null && !choose.Enabled,"no automatic overwrite of the first record");
+                    ControlsIn(dialog).OfType<ListBox>().Single().SelectedIndex=1;
+                    Check("save-ambiguous-record-explicit-selection",dialog.Selected==matches[1] && choose.Enabled,"only the selected record proceeds to review");
+                    dialog.DialogResult=DialogResult.Cancel;dialog.Close();
+                }
+                Lock();
+            });
+            var legacy=new LoginEntry {Name="GitHub",Kind="site",Target="https://github.com/",LoginUrl="https://github.com/"};
+            Check("login-legacy-home-route-uses-login-page",LoginProfiles.Resolve(legacy).LoginUrl=="https://github.com/login","old built-in home link is resolved at runtime");
+            legacy.LoginUrl="https://github.com/login?return_to=%2Fsettings";
+            Check("login-custom-route-preserved",LoginProfiles.Resolve(legacy).LoginUrl==legacy.LoginUrl,"explicit custom path survives profile updates");
+            var youtube=new LoginEntry {Name="YouTube",Kind="site",Target="https://www.youtube.com/"};
+            Check("login-reviewed-provider-matches-entry",LoginProfiles.MatchesLoginOrigin(youtube,"https://accounts.google.com/v3/signin/identifier"),"password list/fill/save share the reviewed origin policy");
+            Check("login-provider-lookalike-denied",!LoginProfiles.MatchesLoginOrigin(youtube,"https://accounts.google.com.evil.example/login"),"no suffix or arbitrary provider match");
+            var cyber=new LoginEntry {Name="CYBERSHOKE",Kind="site",Target="https://cybershoke.net/"};
+            Check("login-external-steam-account-is-not-service-password",!LoginProfiles.MatchesLoginOrigin(cyber,"https://steamcommunity.com/login/home/"),"third-party Steam account must be chosen explicitly");
+            var sameSite=new LoginEntry {Name="Synthetic custom",Kind="site",Target="https://example.com/"};
+            Check("login-custom-unreviewed-subdomain-still-confirms",!LoginProfiles.MatchesLoginOrigin(sameSite,"https://other.example.com/login"),"existing confirmation protection retained");
             const string token="synthetic-login-job-token";string nonce=null;
             Ui(delegate {
                 NewVault(true);BrowserPair.Save(token,"Synthetic login jobs");BrowserSetup.Connect();
@@ -162,6 +189,11 @@ namespace WinUp {
             Check("login-stage-returns-only-needed-secret",(bool)pw["ok"] && (string)pw["password"]=="Audit-only-secret!" && !pw.ContainsKey("otp") && !pw.ContainsKey("login"),"password stage only");
             var replay=Request(new {type="login-step",token=token,nonce=nonce,tab="1",url="https://example.com/login",stage="password"});
             Check("login-secret-stage-cannot-replay",!(bool)replay["ok"] && (string)replay["error"]=="already_done","single consumption");
+            string replacement=null;
+            Ui(delegate {var url=form.BeginBrowserLogin(form.VaultNow.Entries[0],true);replacement=url.Substring(url.IndexOf("winup-login=",StringComparison.Ordinal)+12);});
+            var stale=Request(new {type="login-claim",token=token,nonce=nonce,tab="1",url="https://example.com/login"});
+            Check("login-restart-invalidates-closed-old-tab",!(bool)stale["ok"] && (string)stale["error"]=="not_found","only the new explicit attempt remains valid");
+            nonce=replacement;
             Ui(Lock);
             var locked=Request(new {type="login-step",token=token,nonce=nonce,tab="1",url="https://example.com/login",stage="otp"});
             Check("login-lock-removes-job",!(bool)locked["ok"] && !locked.ContainsKey("otp"),"lock invalidates outstanding capabilities");

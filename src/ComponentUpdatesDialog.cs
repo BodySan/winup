@@ -39,6 +39,7 @@ namespace WinUp {
             Add("Закрыть",Close);
             FormClosing+=(s,e)=> { if(busy) {e.Cancel=true;closeRequested=true;if(cancellation!=null)cancellation.Cancel();state.Text="Завершаю операцию…";} };
             RefreshRows();
+            Appearance.Apply(this);
         }
         Button Add(string text,Action action) { var button=new Button { Text=text,AutoSize=true,Margin=new Padding(4) }; button.Click+=(s,e)=>action(); buttons.Controls.Add(button); return button; }
         void RefreshRows() {

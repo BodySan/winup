@@ -60,7 +60,8 @@ namespace WinUp {
                     var tabs=(TabControl)typeof(MainForm).GetField("tabs",Private).GetValue(form);
                     Check("delivery-tab-order",string.Join("|",tabs.TabPages.Cast<TabPage>().Select(x=>x.Text))=="Пароли|2FA|Ключи доступа|Файлы|Запуск|WinGet|Установка|Скачать","requested order");
                 });
-                CorrectionUiButtons();MainButtonSweep();InstallerQueueUiTests();
+                CorrectionUiButtons();MainButtonSweep();InstallerQueueUiTests();BrowserLoginJobTests();
+                DeliveryLongPasskeyChallenge();
                 DeepBatchStorageTests(Path.Combine(Paths.Root,"transaction-fixtures"));
                 DeliveryFileTests();
                 var prepared=new ComponentVersionInfo {Id="bouncycastle",Installed="2.6.2",Pending="2.7.0",Latest="2.7.0"};
@@ -75,6 +76,38 @@ namespace WinUp {
                 Check("delivery-components-pending-domain-list",domainList.Status.Contains("уже подготовлен"),"pending newer snapshot is retained");
             }catch(Exception e){Check("delivery-unhandled",false,e.ToString());}
             finally{Ui(delegate {form.Close();});}
+        }
+        static void DeliveryLongPasskeyChallenge() {
+            const string token="synthetic-long-passkey";
+            Ui(delegate {NewVault(false);BrowserPair.Save(token,"Synthetic long challenge");});
+            var seen=new HashSet<Form>();System.Windows.Forms.Timer timer=null;
+            Ui(delegate {
+                timer=new System.Windows.Forms.Timer {Interval=100};
+                timer.Tick+=delegate {
+                    foreach(Form dialog in Application.OpenForms.Cast<Form>().ToArray()) {
+                        if(seen.Contains(dialog))continue;
+                        if(dialog is PasskeyConsentDialog) {
+                            seen.Add(dialog);((Button)typeof(Dlg).GetField("Ok",Private).GetValue(dialog)).PerformClick();
+                        } else if(dialog is PasswordPrompt) {
+                            seen.Add(dialog);((TextBox)typeof(PasswordPrompt).GetField("box",Private).GetValue(dialog)).Text=Password;
+                            ((Button)typeof(Dlg).GetField("Ok",Private).GetValue(dialog)).PerformClick();
+                        }
+                    }
+                };timer.Start();
+            });
+            try {
+                var registration=Request(new {type="passkey-create",token=token,url="https://example.com/login",requestId=Guid.NewGuid().ToString("N"),publicKey=PasskeyOptions(true,"example.com")});
+                if(!(bool)registration["ok"])throw new Exception("Synthetic passkey registration failed");
+                string challenge=PasskeyPolicy.Encode(Enumerable.Range(0,4096).Select(i=>(byte)(i%251)).ToArray());
+                var assertion=Request(new {type="passkey-get",token=token,url="https://example.com/login",requestId=Guid.NewGuid().ToString("N"),publicKey=new {challenge=challenge,rpId="example.com"}});
+                Check("delivery-passkey-long-challenge-signs",(bool)assertion["ok"],"4096-byte RP challenge reaches native consent and signs");
+                if((bool)assertion["ok"]) {
+                    var key=(Dictionary<string,object>)assertion["publicKey"];
+                    var response=(Dictionary<string,object>)key["response"];
+                    var client=Parse(Encoding.UTF8.GetString(PasskeyPolicy.Decode((string)response["clientDataJSON"],1,16384)));
+                    Check("delivery-passkey-long-challenge-preserved",(string)client["challenge"]==challenge,"complete opaque challenge returned in signed client data");
+                }
+            } finally {Ui(delegate {timer.Dispose();});}
         }
         static void DeliveryFileTests() {
             string root=Path.Combine(Paths.Root,"files-functional");Directory.CreateDirectory(root);

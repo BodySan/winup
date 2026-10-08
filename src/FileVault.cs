@@ -60,7 +60,7 @@ namespace WinUp
                 process = Process.Start(info);
                 process.ErrorDataReceived += delegate { }; // never persist paths or secrets from diagnostics
                 process.BeginErrorReadLine();
-                using (cancellation.Register(Cancel)) Call(create ? "create" : "open", Folder, password);
+                using (cancellation.Register(Cancel)) Call(create ? "create" : "open", Folder, password, vaultDirectories.GuardName);
             }
             catch { Dispose(); throw; }
         }
@@ -111,7 +111,7 @@ namespace WinUp
                 foreach(string path in Directory.GetFiles(directory)) {
                     SafePaths.NoReparseParents(path);
                     string relative = path.Substring(root.Length + 1).Replace('\\','/');
-                    if (!hashes.ContainsKey(relative)) throw new IOException("В папке файлового модуля обнаружен посторонний файл.");
+                    if (!hashes.ContainsKey(relative) && !directories.IsGuardFile(path)) throw new IOException("В папке файлового модуля обнаружен посторонний файл.");
                 }
             }
             return root;
@@ -254,6 +254,10 @@ namespace WinUp
         readonly List<string> filePaths = new List<string>();
         readonly List<string> directories = new List<string>();
         readonly List<SafeFileHandle> directoryLocks = new List<SafeFileHandle>();
+        readonly List<SafeFileHandle> directoryGuards = new List<SafeFileHandle>();
+        string guardPath;
+        internal string GuardName { get { return guardPath == null ? "" : Path.GetFileName(guardPath); } }
+        internal bool IsGuardFile(string path) { return guardPath != null && guardPath.Equals(Path.GetFullPath(path), StringComparison.OrdinalIgnoreCase); }
         readonly Dictionary<string, SafeFileHandle> originalDirectories = new Dictionary<string, SafeFileHandle>(StringComparer.OrdinalIgnoreCase);
         readonly List<string> snapshot = new List<string>();
         string sourceRoot;
@@ -313,43 +317,65 @@ namespace WinUp
             try {
                 source=Path.GetFullPath(source); SafePaths.NoReparseParents(source);
                 result.sourceRoot = source;
-                // Hold each ancestor before descending. A parent junction or rename must
-                // not redirect the helper between verification and reading the source.
                 var parents=new Stack<string>();
                 for(string p=Path.GetDirectoryName(source);!string.IsNullOrEmpty(p);p=Path.GetDirectoryName(p)) parents.Push(p);
+                var paths=new List<string>();
                 while(parents.Count>0) {
-                    string p=parents.Pop();
-                    var h=CreateFile(p,0x80u,1,IntPtr.Zero,3,0x02200000u,IntPtr.Zero);
+                    string p=parents.Pop();var h=CreateFile(p,0x80000000u,1,IntPtr.Zero,3,0x02200000u,IntPtr.Zero);
                     HandleInfo info;
-                    if(h.IsInvalid || !GetFileInformationByHandle(h,out info) || (info.Attributes & 0x400u)!=0) { h.Dispose(); throw new IOException("Исходный путь занят или содержит ссылку: "+p); }
-                    result.directoryLocks.Add(h);
+                    if(h.IsInvalid || !GetFileInformationByHandle(h,out info) || (info.Attributes & 0x410u)!=0x10u) {h.Dispose();throw new IOException("Исходный путь занят или содержит ссылку: "+p);}
+                    result.directoryLocks.Add(h);paths.Add(p);
                 }
-                result.Visit(source, move); return result;
+                // The held source itself anchors its parent. Reading/copying a
+                // source never needs permission to create a guard beside it.
+                result.Visit(source, move); result.AllowChildWrites(paths); return result;
             }
             catch { result.Dispose(); throw; }
         }
         internal static SourceLease HoldDirectories(string directory) {
             var result=new SourceLease();
             try {
+                // Attribute-only access ignores sharing restrictions. Read access
+                // denies directory deletion, but denying directory writes also
+                // blocks normal child-file renames. Bootstrap without write
+                // sharing, create an undeletable child, then allow child writes.
+                // The held child prevents converting an empty directory to a
+                // junction; every ancestor has its held descendant as an anchor.
                 var parents=new Stack<string>();
                 for(string p=Path.GetFullPath(directory);!string.IsNullOrEmpty(p);p=Path.GetDirectoryName(p)) parents.Push(p);
+                var paths=new List<string>();
                 while(parents.Count>0) {
-                    string p=parents.Pop(); var h=CreateFile(p,0x80u,1,IntPtr.Zero,3,0x02200000u,IntPtr.Zero);
+                    string p=parents.Pop(); var h=CreateFile(p,0x80000000u,1,IntPtr.Zero,3,0x02200000u,IntPtr.Zero);
                     HandleInfo info;
                     if(h.IsInvalid || !GetFileInformationByHandle(h,out info) || (info.Attributes & 0x400u)!=0 || (info.Attributes & 0x10u)==0) {
                         h.Dispose(); throw new IOException("Папка обновлений занята или содержит ссылку: "+p);
                     }
-                    result.directoryLocks.Add(h);
+                    result.directoryLocks.Add(h); paths.Add(p);
                 }
+                result.guardPath=Path.Combine(Path.GetFullPath(directory),".winup-path-lease-"+Guid.NewGuid().ToString("N"));
+                var guard=CreateFile(result.guardPath,0x80010000u,3,IntPtr.Zero,1,0x04200102u,IntPtr.Zero);
+                if(guard.IsInvalid) { guard.Dispose(); throw new IOException("Не удалось удержать папку для безопасной записи: "+directory); }
+                result.directoryGuards.Add(guard);
+                result.AllowChildWrites(paths);
                 return result;
             } catch { result.Dispose(); throw; }
+        }
+        void AllowChildWrites(List<string> paths) {
+                for(int i=0;i<paths.Count;i++) {
+                    var h=CreateFile(paths[i],0x80000000u,3,IntPtr.Zero,3,0x02200000u,IntPtr.Zero);
+                    HandleInfo info;
+                    if(h.IsInvalid || !GetFileInformationByHandle(h,out info) || (info.Attributes & 0x400u)!=0 || (info.Attributes & 0x10u)==0) {
+                        h.Dispose(); throw new IOException("Папка изменилась при удержании: "+paths[i]);
+                    }
+                    directoryLocks[i].Dispose(); directoryLocks[i]=h;
+                }
         }
         void Visit(string path, bool move) {
             if(files.Count+directories.Count>=10000) throw new IOException("За один раз можно добавить до 10 000 файлов и папок.");
             var attrs = File.GetAttributes(path);
             if ((attrs & FileAttributes.ReparsePoint) != 0) throw new IOException("Ссылки в исходной папке не поддерживаются.");
             bool directory = (attrs & FileAttributes.Directory) != 0;
-            var handle = CreateFile(path, (directory ? 0x80u : 0x80000000u) | (move ? 0x10000u : 0u), 1, IntPtr.Zero, 3, directory ? 0x02200000u : 0x00200000u, IntPtr.Zero);
+            var handle = CreateFile(path, 0x80000000u | (move ? 0x10000u : 0u), 1, IntPtr.Zero, 3, directory ? 0x02200000u : 0x00200000u, IntPtr.Zero);
             if (handle.IsInvalid) { handle.Dispose(); throw new IOException("Файл занят или недоступен: " + path); }
             HandleInfo info;
             if(!GetFileInformationByHandle(handle,out info) || (info.Attributes & 0x400u)!=0 || ((info.Attributes & 0x10u)!=0)!=directory) {
@@ -394,6 +420,6 @@ namespace WinUp
             }
             foreach (var handle in directoryLocks) handle.Dispose(); directoryLocks.Clear();
         }
-        public void Dispose() { foreach (var f in files) f.Dispose(); foreach (var d in directoryLocks) d.Dispose(); }
+        public void Dispose() { foreach (var f in files) f.Dispose(); foreach (var g in directoryGuards) g.Dispose(); foreach (var d in directoryLocks) d.Dispose(); }
     }
 }
