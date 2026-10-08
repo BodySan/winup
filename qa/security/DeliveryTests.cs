@@ -100,6 +100,24 @@ namespace WinUp {
             }
             using(var client=new FileVaultClient(vault,"Synthetic-Files-2026!",false))
                 Check("delivery-files-reopen",((ArrayList)client.Call("list","")["items"]).Count>=3,"reopen persisted vault");
+            // Stop immediately after native filesystem writes. The old jfuse
+            // teardown freed WinFsp's object while its native loop still ran.
+            byte[] payload=Enumerable.Range(0,65537).Select(x=>(byte)(x*17)).ToArray();
+            for(int cycle=0;cycle<12;cycle++) {
+                using(var client=new FileVaultClient(vault,"Synthetic-Files-2026!",false)) {
+                    client.Mount("R:\\");
+                    string path=@"R:\write-close-"+cycle+".bin";
+                    File.WriteAllBytes(path,payload);
+                    client.Call("close");
+                    Check("delivery-files-immediate-close-"+cycle,!Directory.Exists("R:\\"),"native loop stops before resources are freed");
+                }
+                using(var client=new FileVaultClient(vault,"Synthetic-Files-2026!",false)) {
+                    string output=Path.Combine(root,"write-close-"+cycle+".bin");
+                    client.Call("export","write-close-"+cycle+".bin",output);
+                    Check("delivery-files-written-data-"+cycle,File.ReadAllBytes(output).SequenceEqual(payload),"all bytes survive immediate close and reopen");
+                    client.Call("close");
+                }
+            }
         }
     }
 }

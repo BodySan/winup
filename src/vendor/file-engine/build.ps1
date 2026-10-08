@@ -6,6 +6,7 @@ if(!(Test-Path $javac)) { throw 'Provide the path to a JDK 24 installation.' }
 $runtime=Join-Path ([IO.Path]::GetTempPath()) ('WinUp-files-build-'+[Guid]::NewGuid().ToString('N'))
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 [IO.Compression.ZipFile]::ExtractToDirectory("$src\file-engine\file-engine.zip",$runtime)
+& "$PSScriptRoot\patch-jfuse.ps1" -Runtime $runtime -Compiler $javac
 $classpath=(@((Get-ChildItem "$runtime\app\mods" -Filter '*.jar').FullName)+@((Get-ChildItem "$runtime\app" -Filter '*.jar').FullName)) -join ';'
 & $javac --release 24 -encoding UTF-8 -cp $classpath -d "$runtime\app\winup-files" "$PSScriptRoot\WinUpFiles.java"
 if($LASTEXITCODE) { throw "Java adapter build failed; build directory: $runtime" }

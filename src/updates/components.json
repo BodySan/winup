@@ -19,11 +19,11 @@
                  },
     "files":  {
                   "file-engine.zip":  {
-                                          "sha256":  "e569de5bc6f687b7de926c7a9f2ddaa7c42a100975e9c3fb62d19b124fdcfdd1",
-                                          "size":  40885818
+                                          "sha256":  "ec353ba1e92ebb571a9301addd5d2f6a5d2f04c3055ce5700aa7d62263c48f49",
+                                          "size":  40885577
                                       },
                   "file-engine.json":  {
-                                           "sha256":  "84e8a1951efac26a1b7409c02a0b5e56735ad613fc08336c32487e826b3a6e96",
+                                           "sha256":  "e4b12ef9d28eea5b62f83508ba618d19ea1261dae7c60cc2e212f81ee0d3cba6",
                                            "size":  19555
                                        },
                   "winfsp.msi":  {
@@ -51,8 +51,8 @@
                                                  "size":  334827
                                              },
                   "THIRD-PARTY.md":  {
-                                         "sha256":  "a3a36b2bc0a2cd9984ca75566b8240c1f0d165487cca8f854bbd54125c752c42",
-                                         "size":  7604
+                                         "sha256":  "8db61bdcb0765826a1a4289fe8f1d209706b615d81cfc02e9dcadf79dc82ad5b",
+                                         "size":  8313
                                      },
                   "browser/autologin.js":  {
                                                "sha256":  "6c3ffd85a743c3615057116296aa2966d9adbc298b5fd27eacf5d54f96f10d95",

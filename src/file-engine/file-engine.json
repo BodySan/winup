@@ -37,7 +37,7 @@
     "app/mods/jfuse-linux-aarch64-0.7.3.jar":  "1ad5b3a92ce5c05cd5334bcecc589bf6ab9944b79082978e8480647ec6cf32a8",
     "app/mods/jfuse-linux-amd64-0.7.3.jar":  "29b1a8ba69c5e7cdb1f499850cf670ac2d2b490471913b87a721fba1fe3ae972",
     "app/mods/jfuse-mac-0.7.3.jar":  "b5201a73e1dc4a98b5acc8822a929c98e0f25802a6af25bbfbb3f80815b2eafa",
-    "app/mods/jfuse-win-0.7.3.jar":  "964e40b6079f661239b8d67d2f10c4978710dc6d028a71a619901722212e3375",
+    "app/mods/jfuse-win-0.7.3.jar":  "ad451e0294f36d360b04934f6da45ab18634e26a4b79080965d33e58ff58a056",
     "app/mods/jsr305-3.0.2.jar":  "766ad2a0783f2687962c8ad74ceecc38a28b9f72a2d085ee438b7813e928d0c7",
     "app/mods/listenablefuture-9999.0-empty-to-avoid-conflict-with-guava.jar":  "b372a037d4230aa57fbeffdef30fd6123f9c0c2db85d0aced00c91b974f33f99",
     "app/mods/logback-classic-1.5.18.jar":  "3e1533d0321f8815eef46750aee0111b41554f9a4644c3c4d2d404744b09f60f",

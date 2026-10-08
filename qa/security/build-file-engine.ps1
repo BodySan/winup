@@ -1,6 +1,7 @@
 ﻿$ErrorActionPreference='Stop'
 $work=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..'))
 $runtime=Join-Path $work 'vendor\cryptomator-cli\cryptomator-cli'
+& "$work\src\vendor\file-engine\patch-jfuse.ps1" -Runtime $runtime -Compiler "$runtime\WinUpCompiler.exe" -Ecj
 $classpath=(@((Get-ChildItem "$runtime\app\mods" -Filter '*.jar').FullName)+@((Get-ChildItem "$runtime\app" -Filter '*.jar').FullName)) -join ';'
 & "$runtime\WinUpCompiler.exe" -24 -encoding UTF-8 -cp $classpath -d "$runtime\app\winup-files" "$work\src\vendor\file-engine\WinUpFiles.java"
 if($LASTEXITCODE) { throw 'Java adapter build failed' }

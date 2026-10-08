@@ -25,6 +25,12 @@
 
 - Оригинальные, неизменённые CryptoFS 2.8.0 и Cryptolib 2.2.0; формат Cryptomator 8,
   SIV_GCM. Монтирование: fuse-nio-adapter 5.0.5, jfuse 0.7.3.
+- В jfuse-win 0.7.3 изменён только `FuseMountImpl`: сигнал остановки выполняется
+  до ожидания завершения нативного цикла, а `fuse3_unmount` — после него.
+  В WinFsp 2.1 этот вызов освобождает объект; исходный порядок давал воспроизводимый
+  сбой доступа к уже освобождённой памяти. Исходник исправления под LGPL v3:
+  `vendor/file-engine/jfuse-win/FuseMountImpl.java`; сборка — `patch-jfuse.ps1`.
+  Криптографические библиотеки и форматы не изменены.
 - Библиотеки и Java 24 взяты из официального cryptomator-cli 0.6.2 для Windows x64:
   https://github.com/cryptomator/cli/releases/tag/0.6.2
 - SHA-256 исходного бинарного архива:
