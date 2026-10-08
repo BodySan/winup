@@ -9,7 +9,19 @@ foreach($file in Get-ChildItem -LiteralPath $candidatePath -Recurse -File) {
     $relative=$file.FullName.Substring($candidatePath.Length+1)
     if($relative -in $mutable) { continue }
     $original=Join-Path $trusted $relative
-    if(!(Test-Path -LiteralPath $original) -or (Get-FileHash -LiteralPath $file.FullName).Hash -ne (Get-FileHash -LiteralPath $original).Hash) { throw "Candidate altered locally trusted code/resource: $relative" }
+    if(!(Test-Path -LiteralPath $original)) { throw "Candidate altered locally trusted code/resource: $relative" }
+    $candidateHash=(Get-FileHash -LiteralPath $file.FullName).Hash
+    $originalHash=(Get-FileHash -LiteralPath $original).Hash
+    if($candidateHash -ne $originalHash -and $relative -in 'browser\manifest.json','browser\firefox-manifest.json') {
+        # prepare.ps1 writes these two manifests with ConvertTo-Json. Reproduce
+        # that formatting from the locally trusted manifest, including every
+        # field. The candidate must still match the resulting bytes exactly.
+        $manifest=Get-Content -LiteralPath $original -Raw -Encoding UTF8 | ConvertFrom-Json
+        $sha=[Security.Cryptography.SHA256]::Create()
+        try { $originalHash=[BitConverter]::ToString($sha.ComputeHash([Text.Encoding]::UTF8.GetBytes(($manifest | ConvertTo-Json -Depth 12)))).Replace('-','') }
+        finally { $sha.Dispose() }
+    }
+    if($candidateHash -ne $originalHash) { throw "Candidate altered locally trusted code/resource: $relative" }
 }
 foreach($file in Get-ChildItem -LiteralPath $trusted -Recurse -File) {
     $relative=$file.FullName.Substring($trusted.Length+1)
