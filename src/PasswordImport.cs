@@ -66,9 +66,16 @@ namespace WinUp {
         }
         static string Copy(string value){return new string(value.ToCharArray());}
         static bool SameOtp(OtpEntry a,OtpEntry b){return a.Algorithm==b.Algorithm&&a.Digits==b.Digits&&a.Period==b.Period&&a.UseSecret(x=>b.UseSecret(y=>x==y));}
+        static string IdentityService(Uri uri){
+            if(uri.Scheme!="https"||uri.Port!=443||uri.UserInfo.Length!=0)return null;
+            string host=uri.Host.ToLowerInvariant();
+            if(new[]{"google.com","www.google.com","accounts.google.com","myaccount.google.com","mail.google.com","drive.google.com","calendar.google.com","photos.google.com","keep.google.com","meet.google.com","contacts.google.com","youtube.com","www.youtube.com","studio.youtube.com"}.Contains(host))return "google";
+            if(new[]{"icloud.com","www.icloud.com","account.apple.com","appleid.apple.com","idmsa.apple.com"}.Contains(host))return "apple";
+            return null;
+        }
         internal static bool SameAccount(LoginEntry a,LoginEntry b){Uri ua,ub;return a.Kind!="app"&&b.Kind!="app"&&Uri.TryCreate(a.Target,UriKind.Absolute,out ua)&&Uri.TryCreate(b.Target,UriKind.Absolute,out ub)&&
             (ua.Scheme=="http"||ua.Scheme=="https")&&(ub.Scheme=="http"||ub.Scheme=="https")&&
-            string.Equals(ua.Host,ub.Host,StringComparison.OrdinalIgnoreCase)&&ua.Port==ub.Port&&
+            ((string.Equals(ua.Host,ub.Host,StringComparison.OrdinalIgnoreCase)&&ua.Port==ub.Port)||(IdentityService(ua)!=null&&IdentityService(ua)==IdentityService(ub)))&&
             (string.Equals(a.Login??"",b.Login??"",StringComparison.Ordinal)||(!string.IsNullOrEmpty(a.Login2)&&a.Login2==b.Login));}
         static bool TryAddCompat(this Dictionary<string,int> map,string key,int value){if(map.ContainsKey(key))return false;map.Add(key,value);return true;}
         static int Index(Dictionary<string,int> header,string key){int result;return header.TryGetValue(key,out result)?result:-1;}

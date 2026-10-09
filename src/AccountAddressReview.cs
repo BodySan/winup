@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -29,7 +29,7 @@ namespace WinUp {
                 else{
                     string origin=LoginProfiles.Origin(target);
                     var expected=LoginProfiles.All.FirstOrDefault(p=>p.Id==entry.LoginProfile)??LoginProfiles.All.FirstOrDefault(p=>p.Id==AppStore.TemplateName(entry.Name));
-                    if(expected!=null&&!expected.Origins.Contains(origin,StringComparer.OrdinalIgnoreCase))messages.Add("Адрес сайта отличается от шаблона «"+expected.Id+"»: проверьте домен вручную");
+                    if(expected!=null&&!expected.Origins.Contains(origin,StringComparer.OrdinalIgnoreCase)&&!expected.Sites.Contains(origin,StringComparer.OrdinalIgnoreCase))messages.Add("Адрес сайта отличается от шаблона «"+expected.Id+"»: проверьте домен вручную");
                     var draft=new LoginEntry{Name=entry.Name,Target=target,LoginUrl=entry.LoginUrl,LoginProfile=entry.LoginProfile};
                     var profile=LoginProfiles.Resolve(draft);
                     if(profile==null)messages.Add("Адрес входа не принадлежит сайту или разрешённому сервису входа");

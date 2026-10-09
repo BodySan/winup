@@ -2,7 +2,7 @@
     "schema":  1,
     "api":  6,
     "sequence":  0,
-    "minApp":  "1.16.1.0",
+    "minApp":  "1.16.2.0",
     "maxApp":  "1.16.999.999",
     "versions":  {
                      "cryptofs":  "2.8.0",
