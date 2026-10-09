@@ -14,13 +14,13 @@ namespace WinUp {
         public void Dispose(){foreach(var row in Rows)if(!row.Adopted){if(row.Entry!=null)row.Entry.ClearSecrets();if(row.Otp!=null)row.Otp.ClearSecret();}}
     }
     internal static class PasswordImport {
-        internal static PasswordImportResult Read(string path,IEnumerable<LoginEntry> existing){
+        internal static PasswordImportResult Read(string path,IEnumerable<LoginEntry> existing,IEnumerable<OtpEntry> existingOtp=null){
             using(var lease=SourceLease.Acquire(path,false)) {
                 byte[] bytes=SafeStorage.ReadBounded(path,8*1024*1024);string text=null;
-                try{text=new UTF8Encoding(false,true).GetString(bytes);return Parse(text,existing);}finally{Array.Clear(bytes,0,bytes.Length);Secure.Wipe(text);}
+                try{text=new UTF8Encoding(false,true).GetString(bytes);return Parse(text,existing,existingOtp);}finally{Array.Clear(bytes,0,bytes.Length);Secure.Wipe(text);}
             }
         }
-        internal static PasswordImportResult Parse(string text,IEnumerable<LoginEntry> existing) {
+        internal static PasswordImportResult Parse(string text,IEnumerable<LoginEntry> existing,IEnumerable<OtpEntry> existingOtp=null) {
             if(text==null||text.Length>8*1024*1024)throw new IOException("CSV слишком большой.");
             var result=new PasswordImportResult();
             List<string[]> rows=null;
@@ -49,7 +49,14 @@ namespace WinUp {
                         else{row.Otp.Id=AppStore.NewId();entry.TwoFa="link";entry.OtpId=row.Otp.Id;}
                     }
                     var matches=known.Concat(accepted).Where(x=>SameAccount(x,entry)).ToList();
-                    if(matches.Any(x=>x.UsePassword(a=>entry.UsePassword(b=>a==b)))) {row.Selectable=false;row.DefaultSelected=false;row.Status="Совпадает с существующей или предыдущей записью: пропустить";}
+                    var identical=matches.Where(x=>x.UsePassword(a=>entry.UsePassword(b=>a==b))).ToList();
+                    if(identical.Count>0) {
+                        var linked=(existingOtp??new OtpEntry[0]).Concat(result.Rows.Where(x=>x!=row&&x.Otp!=null).Select(x=>x.Otp));
+                        bool extra=row.Otp!=null&&!identical.Any(x=>linked.Any(o=>o.Id==x.OtpId&&SameOtp(o,row.Otp)))||(!string.IsNullOrEmpty(entry.Notes)&&!identical.Any(x=>x.Notes==entry.Notes));
+                        row.DefaultSelected=false;
+                        if(extra){row.Status="Пароль совпадает, но есть новые заметки / 2FA: можно добавить отдельно";}
+                        else{row.Selectable=false;row.Status="Дубль: пропустить — "+identical[0].Name;}
+                    }
                     else if(matches.Count>0){row.DefaultSelected=false;row.Status="Другой пароль у этого аккаунта: можно добавить отдельной записью";}
                     else if(row.Status==null){row.Status="Новая запись"+(row.Otp==null?"":" + 2FA");}
                     if(row.Selectable)accepted.Add(entry);Clear(fields);
@@ -58,8 +65,11 @@ namespace WinUp {
             }catch{result.Dispose();throw;}finally{if(rows!=null)foreach(string[] row in rows)Clear(row);}
         }
         static string Copy(string value){return new string(value.ToCharArray());}
-        internal static bool SameAccount(LoginEntry a,LoginEntry b){Uri ua,ub;return Uri.TryCreate(a.Target,UriKind.Absolute,out ua)&&Uri.TryCreate(b.Target,UriKind.Absolute,out ub)&&
-            string.Equals(ua.Host,ub.Host,StringComparison.OrdinalIgnoreCase)&&ua.Port==ub.Port&&string.Equals(a.Login??"",b.Login??"",StringComparison.Ordinal);}
+        static bool SameOtp(OtpEntry a,OtpEntry b){return a.Algorithm==b.Algorithm&&a.Digits==b.Digits&&a.Period==b.Period&&a.UseSecret(x=>b.UseSecret(y=>x==y));}
+        internal static bool SameAccount(LoginEntry a,LoginEntry b){Uri ua,ub;return a.Kind!="app"&&b.Kind!="app"&&Uri.TryCreate(a.Target,UriKind.Absolute,out ua)&&Uri.TryCreate(b.Target,UriKind.Absolute,out ub)&&
+            (ua.Scheme=="http"||ua.Scheme=="https")&&(ub.Scheme=="http"||ub.Scheme=="https")&&
+            string.Equals(ua.Host,ub.Host,StringComparison.OrdinalIgnoreCase)&&ua.Port==ub.Port&&
+            (string.Equals(a.Login??"",b.Login??"",StringComparison.Ordinal)||(!string.IsNullOrEmpty(a.Login2)&&a.Login2==b.Login));}
         static bool TryAddCompat(this Dictionary<string,int> map,string key,int value){if(map.ContainsKey(key))return false;map.Add(key,value);return true;}
         static int Index(Dictionary<string,int> header,string key){int result;return header.TryGetValue(key,out result)?result:-1;}
         static void Clear(string[] fields){foreach(string field in fields)Secure.Wipe(field);}
@@ -88,7 +98,7 @@ namespace WinUp {
             list.Columns.Add("Название",150);list.Columns.Add("Сайт",150);list.Columns.Add("Логин",150);list.Columns.Add("Результат",400);
             foreach(var row in result.Rows){var entry=row.Entry;var item=new ListViewItem(new[]{entry==null?"":entry.Name,entry==null?"":entry.Target,entry==null?"":entry.Login,row.Status}){Tag=row,Checked=row.Selectable&&row.DefaultSelected};list.Items.Add(item);}
             list.ItemCheck+=(s,e)=>{if(!((PasswordImportRow)list.Items[e.Index].Tag).Selectable)e.NewValue=CheckState.Unchecked;};FullRow(list);
-            FullRow(new Label{AutoSize=true,Text="Пароли в просмотре скрыты. Существующие записи не перезаписываются.\nКонфликт можно выбрать для добавления отдельной записью.\nCSV содержит открытые пароли. После успешного переноса удалите экспорт.\nPasskey не импортируется этим способом; 2FA — только при наличии OTPAuth."});Buttons();Ok.Text="Импортировать выбранное";
+            FullRow(new Label{AutoSize=true,Text="Новых: "+result.Rows.Count(x=>x.Selectable&&x.DefaultSelected)+". Дублей / пропущенных: "+result.Rows.Count(x=>!x.Selectable)+". Требуют выбора: "+result.Rows.Count(x=>x.Selectable&&!x.DefaultSelected)+".\nДубли ищутся в базе и внутри CSV, включая дополнительный логин. Пароли в просмотре скрыты.\nСуществующие записи не перезаписываются. Другой пароль / новые данные можно добавить отдельно.\nCSV содержит открытые пароли. После успешного переноса удалите экспорт.\nPasskey не импортируется этим способом; 2FA — только при наличии OTPAuth."});Buttons();Ok.Text="Импортировать выбранное";
             Ok.Click+=(s,e)=>{if(!Selected.Any()){DialogResult=DialogResult.None;MessageBox.Show(this,"Выберите хотя бы одну новую запись.","WinUp");}};
         }
     }
@@ -96,7 +106,7 @@ namespace WinUp {
         void ImportPasswords(){if(!NeedVault())return;
             using(var picker=new OpenFileDialog{Filter="CSV Google / Apple|*.csv",Title="Выберите экспорт паролей"}){
                 if(picker.ShowDialog(this)!=DialogResult.OK)return;
-                using(var result=PasswordImport.Read(picker.FileName,vault.Entries))using(var dialog=new PasswordImportDialog(result)){
+                using(var result=PasswordImport.Read(picker.FileName,vault.Entries,vault.Otp))using(var dialog=new PasswordImportDialog(result)){
                     var current=vault;if(dialog.ShowDialog(this)!=DialogResult.OK||vault!=current||current==null)return;
                     var selected=dialog.Selected.ToList();
                     foreach(var row in selected){current.Entries.Add(row.Entry);if(row.Otp!=null)current.Otp.Add(row.Otp);}

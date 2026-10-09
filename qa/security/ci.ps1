@@ -38,6 +38,12 @@ if($env:GITHUB_ACTIONS -eq 'true') {
     if(!$fileProbe.WaitForExit(600000)){$fileProbe.Kill();throw 'File workflows timeout'}
     $fileResult=[IO.File]::ReadAllText("$Output\file-workflows.txt")
     if($fileResult -notmatch 'RESULT passed=\d+ failed=0'){throw 'File workflows failed; nothing is ready for release'}
+    $layoutProbe=Start-Process -FilePath "$fileLab\FileWorkflowProbe.exe" -ArgumentList '--ci','--layout' -WindowStyle Hidden -PassThru -RedirectStandardOutput "$Output\layout.txt" -RedirectStandardError "$Output\layout-errors.txt"
+    # Cache the process handle before waiting: Windows PowerShell may otherwise
+    # leave ExitCode null even though the redirected checks finished successfully.
+    [void]$layoutProbe.Handle
+    if(!$layoutProbe.WaitForExit(120000)){$layoutProbe.Kill();throw 'Action layout timeout'}
+    if($layoutProbe.ExitCode -ne 0 -or [IO.File]::ReadAllText("$Output\layout.txt") -notmatch 'PASS layout all'){throw 'Action layout checks failed'}
 }
 if($FunctionalOnly) {
     & node "$PSScriptRoot\..\tests\passkey-focus-regression.cjs"

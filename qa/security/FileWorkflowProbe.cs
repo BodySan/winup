@@ -1,4 +1,4 @@
-// Functional tests of real encryption, mounted disk and portable recovery. Synthetic Sandbox data only.
+﻿// Functional tests of real encryption, mounted disk and portable recovery. Synthetic Sandbox data only.
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -21,12 +21,36 @@ namespace WinUp {
             if(Environment.UserName!="WDAGUtilityAccount"&&!ci)throw new Exception("Synthetic Windows Sandbox or isolated GitHub runner only");
             AppDomain.CurrentDomain.AssemblyResolve+=(s,e)=>new AssemblyName(e.Name).Name=="KeePassLib"?CoreLoader.Resolve():EmbeddedModules.Resolve(e.Name);
             string root=Path.Combine(Paths.Root,"files-workflow-"+Guid.NewGuid().ToString("N"));Directory.CreateDirectory(root);
+            if(args.Contains("--interop")){Interop(root);return 0;}
+            if(args.Contains("--routes")){Routes();return 0;}
             if(args.Contains("--ui")){Ui(root);return 0;}
+            if(args.Contains("--layout")){Ui(root,true);return 0;}
             if(args.Contains("--readonly")){try{ReadOnlyProbe(root);}catch(Exception ex){Console.WriteLine(ex);failed++;}Console.WriteLine("RESULT passed="+passed+" failed="+failed);return failed==0?0:1;}
             try{Run(root);}catch(Exception ex){Console.WriteLine("FAIL exception "+ex);failed++;}
             Console.WriteLine("RESULT passed="+passed+" failed="+failed);return failed==0?0:1;
         }
         static void Run(string root){
+            CheckWaitingAddressUi();
+            var apps=new[]{new LocalApplication{Name="ChatGPT",Target=LocalApplications.ShellPrefix+"Synthetic.ChatGPT!App"}};
+            var existingApp=new LoginEntry{Name="ChatGPT",Kind="both",Target="https://chatgpt.com/",AppTarget=@"C:\not-installed.exe",Login="demo",Password="Synthetic-only",Args="old"};
+            var review=AccountAddressReview.Inspect(existingApp,apps);review.Apply();
+            Check("address-review-installed-app-and-route",review.FixApp&&existingApp.AppTarget==apps[0].Target&&existingApp.Args==""&&existingApp.LoginUrl==LoginProfiles.Resolve(existingApp).LoginUrl&&existingApp.UsePassword(p=>p=="Synthetic-only"));
+            var custom=new LoginEntry{Name="Custom",Kind="site",Target="https://example.com/",LoginUrl="https://example.com/my-login"};
+            Check("address-review-preserves-custom-login-route",!AccountAddressReview.Inspect(custom,apps).FixLogin);
+            Check("address-review-rejects-unrelated-login-route",!AccountAddressReview.Inspect(new LoginEntry{Kind="site",Target="https://example.com/",LoginUrl="https://unrelated.example/"},apps).FixLogin);
+            Check("address-review-missing-scheme-proposal",AccountAddressReview.Inspect(new LoginEntry{Kind="site",Target="example.com"},apps).Target=="https://example.com");
+            Check("address-review-known-service-wrong-domain-warning",AccountAddressReview.Inspect(new LoginEntry{Name="Google",Kind="site",Target="https://other.example/"},apps).Message.Contains("отличается от шаблона"));
+            var steamLogin=LoginProfiles.Resolve(new LoginEntry{Name="Steam Community",Target="https://steamcommunity.com/"});
+            Check("login-profile-saved-account-at-reviewed-login-origin",steamLogin.Id=="Steam Community"&&steamLogin.LoginUrl=="https://steamcommunity.com/login/home/"&&!AccountAddressReview.Inspect(new LoginEntry{Name="Steam Community",Target="https://steamcommunity.com/"},apps).Message.Contains("отличается"));
+            var alias=new LoginEntry{Kind="site",Target="https://example.com/",Login="user",Login2="user@example.com",Password="Synthetic"};
+            using(var duplicates=PasswordImport.Parse("name,url,username,password\nTest,https://example.com/login,user@example.com,Synthetic\nTest,https://example.com/login,new,Synthetic\nTest,https://example.com/login,new,Synthetic",new[]{alias}))Check("import-existing-alias-and-in-file-duplicates",!duplicates.Rows[0].Selectable&&duplicates.Rows[1].DefaultSelected&&!duplicates.Rows[2].Selectable);
+            using(var extra=PasswordImport.Parse("name,url,username,password,note\nTest,https://example.com/,user,Synthetic,New note",new[]{alias}))Check("import-same-password-new-notes-not-dropped",extra.Rows[0].Selectable&&!extra.Rows[0].DefaultSelected);
+            using(var extra=PasswordImport.Parse("Title,URL,Username,Password,OTPAuth\nTest,https://example.com/,user,Synthetic,otpauth://totp/Test:user?secret=JBSWY3DPEHPK3PXP",new[]{alias}))Check("import-same-password-new-otp-not-dropped",extra.Rows[0].Selectable&&!extra.Rows[0].DefaultSelected&&extra.Rows[0].Otp!=null);
+            using(var sameOtp=PasswordImport.Parse("Title,URL,Username,Password,OTPAuth\nTest,https://example.org/,user,Synthetic,otpauth://totp/Test:user?secret=JBSWY3DPEHPK3PXP\nTest,https://example.org/,user,Synthetic,otpauth://totp/Test:user?secret=JBSWY3DPEHPK3PXP",new LoginEntry[0]))Check("import-in-file-duplicate-with-otp-skipped",sameOtp.Rows[0].DefaultSelected&&!sameOtp.Rows[1].Selectable);
+            string memoPackage=Path.Combine(root,"Пакет 'учебный'.tar.age");FileInteroperability.WritePackageMemo(memoPackage);string memo=File.ReadAllText(memoPackage+".README.txt");
+            Check("independent-guide-filename-quoted-no-secret",memo.Contains("'Пакет ''учебный''.tar.age'")&&!memo.Contains(Password));
+            File.WriteAllText(memoPackage+".README.txt","Existing memo");FileInteroperability.WritePackageMemo(memoPackage);
+            Check("independent-guide-preserves-existing-memo",File.ReadAllText(memoPackage+".README.txt")=="Existing memo");
             Check("package-name-extension-once",FilePackages.PackageOutputName("example.tar.age")=="example.tar.age"&&FilePackages.PackageOutputName("example")=="example.tar.age"&&FilePackages.PackageOutputName("example.tar")=="example.tar.age");
             var importedService=new LoginEntry{Name="accounts.google.com",Kind="site",Target="https://accounts.google.com/"};
             Check("imported-account-hint-by-template-login-host",AccountOrganization.SameService(importedService,"Google","https://www.google.com/",null,"https://accounts.google.com/login")&&!AccountOrganization.SameService(importedService,"Other","https://other.example/",null,"https://accounts.google.com.evil.example/login"));
@@ -139,7 +163,45 @@ namespace WinUp {
                 Check("lock-all-keeps-both-closed",form.VaultNow==null&&typeof(MainForm).GetField("fileVault",flags).GetValue(form)==null);
             }
         }
-        static void Ui(string root){
+        static void CheckWaitingAddressUi(){
+            var listener=new System.Net.HttpListener();listener.Prefixes.Add("http://localhost:19381/");listener.Start();
+            var response=System.Threading.Tasks.Task.Run(async()=>{try{var request=await listener.GetContextAsync();await System.Threading.Tasks.Task.Delay(700);request.Response.StatusCode=200;request.Response.Close();}catch(System.Net.HttpListenerException){}catch(ObjectDisposedException){}});
+            try{
+                var entry=new LoginEntry{Name="Synthetic delayed site",Kind="site",Target="http://localhost:19381/login",LoginUrl="http://localhost:19381/login"};
+                using(var dialog=new AccountAddressDialog(()=>true,x=>false,x=>{},()=>new[]{entry})){
+                    dialog.Show();var list=Descendants(dialog).OfType<ListView>().Single();
+                    var timeout=DateTime.UtcNow.AddSeconds(12);while(list.Items.Count==0&&DateTime.UtcNow<timeout){Application.DoEvents();Thread.Sleep(20);}if(list.Items.Count!=1)throw new Exception("Address review initialization timeout");
+                    list.Items[0].Selected=true;
+                    var operation=(System.Threading.Tasks.Task)typeof(AccountAddressDialog).GetMethod("Web",BindingFlags.NonPublic|BindingFlags.Instance).Invoke(dialog,null);
+                    Check("address-web-pending-blocks-edit-and-apply",Descendants(dialog).OfType<Button>().Where(b=>b.Text=="Изменить запись…"||b.Text=="Применить отмеченные исправления").All(b=>!b.Enabled));
+                    timeout=DateTime.UtcNow.AddSeconds(12);while(!operation.IsCompleted&&DateTime.UtcNow<timeout){Application.DoEvents();Thread.Sleep(20);}if(!operation.IsCompleted)throw new Exception("Address Web status timeout");operation.GetAwaiter().GetResult();
+                    Check("address-web-result-and-actions-restored",list.Items[0].SubItems[1].Text.Contains("HTTP 200")&&Descendants(dialog).OfType<Button>().Where(b=>b.Text=="Изменить запись…"||b.Text=="Применить отмеченные исправления").All(b=>b.Enabled));
+                    dialog.Close();
+                }
+            }finally{listener.Stop();listener.Close();}
+        }
+        static void Interop(string root){
+            string source=Path.Combine(root,"Учебные файлы");Directory.CreateDirectory(Path.Combine(source,"Пустая папка"));
+            File.WriteAllText(Path.Combine(source,"Заметки.txt"),"Независимая расшифровка. Учебные данные. 😀",new UTF8Encoding(false));
+            File.WriteAllBytes(Path.Combine(source,"Binary.bin"),Enumerable.Range(0,8192).Select(i=>(byte)(i%251)).ToArray());
+            string package=Path.Combine(root,"Учебный пакет.tar.age");FilePackages.Pack(new[]{source},package,Password,false,CancellationToken.None);FileInteroperability.WritePackageMemo(package);
+            string folder=Path.Combine(root,"Cryptomator-vault");using(var client=new FileVaultClient(folder,Password,true)){client.Import(source,"Проект",false);client.Call("close");}
+            File.WriteAllText(@"C:\WinUp\test\usability-1.16.1\Как открыть без WinUp.txt",FileInteroperability.All(),new UTF8Encoding(true));
+            File.WriteAllText(@"C:\WinUp\test\usability-1.16.1\interop-fixtures.json",new System.Web.Script.Serialization.JavaScriptSerializer().Serialize(new{root=root,source=source,package=package,vault=folder,password=Password}));
+            Console.WriteLine("PASS synthetic fixtures created; WinUp clients closed before independent recovery");
+        }
+        static void Routes(){
+            var templates=Defaults.Load().Templates.Where(t=>t.Kind!="app").ToArray();
+            var addresses=templates.SelectMany(t=>new[]{t.Target,t.LoginUrl}).Concat(LoginProfiles.All.Select(p=>p.LoginUrl)).Where(x=>LoginProfiles.Origin(x)!=null).Distinct().ToArray();
+            var result=new List<object>();var gate=new object();
+            System.Threading.Tasks.Parallel.ForEach(addresses,new System.Threading.Tasks.ParallelOptions{MaxDegreeOfParallelism=6},url=>{
+                string status=AccountAddressReview.CheckWeb(url,CancellationToken.None);
+                lock(gate){result.Add(new{url=url,status=status});Console.WriteLine("CHECK "+result.Count+"/"+addresses.Length+" "+url+" "+status);}
+            });
+            File.WriteAllText(@"C:\WinUp\test\usability-1.16.1\public-route-checks.json",new System.Web.Script.Serialization.JavaScriptSerializer().Serialize(result),new UTF8Encoding(false));
+            Console.WriteLine("PASS checked "+addresses.Length+" public built-in URLs without credentials; HTTP checks do not establish a working login form");
+        }
+        static void Ui(string root,bool layout=false){
             Console.WriteLine("UI initializing");
             Application.EnableVisualStyles();Directory.CreateDirectory(Paths.Data);
             var store=new AppStore{Templates=Defaults.Load().Templates};store.Settings.WizardDone=true;store.Settings.HideFromCapture=false;store.Settings.AutoLockMinutes=1440;store.Settings.BackupDir=Path.Combine(root,"password-backups");store.Save();
@@ -156,9 +218,35 @@ namespace WinUp {
             typeof(MainForm).GetField("vault",flags).SetValue(form,vault);typeof(MainForm).GetMethod("ShowOpen",flags).Invoke(form,null);
             typeof(MainForm).GetMethod("RememberFileVault",flags).Invoke(form,new object[]{folder});typeof(MainForm).GetField("fileVault",flags).SetValue(form,client);
             var preferences=new FileVaultPreferences{Drive="R:\\",HistoryMiB=16,HistoryKeep=3};preferences.Save(folder);typeof(MainForm).GetField("filePreferences",flags).SetValue(form,preferences);
-            form.Shown+=(s,e)=>{typeof(MainForm).GetMethod("RefreshFileItems",flags).Invoke(form,null);};
+            form.Shown+=(s,e)=>{typeof(MainForm).GetMethod("RefreshFileItems",flags).Invoke(form,null);if(layout){var timer=new System.Windows.Forms.Timer{Interval=200};timer.Tick+=(a,b)=>{timer.Stop();try{CheckActionLayout(form);form.Close();}catch(Exception error){Console.WriteLine("FAIL layout "+error);Environment.Exit(1);}finally{timer.Dispose();}};timer.Start();}};
             File.WriteAllText(Path.Combine(root,"..","ui-ready.json"),new System.Web.Script.Serialization.JavaScriptSerializer().Serialize(new{pid=System.Diagnostics.Process.GetCurrentProcess().Id,root=root,password=Password,vault=folder}));
             Application.Run(form);
+        }
+        static IEnumerable<Control> Descendants(Control control){foreach(Control child in control.Controls){yield return child;foreach(var nested in Descendants(child))yield return nested;}}
+        static void CheckActionLayout(MainForm form){
+            string shots=@"C:\WinUp\test\usability-1.16.1\shots";Directory.CreateDirectory(shots);
+            var tabs=Descendants(form).OfType<TabControl>().First();int checkedButtons=0;
+            foreach(var size in new[]{new System.Drawing.Size(700,550),new System.Drawing.Size(1080,760)}){
+                form.Size=size;
+                foreach(TabPage page in tabs.TabPages){
+                    tabs.SelectedTab=page;Application.DoEvents();form.PerformLayout();Application.DoEvents();
+                    var area=Descendants(page).OfType<SectionActions>().Single();
+                    foreach(var label in Descendants(area).OfType<Label>())if(label.Height<15||label.Width<60)throw new Exception(page.Text+": group caption invisible "+label.Text+" "+label.Bounds);
+                    foreach(var button in Descendants(area).OfType<Button>()){
+                        area.ScrollControlIntoView(button);Application.DoEvents();
+                        var bounds=button.RectangleToScreen(button.ClientRectangle);var viewport=area.RectangleToScreen(area.ClientRectangle);
+                        if(!viewport.Contains(bounds))throw new Exception(page.Text+": action clipped "+button.Text+" at "+size+" "+bounds+" outside "+viewport);
+                        checkedButtons++;
+                    }
+                    area.AutoScrollPosition=System.Drawing.Point.Empty;Application.DoEvents();
+                    if(size.Width==1080&&area.VerticalScroll.Visible)throw new Exception(page.Text+": full-size actions unnecessarily scroll");
+                    var list=Descendants(page).OfType<ListView>().First(v=>v.Visible);
+                    if(list.Height<110)throw new Exception(page.Text+": record list too small "+list.Height);
+                    if(size.Width==1080){using(var image=new System.Drawing.Bitmap(form.Width,form.Height)){form.DrawToBitmap(image,new System.Drawing.Rectangle(System.Drawing.Point.Empty,form.Size));image.Save(Path.Combine(shots,"117-"+tabs.SelectedIndex+".png"));}}
+                    Console.WriteLine("PASS layout "+page.Text+" at "+size+" listHeight="+list.Height);
+                }
+            }
+            Console.WriteLine("PASS layout all "+checkedButtons+" action placements reachable; eight tabs at both window sizes");
         }
         static void ReadOnlyProbe(string root){
             string folder=Path.Combine(root,"vault"),source=Path.Combine(root,"file.txt");File.WriteAllText(source,"Synthetic read-only");

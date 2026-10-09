@@ -89,7 +89,7 @@ namespace WinUp
             Text = "WinUp — " + Paths.Root;
             Font = new Font("Segoe UI", 9f);
             Icon = AppIcons.Open;
-            Size = new Size(900, 620);
+            Size = new Size(Math.Min(1080,Screen.PrimaryScreen.WorkingArea.Width-40),Math.Min(760,Screen.PrimaryScreen.WorkingArea.Height-40));
             MinimumSize = new Size(700, 550);
             StartPosition = FormStartPosition.CenterScreen;
 
@@ -270,6 +270,7 @@ namespace WinUp
             linkList.DoubleClick += (s, e) => OpenLink();
             BindDesc(linkList, linkDesc, t => { var l = (LinkItem)t; return l.Name + ": " + (l.Description ?? "") + "\r\nСайт: " + l.Url; });
             page.Controls.Add(linkList); page.Controls.Add(linkDesc); page.Controls.Add(bar);
+            ArrangeActions(page,new[]{bar},new ActionGroup("Скачать",Actions(bar,"Открыть сайт")),new ActionGroup("Список",Actions(bar,"Добавить...","Изменить...","Удалить")));
             tabs.TabPages.Add(page);
         }
 
@@ -307,6 +308,10 @@ namespace WinUp
             instList.DoubleClick += (s, e) => EditSelected(instList);
             BindDesc(instList, instDesc, t => AppDesc((AppItem)t));
             page.Controls.Add(instList); page.Controls.Add(instDesc); page.Controls.Add(bar);
+            ArrangeActions(page,new[]{bar},
+                new ActionGroup("Установка",Actions(bar,"Установить отмеченные","Тихо, без подтверждений","Отметить все / снять")),
+                new ActionGroup("Добавление",Actions(bar,"Добавить файлы...","Добавить папку...","Найти новые в apps","Найти установщики на ПК...")),
+                new ActionGroup("Список",Actions(bar,"Изменить...","Убрать из списка")));
             tabs.TabPages.Add(page);
         }
 
@@ -322,6 +327,7 @@ namespace WinUp
             portList.DoubleClick += (s, e) => LaunchSelected();
             BindDesc(portList, portDesc, t => AppDesc((AppItem)t));
             page.Controls.Add(portList); page.Controls.Add(portDesc); page.Controls.Add(bar);
+            ArrangeActions(page,new[]{bar},new ActionGroup("Запуск",Actions(bar,"Запустить")),new ActionGroup("Список",Actions(bar,"Добавить файлы...","Изменить...","Убрать из списка")));
             tabs.TabPages.Add(page);
         }
 
@@ -790,6 +796,10 @@ namespace WinUp
             wgInfo.Text = "Программы ставятся из официального каталога Windows (winget) с сайтов разработчиков — нужен интернет. " +
                           "«Мой набор» хранится в списке WinUp и переезжает вместе с ним. Установка и обновление означают согласие с лицензиями этих программ.";
             page.Controls.Add(wgList); page.Controls.Add(bar); page.Controls.Add(top); page.Controls.Add(wgInfo);
+            ArrangeActions(page,new[]{top,bar},
+                new ActionGroup("Поиск",new[]{(Control)wgQuery}.Concat(Actions(top,"Найти","Проверить обновления","Мой набор")).ToArray()),
+                new ActionGroup("Установка",bar.Controls.Cast<Control>().Take(4).ToArray()),
+                new ActionGroup("Набор",Actions(bar,"Добавить в мой набор","Убрать из набора")));
             tabs.TabPages.Add(page);
         }
 
@@ -946,6 +956,7 @@ namespace WinUp
             var hint = new Label { Dock = DockStyle.Bottom, Height = 36, Padding = new Padding(6), ForeColor = SystemColors.GrayText,
                 Text = "Двойной щелчок — скопировать код. Коды те же, что в приложении на телефоне, если там добавлен тот же аккаунт." };
             otpOpen.Controls.Add(otpList); otpOpen.Controls.Add(bar); otpOpen.Controls.Add(hint);
+            ArrangeActions(otpOpen,new[]{bar},new ActionGroup("Код",Actions(bar,"Копировать код")),new ActionGroup("Аккаунты",Actions(bar,"Добавить...","Изменить...","Импорт из другого приложения...","Удалить")));
             page.Controls.Add(otpOpen); page.Controls.Add(otpLocked);
             tabs.TabPages.Add(page);
             otpTimer.Tick += (s, e) => TickCodes();
@@ -1608,6 +1619,7 @@ namespace WinUp
             Btn(bar, "Добавить...", (s, e) => AddEntry());
             Btn(bar, "Импорт паролей…", (s, e) => {try{ImportPasswords();}catch(Exception ex){MessageBox.Show(this,ex.Message,"WinUp — импорт паролей");}});
             Btn(bar, "Изменить...", (s, e) => EditEntry());
+            Btn(bar, "Проверить адреса…", (s, e) => ReviewAccountAddresses());
             Btn(bar, "Закрепить / открепить", (s, e) => TogglePinnedPassword());
             Btn(bar, "Удалить", (s, e) => DeleteEntry());
             Btn(bar, "Генератор...", (s, e) => { using (var d = new GenDialog(false)) d.ShowDialog(this); });
@@ -1629,6 +1641,10 @@ namespace WinUp
 
             pwList.DoubleClick += async (s, e) => await LoginSelected();
             openPanel.Controls.Add(pwList); openPanel.Controls.Add(BuildPasswordFilters());openPanel.Controls.Add(bar); openPanel.Controls.Add(bar2);
+            ArrangeActions(openPanel,new[]{bar,bar2},
+                new ActionGroup("Вход",Actions(bar,"Войти","Войти в отмеченные","Копировать логин","Копировать пароль","Код 2FA")),
+                new ActionGroup("Записи",Actions(bar,"Добавить...","Изменить...","Импорт паролей…","Проверить адреса…","Закрепить / открепить","Генератор...","Удалить")),
+                new ActionGroup("База / браузер",new[]{(Control)browserBox}.Concat(Actions(bar2,"Заблокировать базу","Код восстановления...","Сменить пароль базы...","Папка резерва...")).ToArray()));
 
             page.Controls.Add(openPanel); page.Controls.Add(lockedPanel); page.Controls.Add(pwLog);
             tabs.TabPages.Add(page);
@@ -2405,11 +2421,11 @@ namespace WinUp
             } finally {if(!retained){e.ClearSecrets();foreach(var o in d.NewOtp)o.ClearSecret();}} }
         }
 
-        void EditEntry()
+        void EditEntry() { EditEntry(SelectedEntry()); }
+        void EditEntry(LoginEntry e)
         {
             if (vault == null) return;
-            var e = SelectedEntry();
-            if (e == null) return;
+            if (e == null || !vault.Entries.Contains(e)) return;
             var copy = e.Copy();
             bool retained = false;
             try { using (var d = new EntryDialog(copy, store, false, vault.Otp, vault.Entries))
