@@ -22,12 +22,13 @@ namespace WinUp {
                         row.Latest=row.Pending;ComponentInventory.Availability(row);
                         if(!row.Status.Contains("уже подготовлена"))throw new Exception("Prepared version offered twice: "+row.Id);
                     }
-                    Console.WriteLine("PASS installed-package-keeps-runtime-snapshot-and-all-ten-pending-versions");
+                    int expectedPending=rows.Count(r=>r.Id!="keepass" && r.Id!="winfsp");
+                    Console.WriteLine("PASS installed-package-keeps-runtime-snapshot-and-all-"+expectedPending+"-pending-versions");
                     Application.EnableVisualStyles();
                     using(var dialog=new ComponentUpdatesDialog(null,delegate {},delegate {})) {
                         dialog.Show();Application.DoEvents();
                         var list=dialog.Controls.OfType<ListView>().Single();
-                        if(list.Columns.Count!=5 || list.Items.Cast<ListViewItem>().Count(i=>i.SubItems[2].Text!="—")!=10)throw new Exception("Pending versions missing in real UI");
+                        if(list.Columns.Count!=5 || list.Items.Cast<ListViewItem>().Count(i=>i.SubItems[2].Text!="—")!=expectedPending)throw new Exception("Pending versions missing in real UI");
                         var method=typeof(ComponentUpdatesDialog).GetMethod("Installed",BindingFlags.Instance|BindingFlags.NonPublic);method.Invoke(dialog,null);
                         if(!dialog.Controls.OfType<TextBox>().Single().Text.Contains("подготовлен"))throw new Exception("Missing completion history");
                         foreach(var b in dialog.Controls.OfType<FlowLayoutPanel>().Single().Controls.OfType<Button>())if(!b.Visible || b.Bottom>b.Parent.ClientSize.Height)throw new Exception("Update button clipped: "+b.Text);
