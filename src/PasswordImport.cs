@@ -50,8 +50,14 @@ namespace WinUp {
                         if(row.Otp==null){row.Selectable=false;row.DefaultSelected=false;row.Status="Строка "+(n+1)+": не удалось перенести 2FA; запись не выбрана";}
                         else{row.Otp.Id=AppStore.NewId();entry.TwoFa="link";entry.OtpId=row.Otp.Id;}
                     }
-                    var matches=known.Concat(accepted).Where(x=>SameAccount(x,entry)).ToList();
-                    var identical=matches.Where(x=>x.UsePassword(a=>entry.UsePassword(b=>a==b))).ToList();
+                    var matches=new List<LoginEntry>();var identical=new List<LoginEntry>();bool incompleteComparison=false;
+                    foreach(var candidate in known.Concat(accepted).Where(x=>SameWebsite(x,entry))) {
+                        try {
+                            if(!SameAccount(candidate,entry))continue;
+                            matches.Add(candidate);
+                            if(candidate.UsePassword(a=>entry.UsePassword(b=>a==b)))identical.Add(candidate);
+                        } catch(IOException) { incompleteComparison=true; }
+                    }
                     if(identical.Count>0) {
                         var linked=(existingOtp??new OtpEntry[0]).Concat(result.Rows.Where(x=>x!=row&&x.Otp!=null).Select(x=>x.Otp));
                         bool extra=row.Otp!=null&&!identical.Any(x=>linked.Any(o=>o.Id==x.OtpId&&SameOtp(o,row.Otp)))||(!string.IsNullOrEmpty(entry.Notes)&&!identical.Any(x=>x.Notes==entry.Notes))||entry.CustomFields.Any(f=>!identical.Any(x=>x.CustomFields.Any(g=>g.Name==f.Name&&f.UseValue(v=>g.UseValue(w=>v==w)))));
@@ -59,6 +65,7 @@ namespace WinUp {
                         if(extra){row.Status="Пароль совпадает, но есть новые поля / заметки / 2FA: можно добавить отдельно";}
                         else{row.Selectable=false;row.Status="Дубль: пропустить — "+identical[0].Name;}
                     }
+                    else if(incompleteComparison){row.DefaultSelected=false;row.Status=(row.Status==null?"":row.Status+". ")+"Не удалось проверить все дубли: проверьте ссылки между полями существующих записей. Добавление требует выбора";}
                     else if(matches.Count>0){row.DefaultSelected=false;row.Status="Другой пароль у этого аккаунта: можно добавить отдельной записью";}
                     else if(row.Status==null){row.Status="Новая запись"+(row.Otp==null?"":" + 2FA");}
                     if(warning>=0&&!string.IsNullOrEmpty(fields[warning])){row.Status+=". "+fields[warning];row.DefaultSelected=false;}
@@ -76,10 +83,14 @@ namespace WinUp {
             if(new[]{"icloud.com","www.icloud.com","account.apple.com","appleid.apple.com","idmsa.apple.com"}.Contains(host))return "apple";
             return null;
         }
-        internal static bool SameAccount(LoginEntry a,LoginEntry b){Uri ua,ub;return a.Kind!="app"&&b.Kind!="app"&&Uri.TryCreate(a.Target,UriKind.Absolute,out ua)&&Uri.TryCreate(b.Target,UriKind.Absolute,out ub)&&
+        static bool SameWebsite(LoginEntry a,LoginEntry b){Uri ua,ub;return a.Kind!="app"&&b.Kind!="app"&&Uri.TryCreate(a.Target,UriKind.Absolute,out ua)&&Uri.TryCreate(b.Target,UriKind.Absolute,out ub)&&
             (ua.Scheme=="http"||ua.Scheme=="https")&&(ub.Scheme=="http"||ub.Scheme=="https")&&
-            ((string.Equals(ua.Host,ub.Host,StringComparison.OrdinalIgnoreCase)&&ua.Port==ub.Port)||(IdentityService(ua)!=null&&IdentityService(ua)==IdentityService(ub)))&&
-            (string.Equals(a.Login??"",b.Login??"",StringComparison.Ordinal)||(!string.IsNullOrEmpty(a.Login2)&&a.Login2==b.Login));}
+            ((string.Equals(ua.Host,ub.Host,StringComparison.OrdinalIgnoreCase)&&ua.Port==ub.Port)||(IdentityService(ua)!=null&&IdentityService(ua)==IdentityService(ub)));}
+        internal static bool SameAccount(LoginEntry a,LoginEntry b){
+            if(!SameWebsite(a,b))return false;
+            string importedLogin=b.ResolvedLogin??"";
+            return string.Equals(a.ResolvedLogin??"",importedLogin,StringComparison.Ordinal)||(!string.IsNullOrEmpty(a.Login2)&&a.ResolvedLogin2==importedLogin);
+        }
         static bool TryAddCompat(this Dictionary<string,int> map,string key,int value){if(map.ContainsKey(key))return false;map.Add(key,value);return true;}
         static int Index(Dictionary<string,int> header,string key){int result;return header.TryGetValue(key,out result)?result:-1;}
         static void Clear(string[] fields){foreach(string field in fields)Secure.Wipe(field);}

@@ -26,7 +26,7 @@ namespace WinUp {
             return entries.Where(e=>e.Kind!="passkey"&&(!pinnedOnly||e.Pinned)&&
                 (kind==0||e.Kind==(kind==1?"site":kind==2?"app":"both"))&&
                 (string.IsNullOrEmpty(category)||Category(e,templates).Equals(category,StringComparison.CurrentCultureIgnoreCase))&&
-                new[]{e.Name,e.Login,e.Login2,e.Target,Category(e,templates)}.Any(value=>(value??"").IndexOf(query,StringComparison.CurrentCultureIgnoreCase)>=0))
+                new[]{e.Name,e.Login,e.Login2,e.Target,Category(e,templates)}.Concat(e.Tags).Any(value=>(value??"").IndexOf(query,StringComparison.CurrentCultureIgnoreCase)>=0))
                 .OrderByDescending(e=>e.Pinned).ThenBy(e=>e.Name,StringComparer.CurrentCultureIgnoreCase);
         }
     }

@@ -73,6 +73,7 @@ namespace WinUp {
             AddFileMenu(menu,"Ключ восстановления хранилища…",()=>ManageFileVault("recovery-key"));
             AddFileMenu(menu,"Восстановить пароль хранилища…",()=>ManageFileVault("reset-password"));
             AddFileMenu(menu,"Проверить структуру хранилища…",()=>ManageFileVault("health"));
+            AddFileMenu(menu,"Исправить копию хранилища…",()=>ManageFileVault("repair"));
             AddFileMenu(menu,"Настройки хранилища / проекта",ConfigureFileVault);
             AddFileMenu(menu,"Скопировать путь проекта",CopyProjectPath);
             AddFileMenu(menu,"Открыть проект в редакторе",OpenProjectEditor);
@@ -274,6 +275,7 @@ namespace WinUp {
             passkeyList.Columns.Add("Сайт",300); passkeyList.Columns.Add("Аккаунт",300);
             var bar=new FlowLayoutPanel { Dock=DockStyle.Top,AutoSize=true };
             bar.Controls.Add(FeatureButton("Добавить ключ…",AddPasskeyFromSite));
+            bar.Controls.Add(FeatureButton("Ключи в Windows…",delegate{using(var dialog=new SystemPasskeySetupDialog())dialog.ShowDialog(this);}));
             bar.Controls.Add(FeatureButton("История / корзина…",delegate{ShowRecordArchive(passkeyList.SelectedItems.Count==0?null:((LoginEntry)passkeyList.SelectedItems[0].Tag).Id);}));
             bar.Controls.Add(FeatureButton("Открыть сайт",delegate { if(passkeyList.SelectedItems.Count>0) OpenPasskeySite("https://"+((LoginEntry)passkeyList.SelectedItems[0].Tag).Target+"/"); }));
             bar.Controls.Add(FeatureButton("Открыть базу",delegate { if(NeedVault()) RefreshPasskeys(); }));
@@ -287,7 +289,7 @@ namespace WinUp {
                 else { if(vault==current) current.Entries.Add(entry); else entry.ClearSecrets(); RefreshPasskeys(); }
             }));
             page.Controls.Add(passkeyList); page.Controls.Add(bar);
-            ArrangeActions(page,new[]{bar},new ActionGroup("Вход",Actions(bar,"Открыть сайт","Открыть базу","Обновить")),new ActionGroup("Ключи",Actions(bar,"Добавить ключ…","Удалить ключ","История / корзина…")));
+            ArrangeActions(page,new[]{bar},new ActionGroup("Вход",Actions(bar,"Открыть сайт","Открыть базу","Обновить")),new ActionGroup("Ключи",Actions(bar,"Добавить ключ…","Удалить ключ","История / корзина…","Ключи в Windows…")));
             tabs.TabPages.Add(page);
         }
         void AddPasskeyFromSite() {

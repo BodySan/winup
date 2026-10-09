@@ -14,6 +14,10 @@ namespace WinUp
         public string Kind { get; set; }      // "site" | "app"
         public bool Pinned { get; set; }
         public string Category { get; set; }
+        public string GroupId { get; set; }
+        public List<string> Tags { get; set; }
+        public string AutoTypeSequence { get; set; }
+        public List<AppWindowRule> AutoTypeRules { get; set; }
         public string Target { get; set; }    // URL или путь к exe
         public string Args { get; set; }      // параметры запуска программы
         public string Browser { get; set; }   // "" — как в настройках WinUp
@@ -28,18 +32,23 @@ namespace WinUp
         public string PasskeyId { get; set; }
         readonly SecretText password = new SecretText();
         public string Password { get { return password.Read(); } set { password.Set(value); } }
-        internal T UsePassword<T>(Func<string, T> action) { return password.Use(action); }
+        internal Func<string,string> ResolveField;
+        internal T UsePassword<T>(Func<string, T> action) { return password.Use(p=>UseResolved(p,action)); }
+        internal T UseResolved<T>(string raw,Func<string,T> action){var resolved=ResolveField==null?raw:ResolveField(raw);try{return action(resolved);}finally{if(!object.ReferenceEquals(raw,resolved))Secure.Wipe(resolved);}}
+        internal string ResolvedLogin {get{return ResolveField==null?Login:ResolveField(Login);}}
+        internal string ResolvedLogin2 {get{return ResolveField==null?Login2:ResolveField(Login2);}}
         readonly SecretText recoveryCodes = new SecretText();
         public string RecoveryCodes { get { return recoveryCodes.Read(); } set { recoveryCodes.Set(value); } }
         internal T UseRecoveryCodes<T>(Func<string,T> action) { return recoveryCodes.Use(action); }
         public List<AccountSecretField> CustomFields { get; set; }
-        internal void ClearSecrets() { password.Clear(); totp.Clear(); recoveryCodes.Clear(); foreach(var field in CustomFields)field.Clear(); }
+        internal void ClearSecrets() { password.Clear(); totp.Clear(); recoveryCodes.Clear(); ResolveField=null; foreach(var field in CustomFields)field.Clear(); }
         static string CopyText(string value) {return value==null ? null : new string(value.ToCharArray());}
-        internal LoginEntry Copy() { return UsePassword(p => UseRecoveryCodes(c => new LoginEntry {
+        internal LoginEntry Copy() { return password.Use(p => UseRecoveryCodes(c => new LoginEntry {
             Id=CopyText(Id), Name=CopyText(Name), Kind=CopyText(Kind), Target=CopyText(Target), AppTarget=CopyText(AppTarget), LoginUrl=CopyText(LoginUrl), LoginProfile=CopyText(LoginProfile), Args=CopyText(Args), Browser=CopyText(Browser), Window=CopyText(Window),
             Login=CopyText(Login), Login2=CopyText(Login2), Password=p, RecoveryCodes=c, PasskeyId=CopyText(PasskeyId),
             PasskeyBackupEligible=PasskeyBackupEligible, PasskeyBackedUp=PasskeyBackedUp, Pinned=Pinned, Category=CopyText(Category),
-            AutoEnter=AutoEnter, TwoFa=CopyText(TwoFa), OtpId=CopyText(OtpId), Delay=Delay, Notes=CopyText(Notes), CustomFields=CustomFields.Select(f=>f.Copy()).ToList()
+            AutoEnter=AutoEnter, TwoFa=CopyText(TwoFa), OtpId=CopyText(OtpId), Delay=Delay, Notes=CopyText(Notes), CustomFields=CustomFields.Select(f=>f.Copy()).ToList(),
+            GroupId=GroupId, Tags=Tags.ToList(),AutoTypeSequence=AutoTypeSequence,AutoTypeRules=AutoTypeRules.Select(r=>new AppWindowRule{Window=r.Window,Sequence=r.Sequence}).ToList(),ResolveField=ResolveField
         })); }
         public bool AutoEnter { get; set; }
         public string TwoFa { get; set; }     // "none" | "ask" | "link" (код из раздела «Коды 2FA»); "totp" — устарело
@@ -49,16 +58,20 @@ namespace WinUp
         public bool AutoTotp { get; set; }    // устарело (v1.0), читается для перевода в TwoFa
         public int Delay { get; set; }
         public string Notes { get; set; }
-        public LoginEntry() { CustomFields=new List<AccountSecretField>(); Kind = "site"; Delay = 3; TwoFa = "none"; PasskeyBackupEligible = true; }
+        public LoginEntry() { CustomFields=new List<AccountSecretField>(); Tags=new List<string>();AutoTypeRules=new List<AppWindowRule>(); Kind = "site"; Delay = 3; TwoFa = "none"; PasskeyBackupEligible = true; }
     }
+
+    public sealed class AppWindowRule {public string Window {get;set;} public string Sequence {get;set;}}
 
     public sealed class AccountSecretField {
         public string Name { get; set; }
         readonly SecretText value = new SecretText();
+        internal Func<string,string> ResolveField;
         public string Value { get { return value.Read(); } set { this.value.Set(value); } }
         internal T UseValue<T>(Func<string,T> action){return value.Use(action);}
-        internal AccountSecretField Copy(){return UseValue(v=>new AccountSecretField{Name=Name,Value=v});}
-        internal void Clear(){value.Clear();}
+        internal T UseResolvedValue<T>(Func<string,T> action){return value.Use(raw=>{var resolved=ResolveField==null?raw:ResolveField(raw);try{return action(resolved);}finally{if(!object.ReferenceEquals(raw,resolved))Secure.Wipe(resolved);}});}
+        internal AccountSecretField Copy(){return UseValue(v=>new AccountSecretField{Name=Name,Value=v,ResolveField=ResolveField});}
+        internal void Clear(){value.Clear();ResolveField=null;}
     }
 
     // Аккаунт в разделе «Коды 2FA» — как строка в приложении-аутентификаторе.

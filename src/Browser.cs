@@ -634,9 +634,16 @@ namespace WinUp
             string line = null;
             try
             {
+                string browserExe;string why=BrowserCaller.Check(Proc.ClientPid(pipe),out browserExe);
+                if(why!=null&&SystemPasskeyProvider.IsClient(Proc.ClientPid(pipe))){
+                    line=ReadRequest(pipe);if(stop||string.IsNullOrEmpty(line))return;
+                    var message=new JavaScriptSerializer().Deserialize<Dictionary<string,object>>(line);string action=message.ContainsKey("action")?message["action"] as string:null;
+                    string answer;
+                    if(action=="system_cancel"){owner.CancelSystemPasskey(message);answer="{\"ok\":true}";}
+                    else {answer=(string)owner.Invoke(new Func<string>(()=>owner.SystemPasskeyRequest(message)));}
+                    byte[] bytes=Encoding.UTF8.GetBytes(answer+"\n");try{pipe.Write(bytes,0,bytes.Length);pipe.Flush();}finally{Array.Clear(bytes,0,bytes.Length);Secure.Wipe(answer);}return;
+                }
                 // Отвечаем только мосту — этому же WinUp.exe, запущенному браузером (BrowserCaller).
-                string browserExe;
-                string why = BrowserCaller.Check(Proc.ClientPid(pipe), out browserExe);
                 string resp;
                 if (why != null)
                 {
@@ -1143,7 +1150,7 @@ namespace WinUp
                 var o = e.TwoFa == "link" ? v.Otp.Find(x => x.Id == e.OtpId) : null;
                 response = e.UsePassword(pw =>
                 {
-                    var r = new Dictionary<string, object> { { "ok", true }, { "login", e.Login ?? "" }, { "login2", e.Login2 ?? "" }, { "password", pw ?? "" } };
+                    var r = new Dictionary<string, object> { { "ok", true }, { "login", e.ResolvedLogin ?? "" }, { "login2", e.ResolvedLogin2 ?? "" }, { "password", pw ?? "" } };
                     if (o != null) r["otp"] = Totp.Code(o);
                     return new JavaScriptSerializer().Serialize(r);
                 });

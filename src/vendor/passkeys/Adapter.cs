@@ -43,5 +43,10 @@ namespace WinUp.PasskeyEngine {
             return obj.EncodeToBytes(new CBOREncodeOptions("ctap2canonical=true"));
         }
         public static byte[] Sign(string pem, byte[] data) { return PasskeyKeyHelper.Sign(pem,data); }
+        public static byte[] SystemAuthenticatorInfo(){
+            var algorithms=CBORObject.NewArray();foreach(int algorithm in new[]{-7,-8,-257})algorithms.Add(CBORObject.NewMap().Add("type","public-key").Add("alg",algorithm));
+            return CBORObject.NewMap().Add(1,CBORObject.NewArray().Add("FIDO_2_0").Add("FIDO_2_1")).Add(3,ModelAaguid)
+                .Add(4,CBORObject.NewMap().Add("rk",true).Add("up",true).Add("uv",true).Add("plat",true)).Add(5,65536).Add(9,CBORObject.NewArray().Add("internal")).Add(10,algorithms).EncodeToBytes(new CBOREncodeOptions("ctap2canonical=true"));
+        }
     }
 }

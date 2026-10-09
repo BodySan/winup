@@ -45,7 +45,8 @@
   из Cryptomator 1.19.3, GPL v3. Оригиналы и лицензия сохранены в
   `vendor/upstream/cryptomator-recovery-1.19.3.zip`; описание адаптации и хэши:
   `vendor/file-engine/recovery-UPSTREAM.md`. Смена/восстановление пароля вызывает
-  Cryptolib; диагностика структуры — штатные HealthCheck из CryptoFS, без ремонта.
+  Cryptolib; диагностика структуры и доступные исправления — штатные HealthCheck
+  из CryptoFS. Исправления выполняются только в отдельной зашифрованной копии.
 - История и корзина записей используют штатные KeePassLib PwEntry.History,
   CreateBackup/RestoreFromBackup и группу RecycleBin; данные входят в обычный KDBX.
   Импорт форматов опирается на схемы Bitwarden, LastPass и 1Password и соответствующие
@@ -94,7 +95,21 @@
   https://github.com/yusei36/KeePassPasskey, GPL v3 или более поздняя.
   Архив оригинала: `vendor/upstream/KeePassPasskey.zip` (SHA-256 в SHA256.json).
   Адаптированные файлы: `vendor/passkeys/`; изменения синтаксиса пространств имён
-  и отдельный Adapter.cs для WinUp. Ни MSIX, ни внешний системный поставщик не устанавливаются.
+  и отдельный Adapter.cs для WinUp.
+- Системный провайдер Windows: COM ABI и проверка подписанных запросов адаптированы
+  из KeePassPasskey, Uwe Koegel, GPL-3.0-or-later, коммит
+  `08a3e0b13b81ee55929c4e9e0895e7197118b3b6`. Архив исходников:
+  `vendor/upstream/KeePassPasskey-Native-08a3e0b.zip`, хэш — в SHA256.json;
+  лицензия — `licenses/KeePassPasskey-Native-GPL.txt`.
+  Код WinUp: `SystemPasskeyNative.cs`, `SystemPasskeyProvider.cs`,
+  `SystemPasskeyRequests.cs`, `SystemPasskeySetup.cs`, `system-passkeys/`.
+  Отдельный COM-процесс не содержит базу или закрытые ключи аккаунтов;
+  запросы выполняются основным процессом WinUp после подтверждения.
+  Подключение добровольное: подписанный sparse MSIX регистрирует провайдер
+  текущего пользователя, а локальное доверие к публичному сертификату требует UAC.
+  Для пересборки помощника: `system-passkeys/build-provider.ps1`.
+  Для изменения и подписи MSIX нужен Windows SDK и собственный сертификат выпуска;
+  закрытый ключ подписи в исходный комплект не входит.
 - MAIN-world WebAuthn-обёртка собственного расширения адаптирована из KeePassXC-Browser:
   https://github.com/keepassxreboot/keepassxc-browser, GPL v3.
   Оригинал: `vendor/upstream/keepassxc-browser.zip`; адаптер транспорта —

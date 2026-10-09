@@ -51,6 +51,12 @@ namespace WinUp
                 return;
             }
 
+            if(args.Contains("--system-passkey-trust")){try{SystemPasskeySetup.TrustCertificate();Environment.ExitCode=0;}catch{Environment.ExitCode=1;}return;}
+            if(args.Contains("--system-passkey-remove-quiet")){try{Environment.ExitCode=SystemPasskeyProvider.Remove();}catch(Exception ex){Environment.ExitCode=System.Runtime.InteropServices.Marshal.GetHRForException(ex);}return;}
+            if(args.Contains("--system-passkey")){SystemPasskeyProvider.Run();return;}
+            if(args.Contains("--system-passkey-register-quiet")){try{Environment.ExitCode=SystemPasskeyProvider.Register();}catch(Exception ex){Environment.ExitCode=System.Runtime.InteropServices.Marshal.GetHRForException(ex);}return;}
+            if(args.Contains("--system-passkey-register")){int hr=SystemPasskeyProvider.Register();MessageBox.Show(hr>=0?"WinUp добавлен в провайдеры ключей доступа Windows. Включите его в Параметры → Учётные записи → Ключи доступа → Дополнительные параметры.":"Не удалось добавить провайдер WinUp. Код Windows: 0x"+hr.ToString("X8"),"WinUp — ключи доступа");return;}
+
             // Перезапуск после обновления ядра: новый процесс ждёт смерти старого,
             // чтобы освободился мьютекс одного экземпляра и DLL в его процессе.
             int waitIdx = Array.IndexOf(args, "--wait");
