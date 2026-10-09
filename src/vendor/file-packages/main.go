@@ -137,6 +137,8 @@ func unpack(r Request, extract bool) (result Manifest,err error) {
 func main() {
  // This helper serves one command. Limit protocol size and emit no request contents.
  input:=bufio.NewReader(io.LimitReader(os.Stdin,12*1024*1024));var r Request
+ // Framework's redirected stdin may emit its UTF-8 preamble before our writer.
+ if prefix,e:=input.Peek(3);e==nil&&string(prefix)=="\xef\xbb\xbf" {input.Discard(3)}
  err:=json.NewDecoder(input).Decode(&r)
  if err==nil&&len(r.Password)<1 {err=errors.New("password_required")}
  if err==nil {

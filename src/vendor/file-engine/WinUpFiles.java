@@ -446,7 +446,11 @@ public final class WinUpFiles {
         System.setOut(System.err);
         try (BufferedReader input = new BufferedReader(new InputStreamReader(System.in, StandardCharsets.UTF_8))) {
             String line;
+            boolean firstLine=true;
             while ((line = input.readLine()) != null) {
+                // .NET Framework's redirected stdin may write a UTF-8 preamble.
+                if(firstLine&&line.startsWith("\uFEFF"))line=line.substring(1);
+                firstLine=false;
                 if (line.length() > 8 * 1024 * 1024) break;
                 try { reply(command(line.split("\t",-1))); }
                 catch (Exception e) { reply(Map.of("ok",false,"error",e.getClass().getSimpleName(),"detail",String.valueOf(e.getMessage()))); }
