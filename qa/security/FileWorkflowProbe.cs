@@ -30,6 +30,7 @@ namespace WinUp {
             Console.WriteLine("RESULT passed="+passed+" failed="+failed);return failed==0?0:1;
         }
         static void Run(string root){
+            CheckWaitingAddressUi();
             var apps=new[]{new LocalApplication{Name="ChatGPT",Target=LocalApplications.ShellPrefix+"Synthetic.ChatGPT!App"}};
             var existingApp=new LoginEntry{Name="ChatGPT",Kind="both",Target="https://chatgpt.com/",AppTarget=@"C:\not-installed.exe",Login="demo",Password="Synthetic-only",Args="old"};
             var review=AccountAddressReview.Inspect(existingApp,apps);review.Apply();
@@ -161,6 +162,23 @@ namespace WinUp {
                 typeof(MainForm).GetMethod("LockVault",flags).Invoke(form,null);
                 Check("lock-all-keeps-both-closed",form.VaultNow==null&&typeof(MainForm).GetField("fileVault",flags).GetValue(form)==null);
             }
+        }
+        static void CheckWaitingAddressUi(){
+            var listener=new System.Net.HttpListener();listener.Prefixes.Add("http://localhost:19381/");listener.Start();
+            var response=System.Threading.Tasks.Task.Run(async()=>{try{var request=await listener.GetContextAsync();await System.Threading.Tasks.Task.Delay(700);request.Response.StatusCode=200;request.Response.Close();}catch(System.Net.HttpListenerException){}catch(ObjectDisposedException){}});
+            try{
+                var entry=new LoginEntry{Name="Synthetic delayed site",Kind="site",Target="http://localhost:19381/login",LoginUrl="http://localhost:19381/login"};
+                using(var dialog=new AccountAddressDialog(()=>true,x=>false,x=>{},()=>new[]{entry})){
+                    dialog.Show();var list=Descendants(dialog).OfType<ListView>().Single();
+                    var timeout=DateTime.UtcNow.AddSeconds(12);while(list.Items.Count==0&&DateTime.UtcNow<timeout){Application.DoEvents();Thread.Sleep(20);}if(list.Items.Count!=1)throw new Exception("Address review initialization timeout");
+                    list.Items[0].Selected=true;
+                    var operation=(System.Threading.Tasks.Task)typeof(AccountAddressDialog).GetMethod("Web",BindingFlags.NonPublic|BindingFlags.Instance).Invoke(dialog,null);
+                    Check("address-web-pending-blocks-edit-and-apply",Descendants(dialog).OfType<Button>().Where(b=>b.Text=="Изменить запись…"||b.Text=="Применить отмеченные исправления").All(b=>!b.Enabled));
+                    timeout=DateTime.UtcNow.AddSeconds(12);while(!operation.IsCompleted&&DateTime.UtcNow<timeout){Application.DoEvents();Thread.Sleep(20);}if(!operation.IsCompleted)throw new Exception("Address Web status timeout");operation.GetAwaiter().GetResult();
+                    Check("address-web-result-and-actions-restored",list.Items[0].SubItems[1].Text.Contains("HTTP 200")&&Descendants(dialog).OfType<Button>().Where(b=>b.Text=="Изменить запись…"||b.Text=="Применить отмеченные исправления").All(b=>b.Enabled));
+                    dialog.Close();
+                }
+            }finally{listener.Stop();listener.Close();}
         }
         static void Interop(string root){
             string source=Path.Combine(root,"Учебные файлы");Directory.CreateDirectory(Path.Combine(source,"Пустая папка"));

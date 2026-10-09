@@ -85,7 +85,7 @@ namespace WinUp {
         readonly TextBox details=new TextBox{Dock=DockStyle.Bottom,Multiline=true,ReadOnly=true,Height=112,ScrollBars=ScrollBars.Vertical};
         readonly Func<bool> current;readonly Func<LoginEntry[],bool> apply;readonly Action<LoginEntry> edit;
         readonly CancellationTokenSource cancellation=new CancellationTokenSource();bool loading,busy;
-        readonly Button refresh,web;
+        readonly Button refresh,web,editButton,applyButton;
         internal AccountAddressDialog(Func<bool> current,Func<LoginEntry[],bool> apply,Action<LoginEntry> edit,Func<IEnumerable<LoginEntry>> entries){
             this.current=current;this.apply=apply;this.edit=edit;
             Text="Проверка адресов и приложений";Size=new System.Drawing.Size(1050,670);MinimumSize=new System.Drawing.Size(720,500);StartPosition=FormStartPosition.CenterParent;
@@ -93,8 +93,8 @@ namespace WinUp {
             var bar=new FlowLayoutPanel{Dock=DockStyle.Top,AutoSize=true,Padding=new Padding(4)};
             refresh=Add(bar,"Проверить заново",async()=>await LoadRows(entries));
             web=Add(bar,"Проверить выбранные сайты",async()=>await Web());
-            Add(bar,"Изменить запись…",()=>{if(list.SelectedItems.Count==0){state.Text="Выделите запись для изменения.";return;}if(current()){edit(((AddressReviewRow)list.SelectedItems[0].Tag).Entry);var ignored=LoadRows(entries);}});
-            Add(bar,"Применить отмеченные исправления",()=>{if(current()&&!busy){var selected=list.CheckedItems.Cast<ListViewItem>().Select(x=>(AddressReviewRow)x.Tag).Where(x=>x.CanFix).ToArray();if(selected.Length==0){state.Text="Отметьте записи с предлагаемым исправлением.";return;}Pending=selected;if(apply(selected.Select(x=>x.Entry).ToArray())){var ignored=LoadRows(entries);}Pending=null;}});
+            editButton=Add(bar,"Изменить запись…",()=>{if(busy)return;if(list.SelectedItems.Count==0){state.Text="Выделите запись для изменения.";return;}if(current()){edit(((AddressReviewRow)list.SelectedItems[0].Tag).Entry);var ignored=LoadRows(entries);}});
+            applyButton=Add(bar,"Применить отмеченные исправления",()=>{if(current()&&!busy){var selected=list.CheckedItems.Cast<ListViewItem>().Select(x=>(AddressReviewRow)x.Tag).Where(x=>x.CanFix).ToArray();if(selected.Length==0){state.Text="Отметьте записи с предлагаемым исправлением.";return;}Pending=selected;if(apply(selected.Select(x=>x.Entry).ToArray())){var ignored=LoadRows(entries);}Pending=null;}});
             Add(bar,"Закрыть",Close);
             list.ItemCheck+=(s,e)=>{if(loading||!((AddressReviewRow)list.Items[e.Index].Tag).CanFix)e.NewValue=CheckState.Unchecked;};
             list.SelectedIndexChanged+=(s,e)=>{if(list.SelectedItems.Count==0){details.Text="Выделите запись: здесь показаны полные адреса и предлагаемые изменения.";return;}var row=(AddressReviewRow)list.SelectedItems[0].Tag;var entry=row.Entry;details.Text="Сайт: "+(entry.Kind=="app"?"не используется":entry.Target)+"\r\nАдрес входа: "+entry.LoginUrl+"\r\nПриложение: "+(entry.Kind=="app"?entry.Target:entry.AppTarget)+"\r\nИсправление: "+row.Proposal+"\r\n"+list.SelectedItems[0].SubItems[1].Text;};
@@ -102,19 +102,20 @@ namespace WinUp {
             Controls.Add(list);Controls.Add(details);Controls.Add(state);Controls.Add(bar);Appearance.Apply(this);Shown+=async(s,e)=>await LoadRows(entries);
         }
         internal AddressReviewRow[] Pending;
+        void SetBusy(bool value){busy=value;if(!IsDisposed)refresh.Enabled=web.Enabled=editButton.Enabled=applyButton.Enabled=!value;}
         Button Add(FlowLayoutPanel bar,string text,Action action){var b=new Button{Text=text,AutoSize=true};b.Click+=(s,e)=>{try{action();}catch(Exception ex){if(!IsDisposed)MessageBox.Show(this,ex.Message,"WinUp");}};bar.Controls.Add(b);return b;}
         async Task LoadRows(Func<IEnumerable<LoginEntry>> entries){
-            if(busy||!current()||IsDisposed)return;busy=true;refresh.Enabled=web.Enabled=false;
+            if(busy||!current()||IsDisposed)return;SetBusy(true);
             try{var apps=await LocalApplications.Available(true);if(IsDisposed||!current())return;loading=true;list.Items.Clear();
                 foreach(var entry in entries().Where(x=>x.Kind!="passkey")){var row=AccountAddressReview.Inspect(entry,apps);list.Items.Add(new ListViewItem(new[]{entry.Name,row.Message,row.Proposal}){Tag=row});}
                 state.Text="Проверено записей: "+list.Items.Count+". Исправления сначала показываются в последнем столбце. Пароли и логины не меняются. Сетевые проверки — отдельно по выделенным строкам.";
-            }catch(Exception ex){if(!IsDisposed)state.Text=ex.Message;}finally{loading=false;busy=false;if(!IsDisposed)refresh.Enabled=web.Enabled=true;}
+            }catch(Exception ex){if(!IsDisposed)state.Text=ex.Message;}finally{loading=false;SetBusy(false);}
         }
         async Task Web(){
             if(busy||!current())return;var selected=list.SelectedItems.Cast<ListViewItem>().Where(x=>((AddressReviewRow)x.Tag).Entry.Kind!="app").ToArray();
-            if(selected.Length==0){state.Text="Выделите строки сайтов для проверки (Ctrl / Shift).";return;}busy=true;refresh.Enabled=web.Enabled=false;
+            if(selected.Length==0){state.Text="Выделите строки сайтов для проверки (Ctrl / Shift).";return;}SetBusy(true);
             try{foreach(var item in selected){var row=(AddressReviewRow)item.Tag;var urls=new[]{row.FixTarget?row.Target:row.Entry.Target,row.FixLogin?row.LoginUrl:row.Entry.LoginUrl}.Where(x=>!string.IsNullOrWhiteSpace(x)).Distinct().ToArray();var results=new List<string>();foreach(string url in urls){string response=await Task.Run(()=>AccountAddressReview.CheckWeb(url,cancellation.Token));if(IsDisposed||!current()||cancellation.IsCancellationRequested)return;results.Add(url+": "+response);}item.SubItems[1].Text=row.Message+" | "+string.Join(" | ",results);details.Text=string.Join("\r\n",results);state.Text="Проверено: "+row.Entry.Name+". HTTP-ответ не проверяет заполнение формы.";}}
-            catch(Exception ex){if(!IsDisposed)state.Text=ex.Message;}finally{busy=false;if(!IsDisposed)refresh.Enabled=web.Enabled=true;}
+            catch(Exception ex){if(!IsDisposed)state.Text=ex.Message;}finally{SetBusy(false);}
         }
         protected override void Dispose(bool disposing){if(disposing){cancellation.Cancel();}base.Dispose(disposing);}
     }
