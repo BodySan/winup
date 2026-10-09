@@ -22,6 +22,7 @@ namespace WinUp
     internal sealed class FileVaultClient : IDisposable
     {
         Process process;
+        StreamWriter commandWriter;
         int disposed;
         readonly object sync = new object();
         readonly List<FileStream> runtimeLocks = new List<FileStream>();
@@ -60,6 +61,7 @@ namespace WinUp
                     StandardOutputEncoding = Encoding.UTF8, StandardErrorEncoding = Encoding.UTF8,
                     WorkingDirectory = root };
                 process = Process.Start(info);
+                commandWriter=new StreamWriter(process.StandardInput.BaseStream,new UTF8Encoding(false));
                 process.ErrorDataReceived += delegate { }; // never persist paths or secrets from diagnostics
                 process.BeginErrorReadLine();
                 using (cancellation.Register(Cancel)) Call(administration ? "manage" : create ? "create" : "open", Folder, password, vaultDirectories.GuardName,readOnly ? "readonly" : "write");
@@ -152,7 +154,7 @@ namespace WinUp
                     line = command + "\t" + string.Join("\t", encoded);
                     if (line.Length > 8 * 1024 * 1024) throw new IOException("Слишком большой список файлов для одной операции.");
                     commandSent = true;
-                    process.StandardInput.WriteLine(line); process.StandardInput.Flush();
+                    commandWriter.WriteLine(line); commandWriter.Flush();
                     string response=null; int diagnostics=0;
                     for(int i=0;i<256;i++) {
                         string received=process.StandardOutput.ReadLine();
@@ -232,8 +234,9 @@ namespace WinUp
         {
             if(Interlocked.Exchange(ref disposed,1)!=0) return;
             var p = Interlocked.Exchange(ref process,null);
+            var input=Interlocked.Exchange(ref commandWriter,null);
             if (p != null) {
-                try { p.StandardInput.Close(); if (!p.WaitForExit(1500)) p.Kill(); } catch { try { p.Kill(); } catch { } }
+                try { if(input!=null)input.Dispose(); if (!p.WaitForExit(1500)) p.Kill(); } catch { try { p.Kill(); } catch { } }
                 p.Dispose();
             }
             foreach (var handle in runtimeLocks) handle.Dispose(); runtimeLocks.Clear();

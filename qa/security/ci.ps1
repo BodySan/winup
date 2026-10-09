@@ -48,6 +48,8 @@ if($env:GITHUB_ACTIONS -eq 'true') {
 if($FunctionalOnly) {
     & node "$PSScriptRoot\..\tests\passkey-focus-regression.cjs"
     if($LASTEXITCODE){throw 'Native passkey focus regression failed.'}
+    & node "$PSScriptRoot\..\tests\passkey-visibility-regression.cjs"
+    if($LASTEXITCODE){throw 'Passkey visibility regression failed.'}
     foreach($script in Get-ChildItem -LiteralPath (Join-Path $Source 'browser') -Filter '*.js') {
         & node --check $script.FullName
         if($LASTEXITCODE){throw "Extension syntax error: $($script.Name)"}

@@ -1,7 +1,7 @@
 {
     "manifest_version":  3,
     "name":  "WinUp — пароли",
-    "version":  "1.6.6",
+    "version":  "1.6.7",
     "description":  "Пароли, коды 2FA и ключи доступа из WinUp. Связь с локальным приложением через Native Messaging.",
     "permissions":  [
                         "nativeMessaging",
@@ -10,7 +10,7 @@
                     ],
     "background":  {
                        "scripts":  [
-                                       "background-v1.6.6.js"
+                                       "background-v1.6.7.js"
                                    ]
                    },
     "action":  {

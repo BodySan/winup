@@ -1,4 +1,4 @@
-﻿param([string]$Source)
+param([string]$Source)
 $ErrorActionPreference='Stop'
 $src=if($Source) { [IO.Path]::GetFullPath($Source) } else { [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..')) }
 # A distinct worker URL prevents Chromium from reusing the previous release's
@@ -11,6 +11,26 @@ $browserManifest.background.service_worker=$workerName
 $firefoxManifest=Get-Content "$src\browser\firefox-manifest.json" -Raw -Encoding UTF8 | ConvertFrom-Json
 $firefoxManifest.background.scripts=@($workerName)
 [IO.File]::WriteAllText("$src\browser\firefox-manifest.json",($firefoxManifest | ConvertTo-Json -Depth 12),[Text.UTF8Encoding]::new($false))
+# A signed Firefox package is a separate artifact. Never ship an older package
+# while reporting the version of the unpacked Chromium extension.
+Add-Type -AssemblyName System.IO.Compression.FileSystem
+$signedFirefox=[IO.Compression.ZipFile]::OpenRead("$src\browser\winup-firefox.xpi")
+try {
+ $manifestEntry=$signedFirefox.GetEntry('manifest.json')
+ if(!$manifestEntry -or !$signedFirefox.GetEntry('META-INF/mozilla.rsa')){throw 'Firefox package or Mozilla signature metadata missing.'}
+ $reader=[IO.StreamReader]::new($manifestEntry.Open())
+ try {$signedManifest=$reader.ReadToEnd() | ConvertFrom-Json} finally {$reader.Dispose()}
+ if(($signedManifest | ConvertTo-Json -Depth 20 -Compress) -cne ($firefoxManifest | ConvertTo-Json -Depth 20 -Compress)){throw 'Signed Firefox manifest differs from the current extension. Sign this version before building WinUp.'}
+ $runtimeNames=@($firefoxManifest.background.scripts)+@($firefoxManifest.content_scripts|ForEach-Object {$_.js})+@($firefoxManifest.web_accessible_resources|ForEach-Object {$_.resources})+@('popup.html','popup.js','icon16.png','icon32.png','icon48.png','icon128.png')
+ foreach($runtimeName in $runtimeNames | Select-Object -Unique){
+  if($runtimeName -notmatch '^[a-zA-Z0-9._-]+$'){throw 'Unexpected Firefox runtime path.'}
+  $entry=$signedFirefox.GetEntry($runtimeName)
+  if(!$entry){throw "Signed Firefox runtime is missing: $runtimeName"}
+  $stream=$entry.Open();$sha=[Security.Cryptography.SHA256]::Create()
+  try {$signedHash=[BitConverter]::ToString($sha.ComputeHash($stream)).Replace('-','')} finally {$stream.Dispose();$sha.Dispose()}
+  if($signedHash -cne (Get-FileHash -LiteralPath "$src\browser\$runtimeName").Hash){throw "Signed Firefox runtime is outdated: $runtimeName"}
+ }
+} finally {$signedFirefox.Dispose()}
 $files=[ordered]@{}
 $mapping=[ordered]@{}
 foreach($name in 'file-engine.zip','file-engine.json','winfsp.msi') { $mapping[$name]=Join-Path "$src\file-engine" $name }

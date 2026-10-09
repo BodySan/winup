@@ -196,7 +196,7 @@
             setTimeout(()=>{if(!settled)document.dispatchEvent(new CustomEvent('winup-passkeys-request',{detail:payload}));},0);
         });
     };
-    const waitForFocus = function (signal) {
+    const waitForFocus = function (signal, timeout = 120000) {
         /*
         Some browsers (Firefox, Safari) reject requests to original `navigator.credentials.create/get` if the page
         is out of focus (when the user selects a passkey in KeePassXC-desktop).
@@ -211,13 +211,15 @@
             if (document.hasFocus()) {
                 return resolve();
             }
-            const cleanup=()=> { document.removeEventListener('focus',focused,true); window.removeEventListener('focus',focused,true); document.removeEventListener('visibilitychange',focused); signal?.removeEventListener('abort',aborted); };
+            let timer;
+            const cleanup=()=> { clearTimeout(timer); document.removeEventListener('focus',focused,true); window.removeEventListener('focus',focused,true); document.removeEventListener('visibilitychange',focused); signal?.removeEventListener('abort',aborted); };
             const focused=()=> { if(document.hasFocus()) { cleanup(); resolve(); } };
             const aborted=()=> { cleanup(); reject(new DOMException('Операция отменена','AbortError')); };
             document.addEventListener('focus',focused,{capture:true,passive:true});
             window.addEventListener('focus',focused,{capture:true,passive:true});
             document.addEventListener('visibilitychange',focused,{passive:true});
             signal?.addEventListener('abort',aborted,{once:true});
+            timer=setTimeout(()=>{cleanup();reject(new DOMException('Вернитесь на страницу сайта и повторите запрос','NotAllowedError'));},Math.max(1000,Math.min(Number(timeout)||120000,120000)));
         });
     };
 
@@ -297,6 +299,7 @@
                 return nativeCreate(options);
             }
 
+            await waitForFocus(options?.signal, options.publicKey?.timeout);
             return createPublicKeyCredential(response.publicKey);
         },
         async get(options) {
@@ -321,6 +324,7 @@
                 return nativeGet(options);
             }
 
+            await waitForFocus(options?.signal, options.publicKey?.timeout);
             return createPublicKeyCredential(response.publicKey);
         },
         async store(credential) {

@@ -26,7 +26,9 @@
     const result = await send({ type: request.action === "passkeys_create" ? "passkey-create" : "passkey-get", requestId: id, publicKey: request.publicKey });
     if (!active.has(id)) return;
     active.delete(id);
-    if (location.href !== url || document.visibilityState === "hidden") { respond(id, { error: "AbortError" }); return; }
+    // A native WinUp consent window can occlude Chrome. That does not cancel
+    // the credential operation; actual navigation is handled by pagehide/URL.
+    if (location.href !== url) { respond(id, { error: "AbortError" }); return; }
     respond(id, result);
   });
   window.addEventListener("pagehide", () => {
