@@ -2,7 +2,7 @@
     "schema":  1,
     "api":  6,
     "sequence":  0,
-    "minApp":  "1.17.0.0",
+    "minApp":  "1.17.1.0",
     "maxApp":  "1.17.999.999",
     "versions":  {
                      "cryptofs":  "2.8.0",
@@ -16,7 +16,7 @@
                      "numbers":  "1.8.2",
                      "age":  "1.3.2",
                      "files":  "1.2",
-                     "browser":  "1.6.6",
+                     "browser":  "1.6.7",
                      "psl":  "2026-10-06_07-09-37_UTC"
                  },
     "files":  {
@@ -88,6 +88,10 @@
                                                        "sha256":  "b25761c9e29b79a3597c1f79cc6c521a80cf52c44333d848d88d84cbc3ab6e74",
                                                        "size":  10998
                                                    },
+                  "browser/background-v1.6.7.js":  {
+                                                       "sha256":  "b25761c9e29b79a3597c1f79cc6c521a80cf52c44333d848d88d84cbc3ab6e74",
+                                                       "size":  10998
+                                                   },
                   "browser/background.js":  {
                                                 "sha256":  "b25761c9e29b79a3597c1f79cc6c521a80cf52c44333d848d88d84cbc3ab6e74",
                                                 "size":  10998
@@ -97,7 +101,7 @@
                                              "size":  27256
                                          },
                   "browser/firefox-manifest.json":  {
-                                                        "sha256":  "3503fb162967e3df9c0610691ce6aecb1c13d0807d2e1b3302071ebe25f26d63",
+                                                        "sha256":  "6cdd939fee218d02c3246820f8922d099672cbaa967f19cc07186785e74971a6",
                                                         "size":  4951
                                                     },
                   "browser/icon128.png":  {
@@ -121,16 +125,16 @@
                                                       "size":  184577
                                                   },
                   "browser/manifest.json":  {
-                                                "sha256":  "b997665fc65d9e2396a9405e6b4420ffae9c7ed70330d55a1138e39a9f9186c7",
+                                                "sha256":  "8911b0d13158b72ac590ec94365412d92124b5ea976b43c49b8c0c7bca5ef14c",
                                                 "size":  4348
                                             },
                   "browser/passkey-relay.js":  {
-                                                   "sha256":  "93a8010403ff8eaf66cdebd4a6211fd5d8178038f7dcb8717220a4d95c752c29",
-                                                   "size":  1848
+                                                   "sha256":  "d5484f98f8dd11783261a5c826646b91cac7e884e3039ae2aefbbba7afc54290",
+                                                   "size":  1964
                                                },
                   "browser/passkeys.js":  {
-                                              "sha256":  "121b6cbcc2ddffefb7d4724b9857d33429cb2db1d9d3711520212a606b092c85",
-                                              "size":  17036
+                                              "sha256":  "bdbe50182a99deb171b9ed3b9d3a16953389db42eba8e3b72c5a0b19d249af0d",
+                                              "size":  17489
                                           },
                   "browser/popup.html":  {
                                              "sha256":  "3c49d34f806ea6d6d506d35607eb5cfd99960f4d197fc0644563e818408da93d",
@@ -141,8 +145,8 @@
                                            "size":  12578
                                        },
                   "browser/winup-firefox.xpi":  {
-                                                    "sha256":  "3f2ac0f5634836de9743851c0dbc7342e362285038241bbaa4b5ac0fc81ff35d",
-                                                    "size":  56891
+                                                    "sha256":  "81ef0de79d11345e55c714f9f8e5c9f2d1e8e5a1198bb97aa1a4705663f08281",
+                                                    "size":  57058
                                                 },
                   "licenses/age.txt":  {
                                            "sha256":  "c5d65279d02955c0fc2294ae417c3add650d228f4f5c82bd6d531fc26c89cd96",
