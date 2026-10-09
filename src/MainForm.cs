@@ -2405,7 +2405,7 @@ namespace WinUp
             foreach (var e in AccountOrganization.Filter(vault.Entries,store.Templates,passwordSearch.Text,passwordCategory.SelectedIndex>0?passwordCategory.SelectedItem as string:null,passwordKind.SelectedIndex,passwordPinned.Checked).Where(e=>vault.InAccountGroup(e,passwordGroup.SelectedItem is AccountGroupInfo?((AccountGroupInfo)passwordGroup.SelectedItem).Id:null)&&(passwordTag.SelectedIndex<=0||e.Tags.Contains((string)passwordTag.SelectedItem,StringComparer.CurrentCultureIgnoreCase))))
             {
                 if (e.Kind == "passkey") continue;
-                var it = new ListViewItem(new[] { (e.Pinned?"★ ":"")+e.Name, e.Kind == "both" ? "приложение / сайт" : e.Kind == "app" ? "приложение" : "сайт", e.Login ?? "", e.Target ?? "", e.Window ?? "",
+                var it = new ListViewItem(new[] { (e.Pinned?"★ ":"")+e.Name, e.Kind == "both" ? "приложение / сайт" : e.Kind == "app" ? "приложение" : "сайт", AccountOrganization.DisplayLogin(e), e.Target ?? "", e.Window ?? "",
                     e.AutoEnter ? "да" : "нет", TwoFaText(e), e.Kind == "app" ? "" : (string.IsNullOrEmpty(e.Browser) ? "общий" : e.Browser),AccountOrganization.Category(e,store.Templates) })
                 { Tag = e, Checked = checkedIds.Contains(e.Id) };
                 pwList.Items.Add(it);

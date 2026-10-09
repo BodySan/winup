@@ -21,12 +21,16 @@ namespace WinUp {
                 (left.Host.Equals(right.Host,StringComparison.OrdinalIgnoreCase)||(entry.Kind=="passkey"&&right.Host.EndsWith("."+left.Host,StringComparison.OrdinalIgnoreCase))))return true;
             return false;
         }
+        internal static string DisplayLogin(LoginEntry entry,bool secondary=false){
+            try{return (secondary?entry.ResolvedLogin2:entry.ResolvedLogin)??"";}
+            catch(System.IO.IOException){return "Связанный логин недоступен";}
+        }
         internal static IEnumerable<LoginEntry> Filter(IEnumerable<LoginEntry> entries,IEnumerable<LoginTemplate> templates,string search,string category,int kind,bool pinnedOnly){
             string query=(search??"").Trim();
             return entries.Where(e=>e.Kind!="passkey"&&(!pinnedOnly||e.Pinned)&&
                 (kind==0||e.Kind==(kind==1?"site":kind==2?"app":"both"))&&
                 (string.IsNullOrEmpty(category)||Category(e,templates).Equals(category,StringComparison.CurrentCultureIgnoreCase))&&
-                new[]{e.Name,e.Login,e.Login2,e.Target,Category(e,templates)}.Concat(e.Tags).Any(value=>(value??"").IndexOf(query,StringComparison.CurrentCultureIgnoreCase)>=0))
+                new[]{e.Name,e.Login,e.Login2,DisplayLogin(e),DisplayLogin(e,true),e.Target,Category(e,templates)}.Concat(e.Tags).Any(value=>(value??"").IndexOf(query,StringComparison.CurrentCultureIgnoreCase)>=0))
                 .OrderByDescending(e=>e.Pinned).ThenBy(e=>e.Name,StringComparer.CurrentCultureIgnoreCase);
         }
     }
