@@ -1,5 +1,5 @@
 {
-  "Version": 4,
+  "Version": 5,
   "Links": [
     {
       "Id": "8636f7d6",
@@ -471,7 +471,8 @@
       "TwoFa": "none",
       "Note": "\nВход: У публичного сайта не обнаружена подходящая форма входа. Если нужен аккаунт внутри приложения, выберите приложение.",
       "LoginProfile": "1Т Старт",
-      "LoginUrl": "https://start.1t.ru/"
+      "LoginUrl": "https://start.1t.ru/",
+      "Category": "Работа и разработка"
     },
     {
       "Name": "Авиасейлс",
@@ -485,7 +486,8 @@
       "TwoFa": "none",
       "Note": "\nВход: Вход через видимую форму: логин, пароль, затем связанный код 2FA, если он настроен. Проверки сайта и SMS — вручную.",
       "LoginProfile": "Авиасейлс",
-      "LoginUrl": "https://www.aviasales.ru/"
+      "LoginUrl": "https://www.aviasales.ru/",
+      "Category": "Поездки и транспорт"
     },
     {
       "Name": "Авито",
@@ -498,7 +500,8 @@
       "TwoFa": "ask",
       "Note": "\nВход: Вход через видимую форму: логин, пароль, затем связанный код 2FA, если он настроен. Проверки сайта и SMS — вручную. На проверке сайт ограничил доступ или возникла сетевая ошибка; полный сценарий не подтверждён.",
       "LoginProfile": "Авито",
-      "LoginUrl": "https://www.avito.ru/#login"
+      "LoginUrl": "https://www.avito.ru/#login",
+      "Category": "Покупки"
     },
     {
       "Name": "Авто.ру",
@@ -512,7 +515,8 @@
       "TwoFa": "none",
       "Note": "\nВход: Вход через видимую форму: логин, пароль, затем связанный код 2FA, если он настроен. Проверки сайта и SMS — вручную.",
       "LoginProfile": "Авто.ру",
-      "LoginUrl": "https://auto.ru/"
+      "LoginUrl": "https://auto.ru/",
+      "Category": "Поездки и транспорт"
     },
     {
       "Name": "Алиса AI",
@@ -526,7 +530,8 @@
       "TwoFa": "none",
       "Note": "\nВход: Яндекс ID: выберите почту/логин или пароль, если сначала показан телефон. Затем пароль; подтверждение на телефоне или SMS — вручную.",
       "LoginProfile": "Алиса AI",
-      "LoginUrl": "https://passport.yandex.ru/auth?retpath=https%3A%2F%2Falice.yandex.ru%2F"
+      "LoginUrl": "https://passport.yandex.ru/auth?retpath=https%3A%2F%2Falice.yandex.ru%2F",
+      "Category": "Нейросети"
     },
     {
       "Name": "Альфа-Банк",
@@ -539,7 +544,8 @@
       "TwoFa": "ask",
       "Note": "\nВход: Вход через видимую форму: логин, пароль, затем связанный код 2FA, если он настроен. Проверки сайта и SMS — вручную. На проверке сайт ограничил доступ или возникла сетевая ошибка; полный сценарий не подтверждён.",
       "LoginProfile": "Альфа-Банк",
-      "LoginUrl": "https://web.alfabank.ru/"
+      "LoginUrl": "https://web.alfabank.ru/",
+      "Category": "Финансы"
     },
     {
       "Name": "Аэроэкспресс",
@@ -553,7 +559,8 @@
       "TwoFa": "none",
       "Note": "\nВход: Вход через видимую форму: логин, пароль, затем связанный код 2FA, если он настроен. Проверки сайта и SMS — вручную.",
       "LoginProfile": "Аэроэкспресс",
-      "LoginUrl": "https://aeroexpress.ru/"
+      "LoginUrl": "https://aeroexpress.ru/",
+      "Category": "Поездки и транспорт"
     },
     {
       "Name": "Билайн",
@@ -566,7 +573,8 @@
       "TwoFa": "ask",
       "Note": "\nВход: Вход через видимую форму: логин, пароль, затем связанный код 2FA, если он настроен. Проверки сайта и SMS — вручную.",
       "LoginProfile": "Билайн",
-      "LoginUrl": "https://beeline.ru/login/"
+      "LoginUrl": "https://beeline.ru/login/",
+      "Category": "Связь и интернет"
     },
     {
       "Name": "ВКонтакте",
@@ -579,7 +587,8 @@
       "TwoFa": "ask",
       "Note": "\nВход: Вход через видимую форму: логин, пароль, затем связанный код 2FA, если он настроен. Проверки сайта и SMS — вручную.",
       "LoginProfile": "ВКонтакте",
-      "LoginUrl": "https://id.vk.com/"
+      "LoginUrl": "https://id.vk.com/",
+      "Category": "Общение"
     },
     {
       "Name": "ВсеИнструменты.ру",
@@ -593,7 +602,8 @@
       "TwoFa": "none",
       "Note": "\nВход: Вход через видимую форму: логин, пароль, затем связанный код 2FA, если он настроен. Проверки сайта и SMS — вручную.",
       "LoginProfile": "ВсеИнструменты.ру",
-      "LoginUrl": "https://www.vseinstrumenti.ru/"
+      "LoginUrl": "https://www.vseinstrumenti.ru/",
+      "Category": "Дом"
     },
     {
       "Name": "ВсеМайки",
@@ -607,7 +617,8 @@
       "TwoFa": "none",
       "Note": "\nВход: Вход через видимую форму: логин, пароль, затем связанный код 2FA, если он настроен. Проверки сайта и SMS — вручную.",
       "LoginProfile": "ВсеМайки",
-      "LoginUrl": "https://www.vsemayki.ru/"
+      "LoginUrl": "https://www.vsemayki.ru/",
+      "Category": "Покупки"
     },
     {
       "Name": "ВТБ Онлайн",
@@ -620,7 +631,8 @@
       "TwoFa": "ask",
       "Note": "\nВход: Вход через видимую форму: логин, пароль, затем связанный код 2FA, если он настроен. Проверки сайта и SMS — вручную. На проверке сайт ограничил доступ или возникла сетевая ошибка; полный сценарий не подтверждён.",
       "LoginProfile": "ВТБ Онлайн",
-      "LoginUrl": "https://online.vtb.ru/"
+      "LoginUrl": "https://online.vtb.ru/",
+      "Category": "Финансы"
     },
     {
       "Name": "Госуслуги",
@@ -633,7 +645,8 @@
       "TwoFa": "ask",
       "Note": "Логин — телефон, почта или СНИЛС. Код — из SMS.\nВход: Вход через видимую форму: логин, пароль, затем связанный код 2FA, если он настроен. Проверки сайта и SMS — вручную. На проверке сайт ограничил доступ или возникла сетевая ошибка; полный сценарий не подтверждён.",
       "LoginProfile": "Госуслуги",
-      "LoginUrl": "https://esia.gosuslugi.ru/"
+      "LoginUrl": "https://esia.gosuslugi.ru/",
+      "Category": "Госуслуги"
     },
     {
       "Name": "Дром",
@@ -647,7 +660,8 @@
       "TwoFa": "none",
       "Note": "\nВход: Вход через видимую форму: логин, пароль, затем связанный код 2FA, если он настроен. Проверки сайта и SMS — вручную.",
       "LoginProfile": "Дром",
-      "LoginUrl": "https://my.drom.ru/sign"
+      "LoginUrl": "https://my.drom.ru/sign",
+      "Category": "Поездки и транспорт"
     },
     {
       "Name": "Заём-расписка",
@@ -661,7 +675,8 @@
       "TwoFa": "none",
       "Note": "\nВход: Вход через видимую форму: логин, пароль, затем связанный код 2FA, если он настроен. Проверки сайта и SMS — вручную. На проверке сайт ограничил доступ или возникла сетевая ошибка; полный сценарий не подтверждён.",
       "LoginProfile": "Заём-расписка",
-      "LoginUrl": "https://zaem-raspiska.ru/"
+      "LoginUrl": "https://zaem-raspiska.ru/",
+      "Category": "Финансы"
     },
     {
       "Name": "Займ в долг срочно",
@@ -673,7 +688,8 @@
       "Window": "Займ в долг срочно",
       "AutoEnter": false,
       "TwoFa": "none",
-      "Note": ""
+      "Note": "",
+      "Category": "Финансы"
     },
     {
       "Name": "Кинопоиск",
@@ -686,7 +702,8 @@
       "TwoFa": "ask",
       "Note": "Вход через Яндекс ID.\nВход: Яндекс ID: выберите почту/логин или пароль, если сначала показан телефон. Затем пароль; подтверждение на телефоне или SMS — вручную.",
       "LoginProfile": "Кинопоиск",
-      "LoginUrl": "https://passport.yandex.ru/auth?retpath=https%3A%2F%2Fwww.kinopoisk.ru%2F"
+      "LoginUrl": "https://passport.yandex.ru/auth?retpath=https%3A%2F%2Fwww.kinopoisk.ru%2F",
+      "Category": "Видео и музыка"
     },
     {
       "Name": "Контур.Толк",
@@ -700,7 +717,8 @@
       "Note": "\nВход: Вход через видимую форму: логин, пароль, затем связанный код 2FA, если он настроен. Проверки сайта и SMS — вручную.",
       "AppTarget": "",
       "LoginProfile": "Контур.Толк",
-      "LoginUrl": "https://app.ktalk.ru/"
+      "LoginUrl": "https://app.ktalk.ru/",
+      "Category": "Работа и разработка"
     },
     {
       "Name": "Купер",
@@ -714,7 +732,8 @@
       "TwoFa": "none",
       "Note": "\nВход: Вход через видимую форму: логин, пароль, затем связанный код 2FA, если он настроен. Проверки сайта и SMS — вручную.",
       "LoginProfile": "Купер",
-      "LoginUrl": "https://web.kuper.ru/"
+      "LoginUrl": "https://web.kuper.ru/",
+      "Category": "Еда"
     },
     {
       "Name": "Купибилет",
@@ -728,7 +747,8 @@
       "TwoFa": "none",
       "Note": "\nВход: Вход через видимую форму: логин, пароль, затем связанный код 2FA, если он настроен. Проверки сайта и SMS — вручную.",
       "LoginProfile": "Купибилет",
-      "LoginUrl": "https://www.kupibilet.ru/"
+      "LoginUrl": "https://www.kupibilet.ru/",
+      "Category": "Поездки и транспорт"
     },
     {
       "Name": "Лемана ПРО",
@@ -742,7 +762,8 @@
       "TwoFa": "none",
       "Note": "\nВход: Вход через видимую форму: логин, пароль, затем связанный код 2FA, если он настроен. Проверки сайта и SMS — вручную.",
       "LoginProfile": "Лемана ПРО",
-      "LoginUrl": "https://lemanapro.ru/"
+      "LoginUrl": "https://lemanapro.ru/",
+      "Category": "Дом"
     },
     {
       "Name": "Литрес",
@@ -755,7 +776,8 @@
       "TwoFa": "none",
       "Note": "\nВход: Вход через видимую форму: логин, пароль, затем связанный код 2FA, если он настроен. Проверки сайта и SMS — вручную.",
       "LoginProfile": "Литрес",
-      "LoginUrl": "https://www.litres.ru/auth/login/"
+      "LoginUrl": "https://www.litres.ru/auth/login/",
+      "Category": "Видео и музыка"
     },
     {
       "Name": "М.Видео",
@@ -769,7 +791,8 @@
       "TwoFa": "none",
       "Note": "\nВход: Вход через видимую форму: логин, пароль, затем связанный код 2FA, если он настроен. Проверки сайта и SMS — вручную.",
       "LoginProfile": "М.Видео",
-      "LoginUrl": "https://www.mvideo.ru/"
+      "LoginUrl": "https://www.mvideo.ru/",
+      "Category": "Покупки"
     },
     {
       "Name": "Масленка",
@@ -783,7 +806,8 @@
       "TwoFa": "none",
       "Note": "\nВход: Вход через видимую форму: логин, пароль, затем связанный код 2FA, если он настроен. Проверки сайта и SMS — вручную.",
       "LoginProfile": "Масленка",
-      "LoginUrl": "https://maslenka-store.com/auth"
+      "LoginUrl": "https://maslenka-store.com/auth",
+      "Category": "Еда"
     },
     {
       "Name": "Мегамаркет",
@@ -797,7 +821,8 @@
       "TwoFa": "none",
       "Note": "\nВход: Вход через видимую форму: логин, пароль, затем связанный код 2FA, если он настроен. Проверки сайта и SMS — вручную.",
       "LoginProfile": "Мегамаркет",
-      "LoginUrl": "https://megamarket.ru/"
+      "LoginUrl": "https://megamarket.ru/",
+      "Category": "Покупки"
     },
     {
       "Name": "МегаФон (личный кабинет)",
@@ -810,7 +835,8 @@
       "TwoFa": "ask",
       "Note": "\nВход: Вход через видимую форму: логин, пароль, затем связанный код 2FA, если он настроен. Проверки сайта и SMS — вручную.",
       "LoginProfile": "МегаФон (личный кабинет)",
-      "LoginUrl": "https://lk.megafon.ru/login"
+      "LoginUrl": "https://lk.megafon.ru/login",
+      "Category": "Связь и интернет"
     },
     {
       "Name": "МТС (личный кабинет)",
@@ -823,7 +849,8 @@
       "TwoFa": "ask",
       "Note": "\nВход: Вход через видимую форму: логин, пароль, затем связанный код 2FA, если он настроен. Проверки сайта и SMS — вручную. На проверке сайт ограничил доступ или возникла сетевая ошибка; полный сценарий не подтверждён.",
       "LoginProfile": "МТС (личный кабинет)",
-      "LoginUrl": "https://login.mts.ru/"
+      "LoginUrl": "https://login.mts.ru/",
+      "Category": "Связь и интернет"
     },
     {
       "Name": "Одноклассники",
@@ -836,7 +863,8 @@
       "TwoFa": "none",
       "Note": "\nВход: Вход через видимую форму: логин, пароль, затем связанный код 2FA, если он настроен. Проверки сайта и SMS — вручную.",
       "LoginProfile": "Одноклассники",
-      "LoginUrl": "https://ok.ru/"
+      "LoginUrl": "https://ok.ru/",
+      "Category": "Общение"
     },
     {
       "Name": "Онлайн Трейд",
@@ -850,7 +878,8 @@
       "TwoFa": "none",
       "Note": "\nВход: Вход через видимую форму: логин, пароль, затем связанный код 2FA, если он настроен. Проверки сайта и SMS — вручную.",
       "LoginProfile": "Онлайн Трейд",
-      "LoginUrl": "https://www.onlinetrade.ru/members/login.html"
+      "LoginUrl": "https://www.onlinetrade.ru/members/login.html",
+      "Category": "Покупки"
     },
     {
       "Name": "Победа",
@@ -864,7 +893,8 @@
       "TwoFa": "none",
       "Note": "\nВход: Вход через видимую форму: логин, пароль, затем связанный код 2FA, если он настроен. Проверки сайта и SMS — вручную.",
       "LoginProfile": "Победа",
-      "LoginUrl": "https://www.pobeda.aero/"
+      "LoginUrl": "https://www.pobeda.aero/",
+      "Category": "Поездки и транспорт"
     },
     {
       "Name": "Почта России",
@@ -878,7 +908,8 @@
       "TwoFa": "none",
       "Note": "\nВход: Вход через видимую форму: логин, пароль, затем связанный код 2FA, если он настроен. Проверки сайта и SMS — вручную.",
       "LoginProfile": "Почта России",
-      "LoginUrl": "https://www.pochta.ru/"
+      "LoginUrl": "https://www.pochta.ru/",
+      "Category": "Поездки и транспорт"
     },
     {
       "Name": "Пятёрочка / X5ID",
@@ -892,7 +923,8 @@
       "TwoFa": "none",
       "Note": "\nВход: Вход через видимую форму: логин, пароль, затем связанный код 2FA, если он настроен. Проверки сайта и SMS — вручную.",
       "LoginProfile": "Пятёрочка / X5ID",
-      "LoginUrl": "https://id.x5.ru/"
+      "LoginUrl": "https://id.x5.ru/",
+      "Category": "Еда"
     },
     {
       "Name": "Рамблер Почта",
@@ -906,7 +938,8 @@
       "TwoFa": "none",
       "Note": "\nВход: Вход через видимую форму: логин, пароль, затем связанный код 2FA, если он настроен. Проверки сайта и SMS — вручную.",
       "LoginProfile": "Рамблер Почта",
-      "LoginUrl": "https://id.rambler.ru/login"
+      "LoginUrl": "https://id.rambler.ru/login",
+      "Category": "Почта и облако"
     },
     {
       "Name": "РЖД",
@@ -920,7 +953,8 @@
       "TwoFa": "none",
       "Note": "\nВход: Вход через видимую форму: логин, пароль, затем связанный код 2FA, если он настроен. Проверки сайта и SMS — вручную. На проверке сайт ограничил доступ или возникла сетевая ошибка; полный сценарий не подтверждён.",
       "LoginProfile": "РЖД",
-      "LoginUrl": "https://www.rzd.ru/"
+      "LoginUrl": "https://www.rzd.ru/",
+      "Category": "Поездки и транспорт"
     },
     {
       "Name": "СберБанк Онлайн",
@@ -933,7 +967,8 @@
       "TwoFa": "ask",
       "Note": "Код — из SMS.\nВход: Вход через видимую форму: логин, пароль, затем связанный код 2FA, если он настроен. Проверки сайта и SMS — вручную. На проверке сайт ограничил доступ или возникла сетевая ошибка; полный сценарий не подтверждён.",
       "LoginProfile": "СберБанк Онлайн",
-      "LoginUrl": "https://online.sberbank.ru/"
+      "LoginUrl": "https://online.sberbank.ru/",
+      "Category": "Финансы"
     },
     {
       "Name": "Сима-ленд",
@@ -947,7 +982,8 @@
       "TwoFa": "none",
       "Note": "\nВход: Вход через видимую форму: логин, пароль, затем связанный код 2FA, если он настроен. Проверки сайта и SMS — вручную.",
       "LoginProfile": "Сима-ленд",
-      "LoginUrl": "https://www.sima-land.ru/"
+      "LoginUrl": "https://www.sima-land.ru/",
+      "Category": "Покупки"
     },
     {
       "Name": "Ситилинк",
@@ -961,7 +997,8 @@
       "TwoFa": "none",
       "Note": "\nВход: Вход через видимую форму: логин, пароль, затем связанный код 2FA, если он настроен. Проверки сайта и SMS — вручную.",
       "LoginProfile": "Ситилинк",
-      "LoginUrl": "https://www.citilink.ru/"
+      "LoginUrl": "https://www.citilink.ru/",
+      "Category": "Покупки"
     },
     {
       "Name": "Спортмастер",
@@ -975,7 +1012,8 @@
       "TwoFa": "none",
       "Note": "\nВход: Вход через видимую форму: логин, пароль, затем связанный код 2FA, если он настроен. Проверки сайта и SMS — вручную.",
       "LoginProfile": "Спортмастер",
-      "LoginUrl": "https://www.sportmaster.ru/"
+      "LoginUrl": "https://www.sportmaster.ru/",
+      "Category": "Покупки"
     },
     {
       "Name": "Т-Банк",
@@ -988,7 +1026,8 @@
       "TwoFa": "ask",
       "Note": "\nВход: Вход через видимую форму: логин, пароль, затем связанный код 2FA, если он настроен. Проверки сайта и SMS — вручную. На проверке сайт ограничил доступ или возникла сетевая ошибка; полный сценарий не подтверждён.",
       "LoginProfile": "Т-Банк",
-      "LoginUrl": "https://www.tbank.ru/login/"
+      "LoginUrl": "https://www.tbank.ru/login/",
+      "Category": "Финансы"
     },
     {
       "Name": "Т2 / Tele2 (личный кабинет)",
@@ -1001,7 +1040,8 @@
       "TwoFa": "ask",
       "Note": "\nВход: Вход через видимую форму: логин, пароль, затем связанный код 2FA, если он настроен. Проверки сайта и SMS — вручную.",
       "LoginProfile": "Т2 / Tele2 (личный кабинет)",
-      "LoginUrl": "https://t2.ru/lk"
+      "LoginUrl": "https://t2.ru/lk",
+      "Category": "Связь и интернет"
     },
     {
       "Name": "ТВОЕ",
@@ -1015,7 +1055,8 @@
       "TwoFa": "none",
       "Note": "\nВход: Вход через видимую форму: логин, пароль, затем связанный код 2FA, если он настроен. Проверки сайта и SMS — вручную.",
       "LoginProfile": "ТВОЕ",
-      "LoginUrl": "https://tvoe.ru/"
+      "LoginUrl": "https://tvoe.ru/",
+      "Category": "Покупки"
     },
     {
       "Name": "Туту",
@@ -1029,7 +1070,8 @@
       "TwoFa": "none",
       "Note": "\nВход: Вход через видимую форму: логин, пароль, затем связанный код 2FA, если он настроен. Проверки сайта и SMS — вручную.",
       "LoginProfile": "Туту",
-      "LoginUrl": "https://www.tutu.ru/"
+      "LoginUrl": "https://www.tutu.ru/",
+      "Category": "Поездки и транспорт"
     },
     {
       "Name": "Юла",
@@ -1043,7 +1085,8 @@
       "TwoFa": "none",
       "Note": "\nВход: Вход через видимую форму: логин, пароль, затем связанный код 2FA, если он настроен. Проверки сайта и SMS — вручную.",
       "LoginProfile": "Юла",
-      "LoginUrl": "https://youla.ru/login"
+      "LoginUrl": "https://youla.ru/login",
+      "Category": "Покупки"
     },
     {
       "Name": "ЮMoney",
@@ -1057,7 +1100,8 @@
       "TwoFa": "none",
       "Note": "\nВход: Вход через видимую форму: логин, пароль, затем связанный код 2FA, если он настроен. Проверки сайта и SMS — вручную.",
       "LoginProfile": "ЮMoney",
-      "LoginUrl": "https://yoomoney.ru/yooid/login"
+      "LoginUrl": "https://yoomoney.ru/yooid/login",
+      "Category": "Финансы"
     },
     {
       "Name": "Яндекс Еда",
@@ -1071,7 +1115,8 @@
       "TwoFa": "none",
       "Note": "\nВход: Яндекс ID: выберите почту/логин или пароль, если сначала показан телефон. Затем пароль; подтверждение на телефоне или SMS — вручную.",
       "LoginProfile": "Яндекс Еда",
-      "LoginUrl": "https://passport.yandex.ru/auth?retpath=https%3A%2F%2Feda.yandex.ru%2F"
+      "LoginUrl": "https://passport.yandex.ru/auth?retpath=https%3A%2F%2Feda.yandex.ru%2F",
+      "Category": "Еда"
     },
     {
       "Name": "Яндекс Карты",
@@ -1085,7 +1130,8 @@
       "TwoFa": "none",
       "Note": "\nВход: Яндекс ID: выберите почту/логин или пароль, если сначала показан телефон. Затем пароль; подтверждение на телефоне или SMS — вручную.",
       "LoginProfile": "Яндекс Карты",
-      "LoginUrl": "https://passport.yandex.ru/auth?retpath=https%3A%2F%2Fyandex.ru%2Fmaps%2F"
+      "LoginUrl": "https://passport.yandex.ru/auth?retpath=https%3A%2F%2Fyandex.ru%2Fmaps%2F",
+      "Category": "Поездки и транспорт"
     },
     {
       "Name": "Яндекс Маркет",
@@ -1099,7 +1145,8 @@
       "TwoFa": "none",
       "Note": "\nВход: Яндекс ID: выберите почту/логин или пароль, если сначала показан телефон. Затем пароль; подтверждение на телефоне или SMS — вручную.",
       "LoginProfile": "Яндекс Маркет",
-      "LoginUrl": "https://passport.yandex.ru/auth?retpath=https%3A%2F%2Fmarket.yandex.ru%2F"
+      "LoginUrl": "https://passport.yandex.ru/auth?retpath=https%3A%2F%2Fmarket.yandex.ru%2F",
+      "Category": "Покупки"
     },
     {
       "Name": "Яндекс Музыка",
@@ -1113,7 +1160,8 @@
       "Note": "Вход через Яндекс ID. Укажите путь к программе через «Обзор».\nВход: Яндекс ID: выберите почту/логин или пароль, если сначала показан телефон. Затем пароль; подтверждение на телефоне или SMS — вручную.",
       "AppTarget": "",
       "LoginProfile": "Яндекс Музыка",
-      "LoginUrl": "https://passport.yandex.ru/auth?retpath=https%3A%2F%2Fmusic.yandex.ru%2F"
+      "LoginUrl": "https://passport.yandex.ru/auth?retpath=https%3A%2F%2Fmusic.yandex.ru%2F",
+      "Category": "Видео и музыка"
     },
     {
       "Name": "Яндекс Переводчик",
@@ -1127,7 +1175,8 @@
       "TwoFa": "none",
       "Note": "\nВход: Яндекс ID: выберите почту/логин или пароль, если сначала показан телефон. Затем пароль; подтверждение на телефоне или SMS — вручную.",
       "LoginProfile": "Яндекс Переводчик",
-      "LoginUrl": "https://passport.yandex.ru/auth?retpath=https%3A%2F%2Ftranslate.yandex.ru%2F"
+      "LoginUrl": "https://passport.yandex.ru/auth?retpath=https%3A%2F%2Ftranslate.yandex.ru%2F",
+      "Category": "Учёба"
     },
     {
       "Name": "Яндекс Почта",
@@ -1141,7 +1190,8 @@
       "TwoFa": "none",
       "Note": "\nВход: Яндекс ID: выберите почту/логин или пароль, если сначала показан телефон. Затем пароль; подтверждение на телефоне или SMS — вручную.",
       "LoginProfile": "Яндекс Почта",
-      "LoginUrl": "https://passport.yandex.ru/auth?retpath=https%3A%2F%2Fmail.yandex.ru%2F"
+      "LoginUrl": "https://passport.yandex.ru/auth?retpath=https%3A%2F%2Fmail.yandex.ru%2F",
+      "Category": "Почта и облако"
     },
     {
       "Name": "Яндекс ID",
@@ -1154,7 +1204,8 @@
       "TwoFa": "ask",
       "Note": "\nВход: Яндекс ID: выберите почту/логин или пароль, если сначала показан телефон. Затем пароль; подтверждение на телефоне или SMS — вручную.",
       "LoginProfile": "Яндекс ID",
-      "LoginUrl": "https://passport.yandex.ru/auth"
+      "LoginUrl": "https://passport.yandex.ru/auth",
+      "Category": "Почта и облако"
     },
     {
       "Name": "Adobe Acrobat",
@@ -1168,7 +1219,8 @@
       "TwoFa": "none",
       "Note": "\nВход: Вход через видимую форму: логин, пароль, затем связанный код 2FA, если он настроен. Проверки сайта и SMS — вручную.",
       "LoginProfile": "Adobe Acrobat",
-      "LoginUrl": "https://acrobat.adobe.com/"
+      "LoginUrl": "https://acrobat.adobe.com/",
+      "Category": "Работа и разработка"
     },
     {
       "Name": "Ajax",
@@ -1182,7 +1234,8 @@
       "TwoFa": "none",
       "Note": "\nВход: У публичного сайта не обнаружена подходящая форма входа. Если нужен аккаунт внутри приложения, выберите приложение.",
       "LoginProfile": "Ajax",
-      "LoginUrl": "https://ajax.systems/"
+      "LoginUrl": "https://ajax.systems/",
+      "Category": "Дом"
     },
     {
       "Name": "AnimeGO",
@@ -1196,7 +1249,8 @@
       "TwoFa": "none",
       "Note": "\nВход: Вход через видимую форму: логин, пароль, затем связанный код 2FA, если он настроен. Проверки сайта и SMS — вручную.",
       "LoginProfile": "AnimeGO",
-      "LoginUrl": "https://animego.me/login"
+      "LoginUrl": "https://animego.me/login",
+      "Category": "Видео и музыка"
     },
     {
       "Name": "AnyDesk (пароль доступа)",
@@ -1207,7 +1261,8 @@
       "Window": "AnyDesk",
       "AutoEnter": true,
       "TwoFa": "none",
-      "Note": "Пароль удалённого доступа к другому ПК."
+      "Note": "Пароль удалённого доступа к другому ПК.",
+      "Category": "Работа и разработка"
     },
     {
       "Name": "Apple ID",
@@ -1220,7 +1275,8 @@
       "TwoFa": "ask",
       "Note": "\nВход: Apple использует встроенную форму/фрейм. Автовход во фрейм остановлен; выберите запись вручную и подтвердите домен в WinUp. Подтверждение устройства — на стороне Apple.",
       "LoginProfile": "Apple ID",
-      "LoginUrl": "https://account.apple.com/sign-in"
+      "LoginUrl": "https://account.apple.com/sign-in",
+      "Category": "Почта и облако"
     },
     {
       "Name": "ATI.SU",
@@ -1234,7 +1290,8 @@
       "TwoFa": "none",
       "Note": "\nВход: Вход через видимую форму: логин, пароль, затем связанный код 2FA, если он настроен. Проверки сайта и SMS — вручную.",
       "LoginProfile": "ATI.SU",
-      "LoginUrl": "https://ati.su/"
+      "LoginUrl": "https://ati.su/",
+      "Category": "Поездки и транспорт"
     },
     {
       "Name": "Battle.net",
@@ -1248,7 +1305,8 @@
       "Note": "\nВход: Вход через видимую форму: логин, пароль, затем связанный код 2FA, если он настроен. Проверки сайта и SMS — вручную.",
       "AppTarget": "%ProgramFiles(x86)%\\Battle.net\\Battle.net Launcher.exe",
       "LoginProfile": "Battle.net",
-      "LoginUrl": "https://account.battle.net/login"
+      "LoginUrl": "https://account.battle.net/login",
+      "Category": "Игры"
     },
     {
       "Name": "Bing",
@@ -1262,7 +1320,8 @@
       "TwoFa": "none",
       "Note": "\nВход: Вход через видимую форму: логин, пароль, затем связанный код 2FA, если он настроен. Проверки сайта и SMS — вручную.",
       "LoginProfile": "Bing",
-      "LoginUrl": "https://www.bing.com/"
+      "LoginUrl": "https://www.bing.com/",
+      "Category": "Нейросети"
     },
     {
       "Name": "BlaBlaCar",
@@ -1276,7 +1335,8 @@
       "TwoFa": "none",
       "Note": "\nВход: Вход через видимую форму: логин, пароль, затем связанный код 2FA, если он настроен. Проверки сайта и SMS — вручную.",
       "LoginProfile": "BlaBlaCar",
-      "LoginUrl": "https://www.blablacar.ru/"
+      "LoginUrl": "https://www.blablacar.ru/",
+      "Category": "Поездки и транспорт"
     },
     {
       "Name": "BlueStacks",
@@ -1290,7 +1350,8 @@
       "TwoFa": "none",
       "Note": "\nВход: У публичного сайта не обнаружена подходящая форма входа. Если нужен аккаунт внутри приложения, выберите приложение.",
       "LoginProfile": "BlueStacks",
-      "LoginUrl": "https://www.bluestacks.com/"
+      "LoginUrl": "https://www.bluestacks.com/",
+      "Category": "Игры"
     },
     {
       "Name": "Burger King",
@@ -1304,7 +1365,8 @@
       "TwoFa": "none",
       "Note": "\nВход: Вход через видимую форму: логин, пароль, затем связанный код 2FA, если он настроен. Проверки сайта и SMS — вручную.",
       "LoginProfile": "Burger King",
-      "LoginUrl": "https://burgerkingrus.ru/"
+      "LoginUrl": "https://burgerkingrus.ru/",
+      "Category": "Еда"
     },
     {
       "Name": "ChatGPT",
@@ -1318,7 +1380,8 @@
       "Note": "\nВход: Почта → Продолжить → пароль или код из письма. Для аккаунта, созданного через Google/Apple/Microsoft, выберите тот же способ входа на сайте.",
       "AppTarget": "",
       "LoginProfile": "ChatGPT",
-      "LoginUrl": "https://chatgpt.com/auth/login"
+      "LoginUrl": "https://chatgpt.com/auth/login",
+      "Category": "Нейросети"
     },
     {
       "Name": "Chibbis",
@@ -1332,7 +1395,8 @@
       "TwoFa": "none",
       "Note": "\nВход: Вход через видимую форму: логин, пароль, затем связанный код 2FA, если он настроен. Проверки сайта и SMS — вручную.",
       "LoginProfile": "Chibbis",
-      "LoginUrl": "https://chibbis.ru/"
+      "LoginUrl": "https://chibbis.ru/",
+      "Category": "Еда"
     },
     {
       "Name": "Claude",
@@ -1346,7 +1410,8 @@
       "TwoFa": "none",
       "Note": "\nВход: Вход через видимую форму: логин, пароль, затем связанный код 2FA, если он настроен. Проверки сайта и SMS — вручную.",
       "LoginProfile": "Claude",
-      "LoginUrl": "https://claude.ai/"
+      "LoginUrl": "https://claude.ai/",
+      "Category": "Нейросети"
     },
     {
       "Name": "Cloudflare",
@@ -1360,7 +1425,8 @@
       "TwoFa": "none",
       "Note": "\nВход: Вход через видимую форму: логин, пароль, затем связанный код 2FA, если он настроен. Проверки сайта и SMS — вручную.",
       "LoginProfile": "Cloudflare",
-      "LoginUrl": "https://dash.cloudflare.com/login"
+      "LoginUrl": "https://dash.cloudflare.com/login",
+      "Category": "Работа и разработка"
     },
     {
       "Name": "Coop-Land",
@@ -1374,7 +1440,8 @@
       "TwoFa": "none",
       "Note": "\nВход: Вход через видимую форму: логин, пароль, затем связанный код 2FA, если он настроен. Проверки сайта и SMS — вручную.",
       "LoginProfile": "Coop-Land",
-      "LoginUrl": "https://login.coop-land.ru/"
+      "LoginUrl": "https://login.coop-land.ru/",
+      "Category": "Игры"
     },
     {
       "Name": "CYBERSHOKE",
@@ -1388,7 +1455,8 @@
       "TwoFa": "none",
       "Note": "\nВход: Вход через Steam. Выберите Steam на сайте; пароль сервиса CYBERSHOKE не подставляется в чужую форму Steam.",
       "LoginProfile": "CYBERSHOKE",
-      "LoginUrl": "https://cybershoke.net/"
+      "LoginUrl": "https://cybershoke.net/",
+      "Category": "Игры"
     },
     {
       "Name": "DarkStore",
@@ -1402,7 +1470,8 @@
       "TwoFa": "none",
       "Note": "\nВход: Вход через видимую форму: логин, пароль, затем связанный код 2FA, если он настроен. Проверки сайта и SMS — вручную.",
       "LoginProfile": "DarkStore",
-      "LoginUrl": "https://dark.shopping/customer/auth/auth/login"
+      "LoginUrl": "https://dark.shopping/customer/auth/auth/login",
+      "Category": "Покупки"
     },
     {
       "Name": "DeepSeek",
@@ -1416,7 +1485,8 @@
       "TwoFa": "none",
       "Note": "\nВход: Вход через видимую форму: логин, пароль, затем связанный код 2FA, если он настроен. Проверки сайта и SMS — вручную. На проверке сайт ограничил доступ или возникла сетевая ошибка; полный сценарий не подтверждён.",
       "LoginProfile": "DeepSeek",
-      "LoginUrl": "https://chat.deepseek.com/sign_in"
+      "LoginUrl": "https://chat.deepseek.com/sign_in",
+      "Category": "Нейросети"
     },
     {
       "Name": "Discord",
@@ -1430,7 +1500,8 @@
       "Note": "\nВход: Вход через видимую форму: логин, пароль, затем связанный код 2FA, если он настроен. Проверки сайта и SMS — вручную. На проверке сайт ограничил доступ или возникла сетевая ошибка; полный сценарий не подтверждён.",
       "AppTarget": "%LocalAppData%\\Discord\\Update.exe",
       "LoginProfile": "Discord",
-      "LoginUrl": "https://discord.com/login"
+      "LoginUrl": "https://discord.com/login",
+      "Category": "Общение"
     },
     {
       "Name": "DNS",
@@ -1444,7 +1515,8 @@
       "TwoFa": "none",
       "Note": "\nВход: Вход через видимую форму: логин, пароль, затем связанный код 2FA, если он настроен. Проверки сайта и SMS — вручную.",
       "LoginProfile": "DNS",
-      "LoginUrl": "https://www.dns-shop.ru/"
+      "LoginUrl": "https://www.dns-shop.ru/",
+      "Category": "Покупки"
     },
     {
       "Name": "EA app",
@@ -1458,7 +1530,8 @@
       "Note": "\nВход: Вход через видимую форму: логин, пароль, затем связанный код 2FA, если он настроен. Проверки сайта и SMS — вручную.",
       "AppTarget": "%ProgramFiles%\\Electronic Arts\\EA Desktop\\EA Desktop\\EALauncher.exe",
       "LoginProfile": "EA app",
-      "LoginUrl": "https://myaccount.ea.com/"
+      "LoginUrl": "https://myaccount.ea.com/",
+      "Category": "Игры"
     },
     {
       "Name": "Echte Doner",
@@ -1472,7 +1545,8 @@
       "TwoFa": "none",
       "Note": "\nВход: Вход через видимую форму: логин, пароль, затем связанный код 2FA, если он настроен. Проверки сайта и SMS — вручную.",
       "LoginProfile": "Echte Doner",
-      "LoginUrl": "https://echtedoner.ru/"
+      "LoginUrl": "https://echtedoner.ru/",
+      "Category": "Еда"
     },
     {
       "Name": "Epic Games Launcher",
@@ -1486,7 +1560,8 @@
       "Note": "\nВход: Вход через видимую форму: логин, пароль, затем связанный код 2FA, если он настроен. Проверки сайта и SMS — вручную.",
       "AppTarget": "%ProgramFiles(x86)%\\Epic Games\\Launcher\\Portal\\Binaries\\Win64\\EpicGamesLauncher.exe",
       "LoginProfile": "Epic Games Launcher",
-      "LoginUrl": "https://www.epicgames.com/id/login"
+      "LoginUrl": "https://www.epicgames.com/id/login",
+      "Category": "Игры"
     },
     {
       "Name": "expose.gg",
@@ -1500,7 +1575,8 @@
       "TwoFa": "none",
       "Note": "\nВход: Вход через видимую форму: логин, пароль, затем связанный код 2FA, если он настроен. Проверки сайта и SMS — вручную.",
       "LoginProfile": "expose.gg",
-      "LoginUrl": "https://expose.gg/"
+      "LoginUrl": "https://expose.gg/",
+      "Category": "Игры"
     },
     {
       "Name": "Faceit",
@@ -1513,7 +1589,8 @@
       "TwoFa": "ask",
       "Note": "\nВход: Вход через видимую форму: логин, пароль, затем связанный код 2FA, если он настроен. Проверки сайта и SMS — вручную.",
       "LoginProfile": "Faceit",
-      "LoginUrl": "https://www.faceit.com/"
+      "LoginUrl": "https://www.faceit.com/",
+      "Category": "Игры"
     },
     {
       "Name": "GGSEL",
@@ -1527,7 +1604,8 @@
       "TwoFa": "none",
       "Note": "\nВход: Вход через видимую форму: логин, пароль, затем связанный код 2FA, если он настроен. Проверки сайта и SMS — вручную.",
       "LoginProfile": "GGSEL",
-      "LoginUrl": "https://ggsel.net/"
+      "LoginUrl": "https://ggsel.net/",
+      "Category": "Игры"
     },
     {
       "Name": "GigaChat",
@@ -1541,7 +1619,8 @@
       "TwoFa": "none",
       "Note": "\nВход: Вход через видимую форму: логин, пароль, затем связанный код 2FA, если он настроен. Проверки сайта и SMS — вручную.",
       "LoginProfile": "GigaChat",
-      "LoginUrl": "https://developers.sber.ru/"
+      "LoginUrl": "https://developers.sber.ru/",
+      "Category": "Нейросети"
     },
     {
       "Name": "GitHub",
@@ -1555,7 +1634,8 @@
       "Note": "\nВход: Вход через видимую форму: логин, пароль, затем связанный код 2FA, если он настроен. Проверки сайта и SMS — вручную.",
       "AppTarget": "",
       "LoginProfile": "GitHub",
-      "LoginUrl": "https://github.com/login"
+      "LoginUrl": "https://github.com/login",
+      "Category": "Работа и разработка"
     },
     {
       "Name": "Gmail",
@@ -1569,7 +1649,8 @@
       "TwoFa": "none",
       "Note": "Вход через один аккаунт Google. Ключ доступа Google создаётся в настройках этого аккаунта.\nВход: Google: логин → Далее → пароль → проверка аккаунта. Ключ доступа выбирается в форме Google; подтверждение на телефоне — вручную.",
       "LoginProfile": "Gmail",
-      "LoginUrl": "https://accounts.google.com/ServiceLogin?service=mail&continue=https%3A%2F%2Fmail.google.com%2F"
+      "LoginUrl": "https://accounts.google.com/ServiceLogin?service=mail&continue=https%3A%2F%2Fmail.google.com%2F",
+      "Category": "Почта и облако"
     },
     {
       "Name": "GOG",
@@ -1583,7 +1664,8 @@
       "TwoFa": "none",
       "Note": "\nВход: Вход через видимую форму: логин, пароль, затем связанный код 2FA, если он настроен. Проверки сайта и SMS — вручную.",
       "LoginProfile": "GOG",
-      "LoginUrl": "https://www.gog.com/"
+      "LoginUrl": "https://www.gog.com/",
+      "Category": "Игры"
     },
     {
       "Name": "Google",
@@ -1596,7 +1678,8 @@
       "TwoFa": "ask",
       "Note": "Вход через один аккаунт Google. Ключ доступа Google создаётся в настройках этого аккаунта.\nВход: Google: логин → Далее → пароль → проверка аккаунта. Ключ доступа выбирается в форме Google; подтверждение на телефоне — вручную.",
       "LoginProfile": "Google",
-      "LoginUrl": "https://accounts.google.com/ServiceLogin"
+      "LoginUrl": "https://accounts.google.com/ServiceLogin",
+      "Category": "Почта и облако"
     },
     {
       "Name": "Google Drive",
@@ -1610,7 +1693,8 @@
       "TwoFa": "none",
       "Note": "\nВход: Google: логин → Далее → пароль → проверка аккаунта. Ключ доступа выбирается в форме Google; подтверждение на телефоне — вручную.",
       "LoginProfile": "Google Drive",
-      "LoginUrl": "https://accounts.google.com/ServiceLogin?continue=https%3A%2F%2Fdrive.google.com%2F"
+      "LoginUrl": "https://accounts.google.com/ServiceLogin?continue=https%3A%2F%2Fdrive.google.com%2F",
+      "Category": "Почта и облако"
     },
     {
       "Name": "Happ",
@@ -1624,7 +1708,8 @@
       "TwoFa": "none",
       "Note": "\nВход: У публичного сайта не обнаружена подходящая форма входа. Если нужен аккаунт внутри приложения, выберите приложение.",
       "LoginProfile": "Happ",
-      "LoginUrl": "https://www.happ.su/"
+      "LoginUrl": "https://www.happ.su/",
+      "Category": "Связь и интернет"
     },
     {
       "Name": "HeadHunter",
@@ -1638,7 +1723,8 @@
       "TwoFa": "none",
       "Note": "\nВход: Вход через видимую форму: логин, пароль, затем связанный код 2FA, если он настроен. Проверки сайта и SMS — вручную.",
       "LoginProfile": "HeadHunter",
-      "LoginUrl": "https://stavropol.hh.ru/account/login"
+      "LoginUrl": "https://stavropol.hh.ru/account/login",
+      "Category": "Работа и разработка"
     },
     {
       "Name": "Hoff",
@@ -1652,7 +1738,8 @@
       "TwoFa": "none",
       "Note": "\nВход: Вход через видимую форму: логин, пароль, затем связанный код 2FA, если он настроен. Проверки сайта и SMS — вручную.",
       "LoginProfile": "Hoff",
-      "LoginUrl": "https://hoff.ru/"
+      "LoginUrl": "https://hoff.ru/",
+      "Category": "Дом"
     },
     {
       "Name": "Huawei Cloud",
@@ -1666,7 +1753,8 @@
       "TwoFa": "none",
       "Note": "\nВход: Вход через видимую форму: логин, пароль, затем связанный код 2FA, если он настроен. Проверки сайта и SMS — вручную.",
       "LoginProfile": "Huawei Cloud",
-      "LoginUrl": "https://cloud.huawei.com/"
+      "LoginUrl": "https://cloud.huawei.com/",
+      "Category": "Почта и облако"
     },
     {
       "Name": "iCloud",
@@ -1680,7 +1768,8 @@
       "TwoFa": "none",
       "Note": "\nВход: Apple использует встроенную форму/фрейм. Автовход во фрейм остановлен; выберите запись вручную и подтвердите домен в WinUp. Подтверждение устройства — на стороне Apple.",
       "LoginProfile": "iCloud",
-      "LoginUrl": "https://www.icloud.com/"
+      "LoginUrl": "https://www.icloud.com/",
+      "Category": "Почта и облако"
     },
     {
       "Name": "itProger",
@@ -1694,7 +1783,8 @@
       "TwoFa": "none",
       "Note": "\nВход: Вход через видимую форму: логин, пароль, затем связанный код 2FA, если он настроен. Проверки сайта и SMS — вручную.",
       "LoginProfile": "itProger",
-      "LoginUrl": "https://itproger.com/user/"
+      "LoginUrl": "https://itproger.com/user/",
+      "Category": "Учёба"
     },
     {
       "Name": "JetBrains",
@@ -1708,7 +1798,8 @@
       "TwoFa": "none",
       "Note": "\nВход: Вход через видимую форму: логин, пароль, затем связанный код 2FA, если он настроен. Проверки сайта и SMS — вручную.",
       "LoginProfile": "JetBrains",
-      "LoginUrl": "https://account.jetbrains.com/login"
+      "LoginUrl": "https://account.jetbrains.com/login",
+      "Category": "Работа и разработка"
     },
     {
       "Name": "Jut.su",
@@ -1722,7 +1813,8 @@
       "TwoFa": "none",
       "Note": "\nВход: Вход через видимую форму: логин, пароль, затем связанный код 2FA, если он настроен. Проверки сайта и SMS — вручную. На проверке сайт ограничил доступ или возникла сетевая ошибка; полный сценарий не подтверждён.",
       "LoginProfile": "Jut.su",
-      "LoginUrl": "https://jut.su/"
+      "LoginUrl": "https://jut.su/",
+      "Category": "Видео и музыка"
     },
     {
       "Name": "Karing",
@@ -1736,7 +1828,8 @@
       "TwoFa": "none",
       "Note": "\nВход: У публичного сайта не обнаружена подходящая форма входа. Если нужен аккаунт внутри приложения, выберите приложение.",
       "LoginProfile": "Karing",
-      "LoginUrl": "https://karing.app/"
+      "LoginUrl": "https://karing.app/",
+      "Category": "Связь и интернет"
     },
     {
       "Name": "Kaspersky",
@@ -1750,7 +1843,8 @@
       "TwoFa": "none",
       "Note": "\nВход: Вход через видимую форму: логин, пароль, затем связанный код 2FA, если он настроен. Проверки сайта и SMS — вручную.",
       "LoginProfile": "Kaspersky",
-      "LoginUrl": "https://my.kaspersky.com/"
+      "LoginUrl": "https://my.kaspersky.com/",
+      "Category": "Связь и интернет"
     },
     {
       "Name": "Kupikod",
@@ -1764,7 +1858,8 @@
       "TwoFa": "none",
       "Note": "\nВход: Вход по Email. Если сайт отправляет код письмом, введите полученный код самостоятельно.",
       "LoginProfile": "Kupikod",
-      "LoginUrl": "https://id.kupikod.com/auth/email"
+      "LoginUrl": "https://id.kupikod.com/auth/email",
+      "Category": "Игры"
     },
     {
       "Name": "LinkedIn",
@@ -1778,7 +1873,8 @@
       "TwoFa": "none",
       "Note": "\nВход: Вход через видимую форму: логин, пароль, затем связанный код 2FA, если он настроен. Проверки сайта и SMS — вручную. На проверке сайт ограничил доступ или возникла сетевая ошибка; полный сценарий не подтверждён.",
       "LoginProfile": "LinkedIn",
-      "LoginUrl": "https://www.linkedin.com/login"
+      "LoginUrl": "https://www.linkedin.com/login",
+      "Category": "Общение"
     },
     {
       "Name": "Mail.ru",
@@ -1791,7 +1887,8 @@
       "TwoFa": "ask",
       "Note": "\nВход: Вход через видимую форму: логин, пароль, затем связанный код 2FA, если он настроен. Проверки сайта и SMS — вручную.",
       "LoginProfile": "Mail.ru",
-      "LoginUrl": "https://account.mail.ru/login"
+      "LoginUrl": "https://account.mail.ru/login",
+      "Category": "Почта и облако"
     },
     {
       "Name": "Mathprofi",
@@ -1803,7 +1900,8 @@
       "Window": "Mathprofi",
       "AutoEnter": false,
       "TwoFa": "none",
-      "Note": "Можно сохранить адрес без пароля. Наличие шаблона не означает, что ресурс требует авторизации."
+      "Note": "Можно сохранить адрес без пароля. Наличие шаблона не означает, что ресурс требует авторизации.",
+      "Category": "Учёба"
     },
     {
       "Name": "MAX",
@@ -1817,7 +1915,8 @@
       "TwoFa": "none",
       "Note": "\nВход: Вход по номеру телефона/QR и подтверждению в приложении. Программный скан QR с телефона этим расширением не реализован.",
       "LoginProfile": "MAX",
-      "LoginUrl": "https://max.ru/"
+      "LoginUrl": "https://max.ru/",
+      "Category": "Общение"
     },
     {
       "Name": "MemeSense",
@@ -1831,7 +1930,8 @@
       "TwoFa": "none",
       "Note": "\nВход: Вход через видимую форму: логин, пароль, затем связанный код 2FA, если он настроен. Проверки сайта и SMS — вручную. На проверке сайт ограничил доступ или возникла сетевая ошибка; полный сценарий не подтверждён.",
       "LoginProfile": "MemeSense",
-      "LoginUrl": "https://memesense.gg/"
+      "LoginUrl": "https://memesense.gg/",
+      "Category": "Игры"
     },
     {
       "Name": "Microsoft / Outlook / Xbox",
@@ -1844,7 +1944,8 @@
       "TwoFa": "ask",
       "Note": "\nВход: Вход через видимую форму: логин, пароль, затем связанный код 2FA, если он настроен. Проверки сайта и SMS — вручную.",
       "LoginProfile": "Microsoft / Outlook / Xbox",
-      "LoginUrl": "https://login.live.com/"
+      "LoginUrl": "https://login.live.com/",
+      "Category": "Почта и облако"
     },
     {
       "Name": "mos.ru",
@@ -1858,7 +1959,8 @@
       "TwoFa": "none",
       "Note": "\nВход: Вход через видимую форму: логин, пароль, затем связанный код 2FA, если он настроен. Проверки сайта и SMS — вручную.",
       "LoginProfile": "mos.ru",
-      "LoginUrl": "https://login.mos.ru/sps/login/methods/password"
+      "LoginUrl": "https://login.mos.ru/sps/login/methods/password",
+      "Category": "Госуслуги"
     },
     {
       "Name": "Nexus Mods",
@@ -1872,7 +1974,8 @@
       "TwoFa": "none",
       "Note": "\nВход: Вход через видимую форму: логин, пароль, затем связанный код 2FA, если он настроен. Проверки сайта и SMS — вручную.",
       "LoginProfile": "Nexus Mods",
-      "LoginUrl": "https://users.nexusmods.com/auth/sign_in"
+      "LoginUrl": "https://users.nexusmods.com/auth/sign_in",
+      "Category": "Игры"
     },
     {
       "Name": "NVIDIA",
@@ -1886,7 +1989,8 @@
       "TwoFa": "none",
       "Note": "\nВход: Вход через видимую форму: логин, пароль, затем связанный код 2FA, если он настроен. Проверки сайта и SMS — вручную.",
       "LoginProfile": "NVIDIA",
-      "LoginUrl": "https://www.nvidia.com/"
+      "LoginUrl": "https://www.nvidia.com/",
+      "Category": "Игры"
     },
     {
       "Name": "OpenSpeedTest",
@@ -1900,7 +2004,8 @@
       "TwoFa": "none",
       "Note": "Можно сохранить адрес без пароля. Наличие шаблона не означает, что ресурс требует авторизации.\nВход: У публичного сайта не обнаружена подходящая форма входа. Если нужен аккаунт внутри приложения, выберите приложение.",
       "LoginProfile": "OpenSpeedTest",
-      "LoginUrl": "https://openspeedtest.com/"
+      "LoginUrl": "https://openspeedtest.com/",
+      "Category": "Связь и интернет"
     },
     {
       "Name": "Oplata.info",
@@ -1914,7 +2019,8 @@
       "TwoFa": "none",
       "Note": "\nВход: Email → проверочный код на странице → подтверждение письмом. Сохранённый пароль здесь не используется.",
       "LoginProfile": "Oplata.info",
-      "LoginUrl": "https://oplata.info/"
+      "LoginUrl": "https://oplata.info/",
+      "Category": "Финансы"
     },
     {
       "Name": "Outlook",
@@ -1928,7 +2034,8 @@
       "TwoFa": "none",
       "Note": "\nВход: Вход через видимую форму: логин, пароль, затем связанный код 2FA, если он настроен. Проверки сайта и SMS — вручную.",
       "LoginProfile": "Outlook",
-      "LoginUrl": "https://outlook.live.com/"
+      "LoginUrl": "https://outlook.live.com/",
+      "Category": "Почта и облако"
     },
     {
       "Name": "Ozon",
@@ -1941,7 +2048,8 @@
       "TwoFa": "ask",
       "Note": "Обычно вход по коду из SMS без пароля.\nВход: Вход через видимую форму: логин, пароль, затем связанный код 2FA, если он настроен. Проверки сайта и SMS — вручную.",
       "LoginProfile": "Ozon",
-      "LoginUrl": "https://www.ozon.ru/"
+      "LoginUrl": "https://www.ozon.ru/",
+      "Category": "Покупки"
     },
     {
       "Name": "Ozon Travel",
@@ -1955,7 +2063,8 @@
       "TwoFa": "none",
       "Note": "\nВход: Вход через видимую форму: логин, пароль, затем связанный код 2FA, если он настроен. Проверки сайта и SMS — вручную.",
       "LoginProfile": "Ozon Travel",
-      "LoginUrl": "https://www.ozon.ru/travel/"
+      "LoginUrl": "https://www.ozon.ru/travel/",
+      "Category": "Поездки и транспорт"
     },
     {
       "Name": "Plati.Market",
@@ -1969,7 +2078,8 @@
       "TwoFa": "none",
       "Note": "\nВход: Вход через видимую форму: логин, пароль, затем связанный код 2FA, если он настроен. Проверки сайта и SMS — вручную.",
       "LoginProfile": "Plati.Market",
-      "LoginUrl": "https://plati.market/"
+      "LoginUrl": "https://plati.market/",
+      "Category": "Игры"
     },
     {
       "Name": "PlayStation / Sony",
@@ -1982,7 +2092,8 @@
       "TwoFa": "ask",
       "Note": "\nВход: Вход через видимую форму: логин, пароль, затем связанный код 2FA, если он настроен. Проверки сайта и SMS — вручную.",
       "LoginProfile": "PlayStation / Sony",
-      "LoginUrl": "https://id.sonyentertainmentnetwork.com/signin/"
+      "LoginUrl": "https://id.sonyentertainmentnetwork.com/signin/",
+      "Category": "Игры"
     },
     {
       "Name": "Premier",
@@ -1996,7 +2107,8 @@
       "TwoFa": "none",
       "Note": "\nВход: Вход через видимую форму: логин, пароль, затем связанный код 2FA, если он настроен. Проверки сайта и SMS — вручную.",
       "LoginProfile": "Premier",
-      "LoginUrl": "https://premier.one/"
+      "LoginUrl": "https://premier.one/",
+      "Category": "Видео и музыка"
     },
     {
       "Name": "Razer Synapse",
@@ -2010,7 +2122,8 @@
       "Note": "Укажите путь к программе через «Обзор».\nВход: Вход через видимую форму: логин, пароль, затем связанный код 2FA, если он настроен. Проверки сайта и SMS — вручную.",
       "AppTarget": "",
       "LoginProfile": "Razer Synapse",
-      "LoginUrl": "https://razerid.razer.com/"
+      "LoginUrl": "https://razerid.razer.com/",
+      "Category": "Игры"
     },
     {
       "Name": "RemPlanner",
@@ -2024,7 +2137,8 @@
       "TwoFa": "none",
       "Note": "\nВход: Вход через видимую форму: логин, пароль, затем связанный код 2FA, если он настроен. Проверки сайта и SMS — вручную.",
       "LoginProfile": "RemPlanner",
-      "LoginUrl": "https://remplanner.ru/client/"
+      "LoginUrl": "https://remplanner.ru/client/",
+      "Category": "Дом"
     },
     {
       "Name": "Rockstar Games Launcher",
@@ -2038,7 +2152,8 @@
       "Note": "\nВход: Вход через видимую форму: логин, пароль, затем связанный код 2FA, если он настроен. Проверки сайта и SMS — вручную.",
       "AppTarget": "%ProgramFiles%\\Rockstar Games\\Launcher\\Launcher.exe",
       "LoginProfile": "Rockstar Games Launcher",
-      "LoginUrl": "https://signin.rockstargames.com/"
+      "LoginUrl": "https://signin.rockstargames.com/",
+      "Category": "Игры"
     },
     {
       "Name": "Rutube",
@@ -2051,7 +2166,8 @@
       "TwoFa": "none",
       "Note": "\nВход: Вход через видимую форму: логин, пароль, затем связанный код 2FA, если он настроен. Проверки сайта и SMS — вручную.",
       "LoginProfile": "Rutube",
-      "LoginUrl": "https://rutube.ru/"
+      "LoginUrl": "https://rutube.ru/",
+      "Category": "Видео и музыка"
     },
     {
       "Name": "Smokershop",
@@ -2065,7 +2181,8 @@
       "TwoFa": "none",
       "Note": "\nВход: Вход через видимую форму: логин, пароль, затем связанный код 2FA, если он настроен. Проверки сайта и SMS — вручную. На проверке сайт ограничил доступ или возникла сетевая ошибка; полный сценарий не подтверждён.",
       "LoginProfile": "Smokershop",
-      "LoginUrl": "https://stavropol.smokershop.ru/"
+      "LoginUrl": "https://stavropol.smokershop.ru/",
+      "Category": "Покупки"
     },
     {
       "Name": "Spotify",
@@ -2078,7 +2195,8 @@
       "TwoFa": "none",
       "Note": "\nВход: Вход через видимую форму: логин, пароль, затем связанный код 2FA, если он настроен. Проверки сайта и SMS — вручную.",
       "LoginProfile": "Spotify",
-      "LoginUrl": "https://accounts.spotify.com/login"
+      "LoginUrl": "https://accounts.spotify.com/login",
+      "Category": "Видео и музыка"
     },
     {
       "Name": "SQL Academy",
@@ -2092,7 +2210,8 @@
       "TwoFa": "none",
       "Note": "\nВход: Вход через видимую форму: логин, пароль, затем связанный код 2FA, если он настроен. Проверки сайта и SMS — вручную.",
       "LoginProfile": "SQL Academy",
-      "LoginUrl": "https://sql-academy.org/"
+      "LoginUrl": "https://sql-academy.org/",
+      "Category": "Учёба"
     },
     {
       "Name": "Steam Community",
@@ -2106,7 +2225,8 @@
       "Note": "Код Steam Guard — из приложения Steam или почты.\nВход: Логин и пароль → Steam Guard или QR. Steam Guard обычно требует отдельного подтверждения/5-значного кода и не заменяется обычным TOTP.",
       "AppTarget": "%ProgramFiles(x86)%\\Steam\\steam.exe",
       "LoginProfile": "Steam Community",
-      "LoginUrl": "https://steamcommunity.com/login/home/"
+      "LoginUrl": "https://steamcommunity.com/login/home/",
+      "Category": "Игры"
     },
     {
       "Name": "SteamKey",
@@ -2120,7 +2240,8 @@
       "TwoFa": "none",
       "Note": "\nВход: Вход через видимую форму: логин, пароль, затем связанный код 2FA, если он настроен. Проверки сайта и SMS — вручную.",
       "LoginProfile": "SteamKey",
-      "LoginUrl": "https://steamkey.com/"
+      "LoginUrl": "https://steamkey.com/",
+      "Category": "Игры"
     },
     {
       "Name": "Telegram",
@@ -2134,7 +2255,8 @@
       "Note": "Вход по номеру телефона и коду; пароль — только облачный пароль 2FA.\nВход: Вход по номеру телефона/QR и подтверждению в приложении. Программный скан QR с телефона этим расширением не реализован. На проверке сайт ограничил доступ или возникла сетевая ошибка; полный сценарий не подтверждён.",
       "AppTarget": "%AppData%\\Telegram Desktop\\Telegram.exe",
       "LoginProfile": "Telegram",
-      "LoginUrl": "https://web.telegram.org/"
+      "LoginUrl": "https://web.telegram.org/",
+      "Category": "Общение"
     },
     {
       "Name": "TikTok",
@@ -2148,7 +2270,8 @@
       "TwoFa": "none",
       "Note": "\nВход: Вход через видимую форму: логин, пароль, затем связанный код 2FA, если он настроен. Проверки сайта и SMS — вручную.",
       "LoginProfile": "TikTok",
-      "LoginUrl": "https://www.tiktok.com/"
+      "LoginUrl": "https://www.tiktok.com/",
+      "Category": "Общение"
     },
     {
       "Name": "TLauncher",
@@ -2162,7 +2285,8 @@
       "TwoFa": "none",
       "Note": "\nВход: Вход через видимую форму: логин, пароль, затем связанный код 2FA, если он настроен. Проверки сайта и SMS — вручную.",
       "LoginProfile": "TLauncher",
-      "LoginUrl": "https://tlauncher.org/"
+      "LoginUrl": "https://tlauncher.org/",
+      "Category": "Игры"
     },
     {
       "Name": "Twitch",
@@ -2175,7 +2299,8 @@
       "TwoFa": "ask",
       "Note": "\nВход: Вход через видимую форму: логин, пароль, затем связанный код 2FA, если он настроен. Проверки сайта и SMS — вручную.",
       "LoginProfile": "Twitch",
-      "LoginUrl": "https://www.twitch.tv/login"
+      "LoginUrl": "https://www.twitch.tv/login",
+      "Category": "Видео и музыка"
     },
     {
       "Name": "Ubisoft Connect",
@@ -2189,7 +2314,8 @@
       "Note": "\nВход: Вход через видимую форму: логин, пароль, затем связанный код 2FA, если он настроен. Проверки сайта и SMS — вручную.",
       "AppTarget": "%ProgramFiles(x86)%\\Ubisoft\\Ubisoft Game Launcher\\UbisoftConnect.exe",
       "LoginProfile": "Ubisoft Connect",
-      "LoginUrl": "https://account.ubisoft.com/login"
+      "LoginUrl": "https://account.ubisoft.com/login",
+      "Category": "Игры"
     },
     {
       "Name": "VK Видео",
@@ -2203,7 +2329,8 @@
       "TwoFa": "none",
       "Note": "\nВход: Вход через видимую форму: логин, пароль, затем связанный код 2FA, если он настроен. Проверки сайта и SMS — вручную.",
       "LoginProfile": "VK Видео",
-      "LoginUrl": "https://vkvideo.ru/"
+      "LoginUrl": "https://vkvideo.ru/",
+      "Category": "Видео и музыка"
     },
     {
       "Name": "VK Play",
@@ -2217,7 +2344,8 @@
       "Note": "Укажите путь к программе через «Обзор».\nВход: Вход через видимую форму: логин, пароль, затем связанный код 2FA, если он настроен. Проверки сайта и SMS — вручную.",
       "AppTarget": "",
       "LoginProfile": "VK Play",
-      "LoginUrl": "https://vkplay.ru/"
+      "LoginUrl": "https://vkplay.ru/",
+      "Category": "Игры"
     },
     {
       "Name": "VMware Horizon",
@@ -2229,7 +2357,8 @@
       "Window": "VMware Horizon",
       "AutoEnter": false,
       "TwoFa": "none",
-      "Note": ""
+      "Note": "",
+      "Category": "Работа и разработка"
     },
     {
       "Name": "VSThemes",
@@ -2243,7 +2372,8 @@
       "TwoFa": "none",
       "Note": "Можно сохранить адрес без пароля. Наличие шаблона не означает, что ресурс требует авторизации.\nВход: Вход через видимую форму: логин, пароль, затем связанный код 2FA, если он настроен. Проверки сайта и SMS — вручную.",
       "LoginProfile": "VSThemes",
-      "LoginUrl": "https://vsthemes.org/"
+      "LoginUrl": "https://vsthemes.org/",
+      "Category": "Работа и разработка"
     },
     {
       "Name": "Wildberries",
@@ -2256,7 +2386,8 @@
       "TwoFa": "ask",
       "Note": "Обычно вход по коду из SMS без пароля.\nВход: Вход через видимую форму: логин, пароль, затем связанный код 2FA, если он настроен. Проверки сайта и SMS — вручную.",
       "LoginProfile": "Wildberries",
-      "LoginUrl": "https://www.wildberries.ru/security/login"
+      "LoginUrl": "https://www.wildberries.ru/security/login",
+      "Category": "Покупки"
     },
     {
       "Name": "Wireshark Wiki",
@@ -2270,7 +2401,8 @@
       "TwoFa": "none",
       "Note": "Можно сохранить адрес без пароля. Наличие шаблона не означает, что ресурс требует авторизации.\nВход: У публичного сайта не обнаружена подходящая форма входа. Если нужен аккаунт внутри приложения, выберите приложение.",
       "LoginProfile": "Wireshark Wiki",
-      "LoginUrl": "https://wiki.wireshark.org/"
+      "LoginUrl": "https://wiki.wireshark.org/",
+      "Category": "Работа и разработка"
     },
     {
       "Name": "YouTube",
@@ -2284,7 +2416,8 @@
       "TwoFa": "none",
       "Note": "Вход через один аккаунт Google. Ключ доступа Google создаётся в настройках этого аккаунта.\nВход: Google: логин → Далее → пароль → проверка аккаунта. Ключ доступа выбирается в форме Google; подтверждение на телефоне — вручную. На проверке сайт ограничил доступ или возникла сетевая ошибка; полный сценарий не подтверждён.",
       "LoginProfile": "YouTube",
-      "LoginUrl": "https://accounts.google.com/ServiceLogin?service=youtube&continue=https%3A%2F%2Fwww.youtube.com%2F"
+      "LoginUrl": "https://accounts.google.com/ServiceLogin?service=youtube&continue=https%3A%2F%2Fwww.youtube.com%2F",
+      "Category": "Видео и музыка"
     },
     {
       "Name": "Zoom",
@@ -2298,7 +2431,8 @@
       "Note": "\nВход: Вход через видимую форму: логин, пароль, затем связанный код 2FA, если он настроен. Проверки сайта и SMS — вручную.",
       "AppTarget": "%AppData%\\Zoom\\bin\\Zoom.exe",
       "LoginProfile": "Zoom",
-      "LoginUrl": "https://zoom.us/signin"
+      "LoginUrl": "https://zoom.us/signin",
+      "Category": "Работа и разработка"
     },
     {
       "Name": "ZT",
@@ -2312,7 +2446,8 @@
       "TwoFa": "none",
       "Note": "\nВход: Вход через видимую форму: логин, пароль, затем связанный код 2FA, если он настроен. Проверки сайта и SMS — вручную.",
       "LoginProfile": "ZT",
-      "LoginUrl": "https://zt.ru/"
+      "LoginUrl": "https://zt.ru/",
+      "Category": "Связь и интернет"
     }
   ]
 }

@@ -845,6 +845,8 @@ namespace WinUp
             pe.Strings.Set(PwDefs.NotesField, new ProtectedString(false, le.Notes ?? ""));
             SetStr(pe, "WinUp.Kind", le.Kind);
             SetStr(pe, "WinUp.Login2", le.Login2);
+            SetStr(pe, "WinUp.Category", le.Category);
+            SetStr(pe, "WinUp.Pinned", le.Pinned ? "1" : "0");
             SetStr(pe, "WinUp.AppTarget", le.AppTarget);
             SetStr(pe, "WinUp.LoginUrl", le.LoginUrl);
             SetStr(pe, "WinUp.LoginProfile", le.LoginProfile);
@@ -904,6 +906,8 @@ namespace WinUp
                 Name = pe.Strings.ReadSafe(PwDefs.TitleField),
                 Login = pe.Strings.ReadSafe(PwDefs.UserNameField),
                 Login2 = GetStr(pe, "WinUp.Login2"),
+                Category = GetStr(pe, "WinUp.Category"),
+                Pinned = GetStr(pe, "WinUp.Pinned") == "1",
                 AppTarget = GetStr(pe, "WinUp.AppTarget"),
                 LoginUrl = GetStr(pe, "WinUp.LoginUrl"),
                 LoginProfile = GetStr(pe, "WinUp.LoginProfile"),
@@ -1080,7 +1084,7 @@ namespace WinUp
                     !back.UseRecoveryCodes(a => le.UseRecoveryCodes(b => N(a) == N(b))) ||
                     (le.Kind=="passkey" && (back.PasskeyBackupEligible!=le.PasskeyBackupEligible || back.PasskeyBackedUp!=(le.PasskeyBackupEligible && le.PasskeyBackedUp))) ||
                     back.Kind != KindOf(le.Kind) || back.TwoFa != TwoFaOf(le.TwoFa) || back.Delay != DelayOf(le.Delay) ||
-                    back.AutoEnter != le.AutoEnter)
+                    back.AutoEnter != le.AutoEnter || back.Pinned != le.Pinned || N(back.Category) != N(le.Category))
                     return "поле записи «" + le.Name + "»";
                 // Ссылка на 2FA: старый Id резолвится в старой базе, новый UUID — в новой.
                 if (!string.IsNullOrEmpty(le.OtpId))
@@ -1107,6 +1111,7 @@ namespace WinUp
                 PasskeyBackupEligible=e.PasskeyBackupEligible, PasskeyBackedUp=e.PasskeyBackedUp,
                 Login = Uninterned(e.Login), Login2 = Uninterned(e.Login2), AppTarget = Uninterned(e.AppTarget),
                 LoginUrl = Uninterned(e.LoginUrl), LoginProfile = Uninterned(e.LoginProfile),
+                Category = Uninterned(e.Category), Pinned=e.Pinned,
                 PasskeyId = Uninterned(e.PasskeyId), RecoveryCodes = codes, Password = pw, AutoEnter = e.AutoEnter,
                 TwoFa = Uninterned(e.TwoFa), OtpId = Uninterned(e.OtpId), Delay = e.Delay, Notes = Uninterned(e.Notes)
             }));

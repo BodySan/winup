@@ -243,7 +243,7 @@ namespace WinUp {
             var v=ComponentResources.Current.versions;
             var names=new Dictionary<string,string> {
                 {"cryptofs","Файловое ядро CryptoFS"},{"cryptolib","Cryptolib"},{"java","Java файлового модуля"},
-                {"cli","Комплект Cryptomator CLI"},{"winfsp","Драйвер WinFsp"},{"passkeys","Адаптер ключей доступа WinUp"},
+                {"cli","Комплект Cryptomator CLI"},{"winfsp","Драйвер WinFsp"},{"passkeys","Адаптер ключей доступа WinUp"},{"age","Шифрование отдельных пакетов age"},{"files","Адаптер файлов WinUp"},
                 {"bouncycastle","Bouncy Castle"},{"cbor","CBOR"},{"numbers","Numbers"},{"browser","Расширение WinUp"},{"psl","Список доменных суффиксов"}
             };
             var rows=new List<ComponentVersionInfo> { new ComponentVersionInfo { Id="keepass",Name="Ядро базы KeePass",Installed=KdbxStore.LibVersion(),Status=CoreLoader.Source } };
@@ -310,8 +310,8 @@ namespace WinUp {
                         case "keepass": latest=CoreUpdate.ParseLatestVersion(Get(CoreUpdate.HomeUrl,cancellation:cancellation)); if(latest==null) throw new IOException("Официальный сайт не сообщил версию KeePass."); row.Source=CoreUpdate.HomeUrl; break;
                         case "cryptofs": latest=Maven("cryptofs",cancellation); row.Source="https://repo.maven.apache.org/maven2/org/cryptomator/cryptofs/"; break;
                         case "cryptolib": latest=Maven("cryptolib",cancellation); row.Source="https://repo.maven.apache.org/maven2/org/cryptomator/cryptolib/"; break;
-                        case "cli": case "winfsp": {
-                            string repo=row.Id=="cli" ? "cryptomator/cli" : "winfsp/winfsp";
+                        case "cli": case "winfsp": case "age": {
+                            string repo=row.Id=="cli" ? "cryptomator/cli" : row.Id=="age" ? "FiloSottile/age" : "winfsp/winfsp";
                             var release=ComponentPackage.Json().Deserialize<Dictionary<string,object>>(Get("https://api.github.com/repos/"+repo+"/releases/latest",cancellation:cancellation));
                             latest=Convert.ToString(release["tag_name"]).TrimStart('v');
                             if(row.Id=="winfsp") {

@@ -21,6 +21,7 @@ public final class WinUpFiles {
     private static Mount mount;
     private static Path storage;
     private static Path pathGuard;
+    private static boolean readOnly;
     private static final ObjectMapper JSON = new ObjectMapper();
     private static final SecureRandom RNG = new SecureRandom();
     // The native launcher can choose a Windows console code page for System.out.
@@ -32,14 +33,16 @@ public final class WinUpFiles {
         Path p = root.resolve(name.replace('\\','/')).normalize();
         if (!p.startsWith(root) || name.contains(":")) throw new IOException("unsafe_path");
         for (String part : name.replace('\\','/').split("/")) if (part.equals("..")) throw new IOException("unsafe_path");
-        for (Path part : p) if (part.toString().startsWith(".winup-import-")) throw new IOException("reserved_name");
+        for (Path part : p) if (part.toString().startsWith(".winup-")) throw new IOException("reserved_name");
         return p;
     }
     private static void reply(Object value) throws IOException { PROTOCOL.println("WUP2\t" + JSON.writeValueAsString(value)); PROTOCOL.flush(); }
-    private static void open(String folder, String encoded, String guard, boolean create) throws Exception {
+    private static void open(String folder, String encoded, String guard, boolean create, boolean onlyRead) throws Exception {
         if (fs != null) throw new IOException("already_open");
         Path vault = Path.of(folder).toAbsolutePath().normalize();
         storage = vault;
+        readOnly = onlyRead;
+        if(create && readOnly)throw new IOException("readonly_create");
         if (!guard.matches("\\.winup-path-lease-[0-9a-f]{32}")) throw new IOException("unsafe_path_guard");
         pathGuard = vault.resolve(guard);
         if (!Files.isRegularFile(pathGuard, LinkOption.NOFOLLOW_LINKS)) throw new IOException("missing_path_guard");
@@ -63,10 +66,12 @@ public final class WinUpFiles {
             chars.rewind();
             // Loading the master key also validates the password before any plaintext becomes accessible.
             try (Masterkey key = access.load(vault.resolve("masterkey.cryptomator"), chars)) {
-                var props = CryptoFileSystemProperties.cryptoFileSystemProperties().withKeyLoader(id -> {
+                var builder = CryptoFileSystemProperties.cryptoFileSystemProperties().withKeyLoader(id -> {
                     if (!id.equals(URI.create("masterkeyfile:masterkey.cryptomator"))) throw new IllegalArgumentException("unknown_key");
                     return key.copy();
-                }).build();
+                });
+                if(readOnly)builder.withFlags(CryptoFileSystemProperties.FileSystemFlags.READONLY);
+                var props=builder.build();
                 fs = CryptoFileSystemProvider.newFileSystem(vault, props);
             }
         } finally {
@@ -74,6 +79,58 @@ public final class WinUpFiles {
             if (chars.hasArray()) Arrays.fill(chars.array(), '\0');
             System.gc();
         }
+    }
+    private static Path historyRoot() {return fs.getPath("/.winup-history");}
+    private static List<Path> historyPaths() throws Exception {
+        if(!Files.exists(historyRoot()))return new ArrayList<>();
+        try(var stream=Files.list(historyRoot())) {return stream.filter(p->p.getFileName().toString().matches("[0-9]{13}-[0-9a-f-]{36}")).sorted().toList();}
+    }
+    private static long treeSize(Path root) throws Exception {
+        long total=0;try(var walk=Files.walk(root)){for(Path p:walk.toList())if(Files.isRegularFile(p))total=Math.addExact(total,Files.size(p));}return total;
+    }
+    private static void copyTree(Path source,Path target) throws Exception {
+        if(Files.isDirectory(source)) {
+            Files.createDirectory(target);
+            try(var stream=Files.list(source)) {for(Path child:stream.toList()) {if(child.getFileName().toString().startsWith(".winup-"))continue;copyTree(child,target.resolve(child.getFileName().toString()));}}
+        }else copyVerified(source,target);
+    }
+    private static Object snapshot(long budget,int keep) throws Exception {
+        if(readOnly)throw new IOException("readonly");
+        if(mount!=null)throw new IOException("unmount_before_snapshot");
+        if(budget<16*1024*1024L||budget>100L*1024*1024*1024||keep<1||keep>100)throw new IOException("invalid_history_limits");
+        long current=0;try(var stream=Files.list(fs.getPath("/"))) {for(Path p:stream.toList())if(!p.getFileName().toString().startsWith(".winup-"))current=Math.addExact(current,treeSize(p));}
+        if(current>budget)throw new IOException("history_budget_too_small");
+        var previous=historyPaths();
+        if(!previous.isEmpty()&&MessageDigest.isEqual(treeFingerprint(fs.getPath("/")),treeFingerprint(previous.getLast())))
+            return Map.of("ok",true,"id",previous.getLast().getFileName().toString(),"size",current,"count",previous.size(),"unchanged",true);
+        Files.createDirectories(historyRoot());
+        String id=String.format("%013d",System.currentTimeMillis())+"-"+UUID.randomUUID();
+        Path staging=historyRoot().resolve(".winup-import-history-"+UUID.randomUUID()),target=historyRoot().resolve(id);
+        boolean committed=false;
+        try {
+            Files.createDirectory(staging);
+            try(var stream=Files.list(fs.getPath("/"))) {for(Path p:stream.toList())if(!p.getFileName().toString().startsWith(".winup-"))copyTree(p,staging.resolve(p.getFileName().toString()));}
+            // Preserve download metadata for later restoration of any snapshot file.
+            Path metadata=fs.getPath("/.winup-import-metadata");if(Files.exists(metadata))copyTree(metadata,staging.resolve(".winup-import-metadata"));
+            Files.move(staging,target);committed=true;
+            var snapshots=new ArrayList<>(historyPaths());long total=0;for(Path p:snapshots)total=Math.addExact(total,treeSize(p));
+            while(snapshots.size()>1&&(snapshots.size()>keep||total>budget)) {Path old=snapshots.remove(0);long size=treeSize(old);removeStage(old);total-=size;}
+            return Map.of("ok",true,"id",id,"size",current,"count",snapshots.size());
+        }finally{if(!committed)removeStage(staging);}
+    }
+    private static byte[] treeFingerprint(Path root) throws Exception {
+        MessageDigest digest=MessageDigest.getInstance("SHA-256");
+        try(var walk=Files.walk(root)) {
+            var paths=walk.filter(p->!p.equals(root)).filter(p->{for(Path part:root.relativize(p))if(part.toString().startsWith(".winup-"))return false;return true;}).sorted().toList();
+            for(Path p:paths) {
+                digest.update(root.relativize(p).toString().getBytes(StandardCharsets.UTF_8));digest.update((byte)0);
+                digest.update((byte)(Files.isDirectory(p)?1:2));if(Files.isRegularFile(p))digest.update(hash(p));
+            }
+        }return digest.digest();
+    }
+    private static Path history(String id) throws Exception {
+        if(!id.matches("[0-9]{13}-[0-9a-f-]{36}"))throw new IOException("invalid_history_id");
+        Path p=historyRoot().resolve(id);if(!Files.isDirectory(p))throw new IOException("missing_history");return p;
     }
     private static byte[] hash(Path file) throws Exception {
         MessageDigest sha = MessageDigest.getInstance("SHA-256");
@@ -227,8 +284,8 @@ public final class WinUpFiles {
     private static Object command(String[] p) throws Exception {
         String op = p[0];
         if (op.equals("open") || op.equals("create")) {
-            if (p.length != 4) throw new IOException("bad_open_command");
-            open(decode(p[1]), p[2], decode(p[3]), op.equals("create")); return Map.of("ok",true);
+            if (p.length != 4 && p.length!=5) throw new IOException("bad_open_command");
+            open(decode(p[1]), p[2], decode(p[3]), op.equals("create"),p.length==5&&decode(p[4]).equals("readonly")); return Map.of("ok",true);
         }
         if (fs == null) throw new IOException("locked");
         return switch (op) {
@@ -236,7 +293,7 @@ public final class WinUpFiles {
                 var result = new ArrayList<Object>();
                 try (DirectoryStream<Path> stream = Files.newDirectoryStream(inside(decode(p[1])))) {
                     for (Path entry : stream) {
-                        if (entry.getFileName().toString().startsWith(".winup-import-")) continue;
+                        if (entry.getFileName().toString().startsWith(".winup-")) continue;
                         result.add(Map.of("name",entry.getFileName().toString(),"directory",Files.isDirectory(entry),
                             "size",Files.isDirectory(entry) ? 0L : Files.size(entry)));
                         if (result.size() > 10000) throw new IOException("too_many_files");
@@ -246,6 +303,50 @@ public final class WinUpFiles {
             }
             case "mkdir" -> { Files.createDirectory(inside(decode(p[1]))); yield Map.of("ok",true); }
             case "import" -> { importPath(Path.of(decode(p[1])), inside(decode(p[2])), decode(p[3])); yield Map.of("ok",true); }
+            case "snapshot" -> snapshot(Long.parseLong(decode(p[1])),Integer.parseInt(decode(p[2])));
+            case "history" -> {
+                var result=new ArrayList<Object>();for(Path h:historyPaths())result.add(Map.of("id",h.getFileName().toString(),"size",treeSize(h)));
+                yield Map.of("ok",true,"items",result);
+            }
+            case "zones" -> {
+                Path root=inside(decode(p[1]));var result=new LinkedHashMap<String,String>();
+                try(var walk=Files.walk(root)) {for(Path file:walk.filter(Files::isRegularFile).toList()) {
+                    byte[] zone=restoredZone(file);if(zone!=null){result.put(fs.getPath("/").relativize(file).toString().replace('\\','/'),Base64.getEncoder().encodeToString(zone));Arrays.fill(zone,(byte)0);}
+                    if(result.size()>10000)throw new IOException("too_many_files");
+                }}yield Map.of("ok",true,"zones",result);
+            }
+            case "history-files" -> {
+                Path root=history(decode(p[1]));var result=new ArrayList<Object>();
+                try(var walk=Files.walk(root)) {for(Path file:walk.filter(Files::isRegularFile).toList()) {
+                    String relative=root.relativize(file).toString().replace('\\','/');if(relative.startsWith(".winup-"))continue;
+                    result.add(Map.of("name",relative,"size",Files.size(file)));if(result.size()>10000)throw new IOException("too_many_files");
+                }}yield Map.of("ok",true,"items",result);
+            }
+            case "history-restore" -> {
+                if(readOnly||mount!=null)throw new IOException("close_drive_before_restore");
+                Path root=history(decode(p[1])),relative=inside(decode(p[2]));
+                Path source=root.resolve(fs.getPath("/").relativize(relative).toString());
+                Path target=inside(decode(p[3]));if(Files.exists(target))throw new FileAlreadyExistsException("destination_exists");
+                Path stage=target.resolveSibling(".winup-import-restore-"+UUID.randomUUID());
+                boolean committed=false;
+                try {copyTree(source,stage);Files.move(stage,target);committed=true;}
+                finally{if(!committed)removeStage(stage);}
+                // Copy the original Zone.Identifier record under the restored path.
+                Path zones=root.resolve(".winup-import-metadata");
+                if(Files.exists(zones)&&Files.isRegularFile(source)) {
+                    for(Path ancestor=relative;ancestor!=null;ancestor=ancestor.getParent()) {
+                        Path record=zones.resolve(zoneRecord(ancestor).getFileName().toString());if(!Files.exists(record))continue;
+                        var old=JSON.readValue(Files.readAllBytes(record),ImportSnapshot.class);
+                        String name=ancestor.relativize(relative).toString().replace('\\','/');
+                        if(old.zoneIdentifiers.containsKey(name)) {
+                            var metadata=new ImportSnapshot();metadata.entries=new String[]{""};metadata.zoneIdentifiers.put("",old.zoneIdentifiers.get(name));
+                            Files.createDirectories(zoneRecord(target).getParent());Files.write(zoneRecord(target),JSON.writeValueAsBytes(metadata),StandardOpenOption.CREATE_NEW);break;
+                        }
+                    }
+                }
+                yield Map.of("ok",true);
+            }
+            case "delete" -> {if(readOnly||mount!=null)throw new IOException("close_drive_before_delete");removeStage(inside(decode(p[1])));yield Map.of("ok",true);}
             case "export" -> {
                 Path destination = Path.of(decode(p[2]));
                 if (Files.exists(destination)) throw new FileAlreadyExistsException("destination_exists");
@@ -262,14 +363,42 @@ public final class WinUpFiles {
                     .findFirst().orElseThrow(() -> new IOException("winfsp_missing"));
                 mount = service.forFileSystem(fs.getPath("/")).setMountpoint(Path.of(decode(p[1])))
                     .setFileSystemName("WinUp").setVolumeName("WinUp")
-                    .setMountFlags(service.getDefaultMountFlags()).mount();
+                    .setMountFlags(service.getDefaultMountFlags()+(readOnly ? " -oro" : "")).mount();
                 yield Map.of("ok",true);
             }
+            case "unmount" -> {if(mount!=null){mount.close();mount=null;}yield Map.of("ok",true);}
             case "close" -> { if (mount != null) { mount.close(); mount = null; } fs.close(); fs = null; yield Map.of("ok",true); }
             default -> throw new IOException("bad_command");
         };
     }
     public static void main(String[] args) throws Exception {
+        // Logback can capture System.out during static initialization. Redirect
+        // its existing console appenders explicitly, before serving requests.
+        // A normal readonly denial may otherwise leave a stack trace in the
+        // protocol pipe and look like a broken helper on the next command.
+        var logging=(ch.qos.logback.classic.LoggerContext)org.slf4j.LoggerFactory.getILoggerFactory();
+        for(var logger:logging.getLoggerList()) {
+            var appenders=logger.iteratorForAppenders();
+            while(appenders.hasNext()) {
+                var appender=appenders.next();
+                if(appender instanceof ch.qos.logback.core.ConsoleAppender<?> console) {
+                    // Do not stop a console appender: that can close the shared
+                    // stdout descriptor used by PROTOCOL and deadlock opening.
+                    if(console.getTarget().equals("System.out")) {
+                        var filter=new ch.qos.logback.core.filter.Filter<ch.qos.logback.classic.spi.ILoggingEvent>() {
+                            @Override public ch.qos.logback.core.spi.FilterReply decide(ch.qos.logback.classic.spi.ILoggingEvent event) {return ch.qos.logback.core.spi.FilterReply.DENY;}
+                        };
+                        filter.start();
+                        @SuppressWarnings("unchecked") var output=(ch.qos.logback.core.ConsoleAppender<ch.qos.logback.classic.spi.ILoggingEvent>)console;
+                        output.addFilter(filter);
+                    }
+                }
+            }
+        }
+        var diagnostics=new ch.qos.logback.core.ConsoleAppender<ch.qos.logback.classic.spi.ILoggingEvent>();
+        diagnostics.setContext(logging);diagnostics.setTarget("System.err");
+        var encoder=new ch.qos.logback.classic.encoder.PatternLayoutEncoder();encoder.setContext(logging);encoder.setPattern("%level %logger{32} - %msg%n");encoder.start();diagnostics.setEncoder(encoder);diagnostics.start();
+        logging.getLogger(org.slf4j.Logger.ROOT_LOGGER_NAME).addAppender(diagnostics);
         // Libraries may print diagnostics while mounting/unmounting. Keep protocol replies distinct.
         System.setOut(System.err);
         try (BufferedReader input = new BufferedReader(new InputStreamReader(System.in, StandardCharsets.UTF_8))) {

@@ -30,6 +30,48 @@
         "characters":  179
     },
     {
+        "file":  "116-existing.png",
+        "usernameFound":  false,
+        "profilePathFound":  false,
+        "characters":  1057
+    },
+    {
+        "file":  "116-files.png",
+        "usernameFound":  false,
+        "profilePathFound":  false,
+        "characters":  484
+    },
+    {
+        "file":  "116-filters.png",
+        "usernameFound":  false,
+        "profilePathFound":  false,
+        "characters":  623
+    },
+    {
+        "file":  "116-history.png",
+        "usernameFound":  false,
+        "profilePathFound":  false,
+        "characters":  223
+    },
+    {
+        "file":  "116-import.png",
+        "usernameFound":  false,
+        "profilePathFound":  false,
+        "characters":  517
+    },
+    {
+        "file":  "116-package.png",
+        "usernameFound":  false,
+        "profilePathFound":  false,
+        "characters":  177
+    },
+    {
+        "file":  "116-prefs.png",
+        "usernameFound":  false,
+        "profilePathFound":  false,
+        "characters":  628
+    },
+    {
         "file":  "12-account-filled.png",
         "usernameFound":  false,
         "profilePathFound":  false,
@@ -45,7 +87,7 @@
         "file":  "14-passwords-record.png",
         "usernameFound":  false,
         "profilePathFound":  false,
-        "characters":  737
+        "characters":  674
     },
     {
         "file":  "15-generator.png",

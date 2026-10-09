@@ -219,14 +219,14 @@ namespace WinUp {
                         uint pid;GetWindowThreadProcessId(hwnd,out pid);if(pid!=System.Diagnostics.Process.GetCurrentProcess().Id)return true;
                         var type=new StringBuilder(100);GetClassName(hwnd,type,100);if(type.ToString()!="#32770")return true;
                         native++;int cancelId=GetDlgItem(hwnd,2)!=IntPtr.Zero ? 2 : GetDlgItem(hwnd,7)!=IntPtr.Zero ? 7 : 1;
-                        PostMessage(hwnd,0x111,new IntPtr(cancelId),IntPtr.Zero);return true;
+                        PostMessage(hwnd,0x111,new IntPtr(cancelId),IntPtr.Zero);PostMessage(hwnd,0x10,IntPtr.Zero,IntPtr.Zero);return true;
                     },IntPtr.Zero);
                 }; cancel.Start();
                 try {
                     foreach(var test in new[] {
                         new[] {"Ключи доступа","Добавить ключ…"},new[] {"Файлы","Создать хранилище"},
                         new[] {"Файлы","Добавить существующее"},new[] {"Файлы","Открыть"},
-                        new[] {"Файлы","Зашифровать файл…"},new[] {"Файлы","Добавить файлы"},
+                        new[] {"Файлы","Зашифровать файлы…"},new[] {"Файлы","Зашифровать папку…"},new[] {"Файлы","Расшифровать пакет…"},new[] {"Файлы","Добавить файлы"},
                         new[] {"Файлы","Добавить папку"},new[] {"Файлы","В Проводнике"},new[] {"Файлы","Новая папка"}
                     }) {
                         tabs.SelectedTab=tabs.TabPages.Cast<TabPage>().First(p=>p.Text==test[0]);
@@ -253,7 +253,7 @@ namespace WinUp {
                             uint pid;GetWindowThreadProcessId(hwnd,out pid);if(pid!=System.Diagnostics.Process.GetCurrentProcess().Id)return true;
                             var type=new StringBuilder(100);GetClassName(hwnd,type,100);if(type.ToString()!="#32770")return true;
                             int cancelId=GetDlgItem(hwnd,2)!=IntPtr.Zero ? 2 : GetDlgItem(hwnd,7)!=IntPtr.Zero ? 7 : 1;
-                            PostMessage(hwnd,0x111,new IntPtr(cancelId),IntPtr.Zero);return true;
+                            PostMessage(hwnd,0x111,new IntPtr(cancelId),IntPtr.Zero);PostMessage(hwnd,0x10,IntPtr.Zero,IntPtr.Zero);return true;
                         },IntPtr.Zero);
                     };cancel.Start();
                     foreach(TabPage page in tabs.TabPages) {

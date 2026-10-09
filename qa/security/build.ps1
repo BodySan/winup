@@ -30,6 +30,10 @@ New-Item -ItemType Directory -Force "$Output\browser-lab" | Out-Null
 if ($LASTEXITCODE) { throw 'Browser lab build failed' }
 & $csc @common '/target:exe' '/main:WinUp.ComponentRuntimeProbe' "/out:$Output\ComponentRuntimeProbe.exe" @sources "$PSScriptRoot\ComponentRuntimeProbe.cs"
 if ($LASTEXITCODE) { throw 'Component runtime probe build failed' }
+& $csc @common '/target:exe' '/main:WinUp.FileWorkflowProbe' "/out:$Output\FileWorkflowProbe.exe" @sources "$PSScriptRoot\FileWorkflowProbe.cs"
+if ($LASTEXITCODE) { throw 'File workflow probe build failed' }
+& $csc @common '/target:winexe' '/main:WinUp.FileWorkflowProbe' "/out:$Output\FileUiProbe.exe" @sources "$PSScriptRoot\FileWorkflowProbe.cs"
+if ($LASTEXITCODE) { throw 'File UI probe build failed' }
 & $csc '/nologo' '/target:exe' "/out:$Output\MemoryProbe.exe" "$PSScriptRoot\MemoryProbe.cs"
 if ($LASTEXITCODE) { throw 'Memory probe build failed' }
 & $csc '/nologo' '/target:exe' "/out:$Output\SyntheticInstaller.exe" "$PSScriptRoot\SyntheticInstaller.cs"

@@ -63,19 +63,24 @@ namespace WinUp
     sealed class TrayIcon : IDisposable
     {
         readonly NotifyIcon icon = new NotifyIcon();
-        readonly ToolStripMenuItem lockItem = new ToolStripMenuItem("Заблокировать базу");
+        readonly ToolStripMenuItem lockItem = new ToolStripMenuItem("Заблокировать пароли / 2FA / ключи доступа");
+        readonly ToolStripMenuItem filesLockItem = new ToolStripMenuItem("Заблокировать файловое хранилище");
+        readonly ToolStripMenuItem allLockItem = new ToolStripMenuItem("Заблокировать всё");
+        bool credentialsLocked=true,filesOpen;
         readonly ToolStripMenuItem unlockItem = new ToolStripMenuItem("Открыть базу паролей...");
 
-        public TrayIcon(Action show, Action lockVault, Action unlock, Action exit)
+        public TrayIcon(Action show, Action lockVault, Action unlock, Action exit,Action lockFiles=null,Action lockAll=null)
         {
             var menu = new ContextMenuStrip();
             var openItem = new ToolStripMenuItem("Открыть WinUp") { Font = new Font(SystemFonts.MenuFont, FontStyle.Bold) };
             openItem.Click += (s, e) => show();
             lockItem.Click += (s, e) => lockVault();
+            filesLockItem.Click+=(s,e)=>{if(lockFiles!=null)lockFiles();};
+            allLockItem.Click+=(s,e)=>{if(lockAll!=null)lockAll();else lockVault();};
             unlockItem.Click += (s, e) => unlock();
             var exitItem = new ToolStripMenuItem("Выход");
             exitItem.Click += (s, e) => exit();
-            menu.Items.AddRange(new ToolStripItem[] { openItem, lockItem, unlockItem, new ToolStripSeparator(), exitItem });
+            menu.Items.AddRange(new ToolStripItem[] { openItem, lockItem, filesLockItem,allLockItem,unlockItem, new ToolStripSeparator(), exitItem });
             icon.ContextMenuStrip = menu;
             icon.MouseClick += (s, e) => { if (e.Button == MouseButtons.Left) show(); };
             icon.MouseDoubleClick += (s, e) => { if (e.Button == MouseButtons.Left) show(); };
@@ -89,11 +94,14 @@ namespace WinUp
 
         public void SetLocked(bool isLocked)
         {
-            icon.Icon = isLocked ? AppIcons.Locked : AppIcons.Open;
-            icon.Text = isLocked ? "WinUp: база паролей закрыта" : "WinUp: база паролей открыта";
+            credentialsLocked=isLocked;
             lockItem.Visible = !isLocked;
             unlockItem.Visible = isLocked;
+            RefreshState();
         }
+        public void SetFilesOpen(bool value){filesOpen=value;filesLockItem.Visible=value;RefreshState();}
+        void RefreshState(){icon.Icon=credentialsLocked&&!filesOpen?AppIcons.Locked:AppIcons.Open;allLockItem.Visible=!credentialsLocked||filesOpen;
+            icon.Text="WinUp: база "+(credentialsLocked?"закрыта":"открыта")+", файлы "+(filesOpen?"открыты":"закрыты");}
 
         public void Dispose()
         {

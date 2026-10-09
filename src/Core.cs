@@ -12,6 +12,11 @@ namespace WinUp
     // Все пути — относительно папки, где лежит WinUp.exe: папку можно переносить целиком.
     static class Paths
     {
+        static Paths()
+        {
+            AppContext.SetSwitch("Switch.System.IO.UseLegacyPathHandling", false);
+            AppContext.SetSwitch("Switch.System.IO.BlockLongPaths", false);
+        }
         // WinUp.exe в корне диска (например, флешка E:\): после TrimEnd остаётся "E:", и тогда
         // Path.Combine("E:", "data") = "E:data" — drive-relative путь, который резолвится от текущего
         // каталога диска и «плывёт» после файловых диалогов. Корню диска возвращаем слэш.
@@ -328,6 +333,7 @@ namespace WinUp
     {
         public string Name { get; set; }
         public string Group { get; set; }
+        public string Category { get; set; }
         public string Kind { get; set; }      // "site" | "app"
         public string Target { get; set; }
         public string AppTarget { get; set; }
@@ -458,6 +464,7 @@ namespace WinUp
                 if(string.IsNullOrEmpty(old.AppTarget)) old.AppTarget=item.AppTarget;
                 if(string.IsNullOrEmpty(old.LoginUrl)) old.LoginUrl=item.LoginUrl;
                 if(string.IsNullOrEmpty(old.LoginProfile)) old.LoginProfile=item.LoginProfile;
+                if(string.IsNullOrEmpty(old.Category)) old.Category=item.Category;
             }
             saved.Clear(); saved.AddRange(merged.OrderBy(x=>x.Name,StringComparer.CurrentCultureIgnoreCase));
         }

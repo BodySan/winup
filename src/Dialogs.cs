@@ -13,6 +13,7 @@ namespace WinUp
     // при блокировке базы ДО затирания секретов. Окна без секретов (поиск установщиков,
     // мастер, «О программе») остаются открытыми — работа пользователя не теряется.
     interface ILockableDialog { }
+    interface IFileSecretDialog { }
 
     // Простой диалог «подпись — поле» с кнопками ОК/Отмена.
     class Dlg : Form
@@ -21,7 +22,7 @@ namespace WinUp
         protected readonly Button Ok, Cancel;
         protected override void Dispose(bool disposing)
         {
-            if (disposing && this is ILockableDialog) ClearInput(Controls);
+            if (disposing && (this is ILockableDialog || this is IFileSecretDialog)) ClearInput(Controls);
             base.Dispose(disposing);
         }
         static void ClearInput(Control.ControlCollection controls)
@@ -899,6 +900,11 @@ namespace WinUp
         readonly AppStore store;
         readonly TextBox templateFilter = new TextBox();
         readonly ComboBox templateKind = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList };
+        readonly ComboBox templateCategory = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList };
+        readonly ComboBox category = new ComboBox { DropDownStyle = ComboBoxStyle.DropDown, MaxLength=64 };
+        readonly CheckBox pinned = new CheckBox { Text="Закрепить в начале списка",AutoSize=true };
+        readonly Label savedHint = new Label {AutoSize=true,MaximumSize=new Size(590,0),ForeColor=Color.DarkGoldenrod};
+        readonly List<LoginEntry> savedEntries;
         readonly Label templateCount = new Label { AutoSize = true };
         List<LoginTemplate> templateSource;
         readonly TextBox name = new TextBox(), target = new TextBox(), args = new TextBox(), window = new TextBox(),
@@ -944,6 +950,7 @@ namespace WinUp
         public EntryDialog(LoginEntry entry, AppStore store, bool isNew, List<OtpEntry> otps, IEnumerable<LoginEntry> passkeys = null) : base(isNew ? "Новая запись для входа" : "Запись для входа")
         {
             e = entry; this.store = store; this.otps = otps;
+            savedEntries=(passkeys??new LoginEntry[0]).Where(x=>x.Id!=entry.Id).ToList();
             AutoSize = false; ClientSize = new Size(650, Math.Min(760, Screen.FromControl(this).WorkingArea.Height - 100));
             Controls.Remove(Grid); Grid.Dock = DockStyle.Top;
             var scroll = new Panel { AutoScroll = true, Dock = DockStyle.Fill }; scroll.Controls.Add(Grid); Controls.Add(scroll);
@@ -954,9 +961,12 @@ namespace WinUp
                 Row("Поиск шаблона:", templateFilter);
                 templateKind.Items.AddRange(new object[] { "Все типы", "Сайты", "Приложения", "Приложение / сайт" }); templateKind.SelectedIndex=0;
                 Row("Тип шаблона:", templateKind);
+                templateCategory.Items.Add("Все категории");templateCategory.Items.AddRange(templateSource.Select(t=>AccountOrganization.Category(t)).Distinct(StringComparer.CurrentCultureIgnoreCase).OrderBy(x=>x,StringComparer.CurrentCultureIgnoreCase).ToArray());templateCategory.SelectedIndex=0;
+                Row("Категория шаблона:",templateCategory);
                 Row("Шаблон:", tpl);
                 Row("Найдено:", templateCount);
                 templateFilter.TextChanged += (s,a) => FilterTemplates(); templateKind.SelectedIndexChanged += (s,a) => FilterTemplates();
+                templateCategory.SelectedIndexChanged+=(s,a)=>FilterTemplates();
                 tpl.SelectedIndexChanged += (s, a) => { var item=tpl.SelectedItem as TplItem; if(item!=null) ApplyTemplate(item.T); };
                 FilterTemplates();
             }
@@ -964,6 +974,9 @@ namespace WinUp
             var kinds = new FlowLayoutPanel { AutoSize = true, Margin = Padding.Empty };
             kinds.Controls.Add(site); kinds.Controls.Add(app); kinds.Controls.Add(both);
             Row("Название:", name);
+            FullRow(savedHint);
+            category.Items.AddRange(AccountOrganization.Categories.Concat(savedEntries.Select(x=>AccountOrganization.Category(x,store.Templates))).Distinct(StringComparer.CurrentCultureIgnoreCase).OrderBy(x=>x,StringComparer.CurrentCultureIgnoreCase).ToArray());
+            Row("Категория:",category);Row("",pinned);
             Row("Тип:", kinds);
             targetCaption=Row("Адрес сайта:", WithButton(target, browse));
             Row("Адрес страницы входа:", loginUrl);
@@ -1015,6 +1028,8 @@ namespace WinUp
             name.TextChanged += (s,a) => {appRevision++;};
             target.TextChanged += (s,a) => {appRevision++;UpdateAppStatus();};
             appTarget.TextChanged += (s,a) => {appRevision++;UpdateAppStatus();};
+            name.TextChanged+=(s,a)=>UpdateSavedHint();target.TextChanged+=(s,a)=>UpdateSavedHint();login.TextChanged+=(s,a)=>UpdateSavedHint();login2.TextChanged+=(s,a)=>UpdateSavedHint();
+            UpdateSavedHint();
             Shown += async (s,a) => await FindApplication();
 
             show.CheckedChanged += (s, a) => pass.UseSystemPasswordChar = !show.Checked;
@@ -1057,6 +1072,7 @@ namespace WinUp
         void FillFrom(LoginEntry x)
         {
             name.Text = x.Name; target.Text = x.Target; appTarget.Text = x.AppTarget; loginUrl.Text=x.LoginUrl;loginProfile=x.LoginProfile;args.Text = x.Args; window.Text = x.Window; login.Text = x.Login; login2.Text = x.Login2;
+            category.Text=AccountOrganization.Category(x,store.Templates);pinned.Checked=x.Pinned;
             x.UseRecoveryCodes(c => { recovery.Set(c); return 0; }); UpdateCodesInfo();
             passkeyBox.SelectedItem = passkeyBox.Items.Cast<PasskeyItem>().FirstOrDefault(i => i.E != null && i.E.Id == x.PasskeyId) ?? passkeyBox.Items[0];
             x.UsePassword(pw => { var handle = pass.Handle; pass.Text = pw; return 0; }); notes.Text = x.Notes;
@@ -1077,7 +1093,8 @@ namespace WinUp
         }
         void FilterTemplates() {
             string query=templateFilter.Text.Trim(), kind=templateKind.SelectedIndex==1 ? "site" : templateKind.SelectedIndex==2 ? "app" : templateKind.SelectedIndex==3 ? "both" : null;
-            var found=templateSource.Where(t => (kind==null || t.Kind==kind) &&
+            string chosen=templateCategory.SelectedIndex>0?templateCategory.SelectedItem as string:null;
+            var found=templateSource.Where(t => (kind==null || t.Kind==kind) && (chosen==null||AccountOrganization.Category(t).Equals(chosen,StringComparison.CurrentCultureIgnoreCase)) &&
                 ((t.Name ?? "").IndexOf(query,StringComparison.CurrentCultureIgnoreCase)>=0 || (t.Target ?? "").IndexOf(query,StringComparison.CurrentCultureIgnoreCase)>=0 || (t.Group ?? "").IndexOf(query,StringComparison.CurrentCultureIgnoreCase)>=0)).ToList();
             tpl.BeginUpdate(); tpl.Items.Clear(); tpl.Items.Add(new TplItem()); foreach(var t in found) tpl.Items.Add(new TplItem { T=t }); tpl.SelectedIndex=0; tpl.EndUpdate();
             templateCount.Text=found.Count+" из "+templateSource.Count;
@@ -1090,9 +1107,19 @@ namespace WinUp
             target.Text = t.Target; appTarget.Text = t.AppTarget; loginUrl.Text=t.LoginUrl;loginProfile=t.LoginProfile;args.Text = t.Args; window.Text = t.Window; enter.Checked = t.AutoEnter;
             twofa.SelectedIndex = t.TwoFa == "ask" ? 1 : t.TwoFa == "link" ? 2 : 0;
             notes.Text = t.Note;
+            category.Text=AccountOrganization.Category(t);UpdateSavedHint();
             UpdateKind();
             if(IsHandleCreated) { var ignored=FindApplication(); }
             login.Focus();
+        }
+
+        void UpdateSavedHint(){
+            var matches=savedEntries.Where(x=>AccountOrganization.SameService(x,name.Text,target.Text,loginProfile,loginUrl.Text)).ToList();
+            if(matches.Count==0){savedHint.Text="";return;}
+            bool account=matches.Any(x=>new[]{x.Login,x.Login2}.Any(value=>!string.IsNullOrEmpty(value)&&(value==login.Text||value==login2.Text)));
+            string accounts=string.Join("; ",matches.Take(4).Select(x=>x.Name+" · "+(string.IsNullOrEmpty(x.Login)?"без логина":x.Login)+(x.Kind=="passkey"?" (ключ доступа)":"")));
+            savedHint.Text=(account?"Этот аккаунт уже сохранён. ":"Для этого сервиса уже есть записи. ")+accounts+(matches.Count>4?"; ещё "+(matches.Count-4):"")+". Существующие записи не заменяются.";
+            savedHint.ForeColor=account?Color.Firebrick:Color.DarkGoldenrod;
         }
 
         void UpdateKind()
@@ -1134,7 +1161,7 @@ namespace WinUp
             var t = new LoginTemplate
             {
                 Name = name.Text.Trim(), Group = "Мои", Kind = app.Checked ? "app" : both.Checked ? "both" : "site", Target = target.Text.Trim(), AppTarget = appTarget.Text.Trim(), Args = args.Text.Trim(),
-                LoginUrl=loginUrl.Text.Trim(),LoginProfile=loginProfile,
+                LoginUrl=loginUrl.Text.Trim(),LoginProfile=loginProfile,Category=category.Text.Trim(),
                 // Заметка записи — личное (её видно только в зашифрованной базе), а шаблоны лежат в apps.json
                 // открытым текстом: в шаблон не копируется.
                 Window = window.Text.Trim(), AutoEnter = enter.Checked, TwoFa = TwoFaValue() == "link" ? "ask" : TwoFaValue(), Note = ""
@@ -1167,6 +1194,7 @@ namespace WinUp
             if (mode == "link" && otp == null) { Fail("Выберите аккаунт 2FA или нажмите «Новый...»."); return; }
 
             e.Name = name.Text.Trim(); e.Kind = app.Checked ? "app" : both.Checked ? "both" : "site";
+            e.Category=category.Text.Trim();e.Pinned=pinned.Checked;
             if (site.Checked && t.Length > 0 && !t.Contains("://")) t = "https://" + t;
             e.Target = t; e.AppTarget = both.Checked ? appTarget.Text.Trim() : ""; e.Args = app.Checked || both.Checked ? args.Text.Trim() : "";
             e.LoginUrl=app.Checked ? null : loginUrl.Text.Trim();e.LoginProfile=app.Checked ? null : loginProfile;

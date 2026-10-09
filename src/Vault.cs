@@ -12,6 +12,8 @@ namespace WinUp
         public string Id { get; set; }
         public string Name { get; set; }
         public string Kind { get; set; }      // "site" | "app"
+        public bool Pinned { get; set; }
+        public string Category { get; set; }
         public string Target { get; set; }    // URL или путь к exe
         public string Args { get; set; }      // параметры запуска программы
         public string Browser { get; set; }   // "" — как в настройках WinUp
@@ -35,7 +37,7 @@ namespace WinUp
         internal LoginEntry Copy() { return UsePassword(p => UseRecoveryCodes(c => new LoginEntry {
             Id=CopyText(Id), Name=CopyText(Name), Kind=CopyText(Kind), Target=CopyText(Target), AppTarget=CopyText(AppTarget), LoginUrl=CopyText(LoginUrl), LoginProfile=CopyText(LoginProfile), Args=CopyText(Args), Browser=CopyText(Browser), Window=CopyText(Window),
             Login=CopyText(Login), Login2=CopyText(Login2), Password=p, RecoveryCodes=c, PasskeyId=CopyText(PasskeyId),
-            PasskeyBackupEligible=PasskeyBackupEligible, PasskeyBackedUp=PasskeyBackedUp,
+            PasskeyBackupEligible=PasskeyBackupEligible, PasskeyBackedUp=PasskeyBackedUp, Pinned=Pinned, Category=CopyText(Category),
             AutoEnter=AutoEnter, TwoFa=CopyText(TwoFa), OtpId=CopyText(OtpId), Delay=Delay, Notes=CopyText(Notes)
         })); }
         public bool AutoEnter { get; set; }
