@@ -7,7 +7,7 @@ $taskItems=@()
 foreach($taskTree in @(@{root=$taskSource;prefix='src'},@{root=(Join-Path $taskRoot 'tools');prefix='tools'},@{root=(Join-Path $taskRoot 'qa\security');prefix='qa/security'},@{root=(Join-Path $taskRoot 'qa\tests');prefix='qa/tests'},@{root=(Join-Path $taskRoot 'qa\fixtures');prefix='qa/fixtures'},@{root=(Join-Path $taskRoot 'doc\shots-1.15');prefix='doc/shots-1.15'},@{root=(Join-Path $taskRoot '.github');prefix='.github'})) {
  foreach($taskFile in Get-ChildItem -LiteralPath $taskTree.root -File -Recurse) {
   $taskRelative=$taskFile.FullName.Substring($taskTree.root.Length+1)
-  if($taskRelative -match '(^|\\)(bin|obj|github)\\' -or $taskFile.Extension -in '.dpapi','.pfx','.p12','.kdbx','.keyx'){continue}
+  if($taskRelative -match '(^|\\)(bin|obj|github|build-[a-f0-9]+)\\' -or $taskFile.Extension -in '.dpapi','.pfx','.p12','.kdbx','.keyx'){continue}
   $taskItems+=@{path=$taskFile.FullName;name=($taskTree.prefix+'/'+$taskRelative.Replace('\','/'))}
  }
 }
