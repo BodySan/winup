@@ -39,7 +39,8 @@ namespace WinUp {
                 if(output.ShowDialog(this)!=DialogResult.OK)return;
                 using(var password=new FilePackagePasswordDialog(true,true)) {
                     if(password.ShowDialog(this)!=DialogResult.OK)return;string pw=password.Password;bool move=password.RemoveOriginals;
-                    try {if(FileOperation(delegate{FilePackages.Pack(sources,FilePackages.PackageOutputName(output.FileName),pw,move,fileCancellation.Token);},false))MessageBox.Show(this,"Пакет создан и проверен. "+(move?"Исходники удалены после проверки.":"Исходники сохранены."),"WinUp");}finally{Secure.Wipe(pw);}
+                    string package=FilePackages.PackageOutputName(output.FileName);
+                    try {if(FileOperation(delegate{FilePackages.Pack(sources,package,pw,move,fileCancellation.Token);},false))MessageBox.Show(this,"Пакет создан и проверен. "+(move?"Исходники удалены после проверки.":"Исходники сохранены.")+FileInteroperability.WritePackageMemo(package),"WinUp");}finally{Secure.Wipe(pw);}
                 }
             }
         }
@@ -84,7 +85,8 @@ namespace WinUp {
                         if(output.ShowDialog(this)!=DialogResult.OK)return;
                         using(var password=new FilePackagePasswordDialog(true,false)) {
                             if(password.ShowDialog(this)!=DialogResult.OK)return;string pw=password.Password;
-                            try{if(FileOperation(delegate{FilePackages.Pack(sources,FilePackages.PackageOutputName(output.FileName),pw,false,fileCancellation.Token,zoneLookup);},false))MessageBox.Show(this,"Выбранные данные выгружены в отдельный проверенный пакет. Остальное хранилище в него не попало.","WinUp");}finally{Secure.Wipe(pw);}
+                            string package=FilePackages.PackageOutputName(output.FileName);
+                            try{if(FileOperation(delegate{FilePackages.Pack(sources,package,pw,false,fileCancellation.Token,zoneLookup);},false))MessageBox.Show(this,"Выбранные данные выгружены в отдельный проверенный пакет. Остальное хранилище в него не попало."+FileInteroperability.WritePackageMemo(package),"WinUp");}finally{Secure.Wipe(pw);}
                         }
                     }
                 }else using(var folder=new FolderBrowserDialog{Description="Куда выгрузить обычные незашифрованные копии"}){

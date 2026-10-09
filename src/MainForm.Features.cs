@@ -12,7 +12,7 @@ using System.Windows.Forms;
 namespace WinUp {
     partial class MainForm {
         FileVaultClient fileVault;
-        readonly ComboBox fileCatalog=new ComboBox { DropDownStyle=ComboBoxStyle.DropDownList, Width=440 };
+        readonly ComboBox fileCatalog=new ComboBox { DropDownStyle=ComboBoxStyle.DropDownList, Width=310 };
         readonly ListView fileItems=new ListView { Dock=DockStyle.Fill, View=View.Details, FullRowSelect=true };
         readonly Label fileState=new Label { AutoSize=true, Text="Хранилище закрыто", Padding=new Padding(8) };
         readonly ListView passkeyList=new ListView { Dock=DockStyle.Fill, View=View.Details, FullRowSelect=true };
@@ -58,6 +58,7 @@ namespace WinUp {
             bar.Controls.Add(FeatureButton("Зашифровать файлы…",delegate{PackExternal(false);}));
             bar.Controls.Add(FeatureButton("Зашифровать папку…",delegate{PackExternal(true);}));
             bar.Controls.Add(FeatureButton("Расшифровать пакет…",UnpackFilePackage));
+            bar.Controls.Add(FeatureButton("Без WinUp…",ShowFileInteroperability));
             bar.Controls.Add(FeatureButton("Добавить файлы",delegate { ImportFiles(false); }));
             bar.Controls.Add(FeatureButton("Добавить папку",delegate { ImportFiles(true); }));
             bar.Controls.Add(FeatureButton("Выгрузить…",ExportFileSelection));
@@ -88,7 +89,13 @@ namespace WinUp {
             };
             FormClosing+=(s,e)=>{if(fileBusy){e.Cancel=true;fileState.Text="Сначала завершите или отмените операцию с файлами.";}else if(fileVault!=null&&!TryCloseFileVault())e.Cancel=true;};
             page.Controls.Add(fileItems); page.Controls.Add(fileState); fileState.Dock=DockStyle.Bottom;
-            page.Controls.Add(bar); tabs.TabPages.Add(page);
+            page.Controls.Add(bar);
+            ArrangeActions(page,new[]{bar},
+                new ActionGroup("Хранилище",new[]{(Control)fileCatalog}.Concat(Actions(bar,"Открыть","В Проводнике","Заблокировать хранилище")).ToArray()),
+                new ActionGroup("Файлы",Actions(bar,"Назад","Новая папка","Добавить файлы","Добавить папку","Выгрузить…")),
+                new ActionGroup("Пакеты",Actions(bar,"Зашифровать файлы…","Зашифровать папку…","Расшифровать пакет…","Без WinUp…")),
+                new ActionGroup("Управление",Actions(bar,"Создать хранилище","Добавить существующее","История файлов…","Резерв / перенос…","Ещё…","Отмена операции")));
+            tabs.TabPages.Add(page);
             try {
                 string path=Path.Combine(Paths.Data,"file-vaults.json");
                 if(File.Exists(path)) foreach(string folder in new JavaScriptSerializer().Deserialize<string[]>(File.ReadAllText(path)))
@@ -274,7 +281,9 @@ namespace WinUp {
                 current.Entries.Remove(entry); if(SaveVault()) { entry.ClearSecrets(); RefreshPasskeys(); }
                 else { if(vault==current) current.Entries.Add(entry); else entry.ClearSecrets(); RefreshPasskeys(); }
             }));
-            page.Controls.Add(passkeyList); page.Controls.Add(bar); tabs.TabPages.Add(page);
+            page.Controls.Add(passkeyList); page.Controls.Add(bar);
+            ArrangeActions(page,new[]{bar},new ActionGroup("Вход",Actions(bar,"Открыть сайт","Открыть базу","Обновить")),new ActionGroup("Ключи",Actions(bar,"Добавить ключ…","Удалить ключ")));
+            tabs.TabPages.Add(page);
         }
         void AddPasskeyFromSite() {
             if(!NeedVault()) return;

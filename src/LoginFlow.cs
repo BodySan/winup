@@ -47,8 +47,8 @@ namespace WinUp {
         }
         internal static LoginProfile Resolve(LoginEntry entry) {
             string origin=Origin(entry.Target); if(origin==null) return null;
-            var profile=All.FirstOrDefault(p=>p.Id==entry.LoginProfile && p.Sites.Contains(origin,StringComparer.OrdinalIgnoreCase)) ??
-                All.FirstOrDefault(p=>p.Id==AppStore.TemplateName(entry.Name) && p.Sites.Contains(origin,StringComparer.OrdinalIgnoreCase)) ??
+            var profile=All.FirstOrDefault(p=>p.Id==entry.LoginProfile && (p.Sites.Contains(origin,StringComparer.OrdinalIgnoreCase)||p.Origins.Contains(origin,StringComparer.OrdinalIgnoreCase))) ??
+                All.FirstOrDefault(p=>p.Id==AppStore.TemplateName(entry.Name) && (p.Sites.Contains(origin,StringComparer.OrdinalIgnoreCase)||p.Origins.Contains(origin,StringComparer.OrdinalIgnoreCase))) ??
                 All.FirstOrDefault(p=>p.Sites.Contains(origin,StringComparer.OrdinalIgnoreCase));
             string route=string.IsNullOrWhiteSpace(entry.LoginUrl) ? profile==null ? entry.Target : profile.LoginUrl : entry.LoginUrl;
             // Older built-in templates copied the site's home URL into LoginUrl.
