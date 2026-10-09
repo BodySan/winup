@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -32,13 +32,14 @@ namespace WinUp
         readonly SecretText recoveryCodes = new SecretText();
         public string RecoveryCodes { get { return recoveryCodes.Read(); } set { recoveryCodes.Set(value); } }
         internal T UseRecoveryCodes<T>(Func<string,T> action) { return recoveryCodes.Use(action); }
-        internal void ClearSecrets() { password.Clear(); totp.Clear(); recoveryCodes.Clear(); }
+        public List<AccountSecretField> CustomFields { get; set; }
+        internal void ClearSecrets() { password.Clear(); totp.Clear(); recoveryCodes.Clear(); foreach(var field in CustomFields)field.Clear(); }
         static string CopyText(string value) {return value==null ? null : new string(value.ToCharArray());}
         internal LoginEntry Copy() { return UsePassword(p => UseRecoveryCodes(c => new LoginEntry {
             Id=CopyText(Id), Name=CopyText(Name), Kind=CopyText(Kind), Target=CopyText(Target), AppTarget=CopyText(AppTarget), LoginUrl=CopyText(LoginUrl), LoginProfile=CopyText(LoginProfile), Args=CopyText(Args), Browser=CopyText(Browser), Window=CopyText(Window),
             Login=CopyText(Login), Login2=CopyText(Login2), Password=p, RecoveryCodes=c, PasskeyId=CopyText(PasskeyId),
             PasskeyBackupEligible=PasskeyBackupEligible, PasskeyBackedUp=PasskeyBackedUp, Pinned=Pinned, Category=CopyText(Category),
-            AutoEnter=AutoEnter, TwoFa=CopyText(TwoFa), OtpId=CopyText(OtpId), Delay=Delay, Notes=CopyText(Notes)
+            AutoEnter=AutoEnter, TwoFa=CopyText(TwoFa), OtpId=CopyText(OtpId), Delay=Delay, Notes=CopyText(Notes), CustomFields=CustomFields.Select(f=>f.Copy()).ToList()
         })); }
         public bool AutoEnter { get; set; }
         public string TwoFa { get; set; }     // "none" | "ask" | "link" (код из раздела «Коды 2FA»); "totp" — устарело
@@ -48,7 +49,16 @@ namespace WinUp
         public bool AutoTotp { get; set; }    // устарело (v1.0), читается для перевода в TwoFa
         public int Delay { get; set; }
         public string Notes { get; set; }
-        public LoginEntry() { Kind = "site"; Delay = 3; TwoFa = "none"; PasskeyBackupEligible = true; }
+        public LoginEntry() { CustomFields=new List<AccountSecretField>(); Kind = "site"; Delay = 3; TwoFa = "none"; PasskeyBackupEligible = true; }
+    }
+
+    public sealed class AccountSecretField {
+        public string Name { get; set; }
+        readonly SecretText value = new SecretText();
+        public string Value { get { return value.Read(); } set { this.value.Set(value); } }
+        internal T UseValue<T>(Func<string,T> action){return value.Use(action);}
+        internal AccountSecretField Copy(){return UseValue(v=>new AccountSecretField{Name=Name,Value=v});}
+        internal void Clear(){value.Clear();}
     }
 
     // Аккаунт в разделе «Коды 2FA» — как строка в приложении-аутентификаторе.

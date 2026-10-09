@@ -12,6 +12,8 @@ import java.util.*;
 import org.cryptomator.cryptofs.*;
 import org.cryptomator.cryptolib.api.*;
 import org.cryptomator.cryptolib.common.MasterkeyFileAccess;
+import org.cryptomator.cryptofs.health.api.HealthCheck;
+import org.cryptomator.cryptofs.health.api.DiagnosticResult;
 import org.cryptomator.integrations.common.IntegrationsLoader;
 import org.cryptomator.integrations.mount.*;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -281,8 +283,49 @@ public final class WinUpFiles {
             }else if(metadataBackup!=null)Files.deleteIfExists(metadataBackup);
         }
     }
+    private static VaultConfig verifiedConfig(Masterkey key) throws Exception {
+        Path config=storage.resolve("vault.cryptomator");
+        if(!Files.isRegularFile(config,LinkOption.NOFOLLOW_LINKS)||Files.size(config)>65536)throw new IOException("invalid_vault_config");
+        return VaultConfig.load(Files.readString(config),id->{if(!id.equals(URI.create("masterkeyfile:masterkey.cryptomator")))throw new IllegalArgumentException("unknown_key");return key.copy();},8);
+    }
+    private static void replaceMasterkey(Masterkey key,CharSequence password) throws Exception {
+        verifiedConfig(key);var access=new MasterkeyFileAccess(new byte[0],RNG);Path target=storage.resolve("masterkey.cryptomator");
+        Path stage=Files.createTempFile(storage,".winup-masterkey-",".tmp");byte[] encoded=new byte[0];
+        try {
+            try(var out=new ByteArrayOutputStream()){access.persist(key,out,password,999);encoded=out.toByteArray();}
+            try(var input=new ByteArrayInputStream(encoded);var verified=access.load(input,password)){verifiedConfig(verified);}
+            try(var output=FileChannel.open(stage,StandardOpenOption.WRITE)){var bytes=ByteBuffer.wrap(encoded);while(bytes.hasRemaining())output.write(bytes);output.force(true);}
+            if(Files.exists(target,LinkOption.NOFOLLOW_LINKS)){if(!Files.isRegularFile(target,LinkOption.NOFOLLOW_LINKS)||Files.size(target)>65536)throw new IOException("invalid_masterkey");Files.copy(target,storage.resolve("masterkey.cryptomator.winup-"+UUID.randomUUID()+".bak"));}
+            Files.move(stage,target,StandardCopyOption.ATOMIC_MOVE,StandardCopyOption.REPLACE_EXISTING);
+        } finally {Arrays.fill(encoded,(byte)0);Files.deleteIfExists(stage);}
+    }
+    private static Object manage(String op,String[] fields) throws Exception {
+        if(storage==null||fs!=null||mount!=null)throw new IOException("close_vault_before_manage");
+        char[] input=decode(fields[1]).toCharArray(),replacement=fields.length>2?decode(fields[2]).toCharArray():new char[0];byte[] raw=new byte[0];
+        try {
+            var access=new MasterkeyFileAccess(new byte[0],RNG);
+            if(op.equals("reset-password")){raw=WinUpRecovery.decode(new String(input));try(var key=new Masterkey(raw)){replaceMasterkey(key,CharBuffer.wrap(replacement));}return Map.of("ok",true);}
+            Path master=storage.resolve("masterkey.cryptomator");if(!Files.isRegularFile(master,LinkOption.NOFOLLOW_LINKS)||Files.size(master)>65536)throw new IOException("invalid_masterkey");
+            try(var key=access.load(master,CharBuffer.wrap(input))){
+                VaultConfig config=verifiedConfig(key);
+                if(op.equals("recovery-key")){raw=key.getEncoded();return Map.of("ok",true,"key",WinUpRecovery.encode(raw));}
+                if(op.equals("change-password")){replaceMasterkey(key,CharBuffer.wrap(replacement));return Map.of("ok",true);}
+                var checks=HealthCheck.allChecks();if(checks.isEmpty())throw new IOException("health_checks_unavailable");
+                var results=new ArrayList<Object>();int[] counts=new int[4];
+                try(var cryptor=CryptorProvider.forScheme(config.getCipherCombo()).provide(key,RNG)){
+                    for(var check:checks)check.check(storage,config,key,cryptor,result->{counts[result.getSeverity().ordinal()]++;if(result.getSeverity()!=DiagnosticResult.Severity.GOOD&&results.size()<1000)results.add(Map.of("check",check.name(),"severity",result.getSeverity().name(),"message",result.toString(),"details",result.details()));});
+                }
+                return Map.of("ok",true,"checks",checks.size(),"good",counts[0],"info",counts[1],"warnings",counts[2],"critical",counts[3],"results",results,"truncated",counts[1]+counts[2]+counts[3]>results.size());
+            }
+        } finally {Arrays.fill(input,'\0');Arrays.fill(replacement,'\0');Arrays.fill(raw,(byte)0);}
+    }
     private static Object command(String[] p) throws Exception {
         String op = p[0];
+        if(op.equals("manage")){
+            if(fs!=null||storage!=null)throw new IOException("already_open");storage=Path.of(decode(p[1])).toAbsolutePath().normalize();
+            String guard=decode(p[3]);if(!guard.matches("\\.winup-path-lease-[0-9a-f]{32}")||!Files.isRegularFile(storage.resolve(guard),LinkOption.NOFOLLOW_LINKS))throw new IOException("missing_path_guard");pathGuard=storage.resolve(guard);return Map.of("ok",true);
+        }
+        if(op.equals("recovery-key")||op.equals("change-password")||op.equals("reset-password")||op.equals("health"))return manage(op,p);
         if (op.equals("open") || op.equals("create")) {
             if (p.length != 4 && p.length!=5) throw new IOException("bad_open_command");
             open(decode(p[1]), p[2], decode(p[3]), op.equals("create"),p.length==5&&decode(p[4]).equals("readonly")); return Map.of("ok",true);

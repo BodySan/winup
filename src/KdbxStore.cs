@@ -25,7 +25,7 @@ namespace WinUp
     //                        защита от подбора только через интерфейс WinUp.
     // Уничтожение после N неверных попыток (по решению владельца): счётчик в tab.dat,
     // исчерпание — перезапись и удаление vault.kdbx, recovery.kdbx и tab.dat.
-    public sealed class KdbxStore
+    public sealed partial class KdbxStore
     {
         public const int P2Max = 7, PinMax = 5;
         const int RcIters = 600000, PinIters = 600000;
@@ -786,11 +786,11 @@ namespace WinUp
                     o.Id = pe.Uuid.ToHexString();
                     otpGroup.AddEntry(pe, true);
                 }
-                FillOtp(pe, o);
+                UpdateWithHistory(pe, p=>FillOtp(p,o), existingOtp.ContainsKey(pe.Uuid.ToHexString()));
                 keepOtp.Add(pe.Uuid.ToHexString());
             }
             foreach (var kv in existingOtp)
-                if (!keepOtp.Contains(kv.Key)) otpGroup.Entries.Remove(kv.Value);
+                if (!keepOtp.Contains(kv.Key)) MoveToTrash(kv.Value,true);
             if (otpIdMap.Count > 0)
                 foreach (var le in Entries)
                 {
@@ -807,11 +807,11 @@ namespace WinUp
                 PwEntry pe;
                 if (id.Length == 32 && existing.TryGetValue(id, out pe)) { }
                 else { pe = new PwEntry(true, true); le.Id = pe.Uuid.ToHexString(); db.RootGroup.AddEntry(pe, true); }
-                FillEntry(pe, le);
+                UpdateWithHistory(pe, p=>FillEntry(p,le), existing.ContainsKey(pe.Uuid.ToHexString()));
                 keep.Add(pe.Uuid.ToHexString());
             }
             foreach (var kv in existing)
-                if (!keep.Contains(kv.Key)) db.RootGroup.Entries.Remove(kv.Value);
+                if (!keep.Contains(kv.Key)) MoveToTrash(kv.Value,false);
         }
 
         PwGroup FindOtpGroup(bool create)
@@ -829,6 +829,8 @@ namespace WinUp
 
         static void FillEntry(PwEntry pe, LoginEntry le)
         {
+            foreach(var name in pe.Strings.GetKeys().Where(IsUserField).ToList())pe.Strings.Remove(name);
+            foreach(var field in le.CustomFields){ValidateFieldName(field.Name);field.UseValue(v=>{pe.Strings.Set(field.Name,ProtectedUtf8(v));return 0;});}
             pe.Strings.Set(PwDefs.TitleField, new ProtectedString(false, le.Name ?? ""));
             pe.Strings.Set(PwDefs.UserNameField, new ProtectedString(false, le.Login ?? ""));
             le.UsePassword(pw => { pe.Strings.Set(le.Kind == "passkey" ? "KPEX_PASSKEY_PRIVATE_KEY_PEM" : PwDefs.PasswordField, ProtectedUtf8(pw)); return 0; });
@@ -941,6 +943,9 @@ namespace WinUp
             var codes = ReadSecret(pe, "WinUp.RecoveryCodes");
             try { entry.RecoveryCodes = codes; }
             finally { Secure.Wipe(codes); }
+            foreach(var name in pe.Strings.GetKeys().Where(IsUserField)){
+                var value=ReadSecret(pe,name);try{entry.CustomFields.Add(new AccountSecretField{Name=name,Value=value});}finally{Secure.Wipe(value);}
+            }
             return entry;
         }
 

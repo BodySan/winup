@@ -3,8 +3,10 @@ $work=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..'))
 $runtime=Join-Path $work 'vendor\cryptomator-cli\cryptomator-cli'
 & "$work\src\vendor\file-engine\patch-jfuse.ps1" -Runtime $runtime -Compiler "$runtime\WinUpCompiler.exe" -Ecj
 $classpath=(@((Get-ChildItem "$runtime\app\mods" -Filter '*.jar').FullName)+@((Get-ChildItem "$runtime\app" -Filter '*.jar').FullName)) -join ';'
-& "$runtime\WinUpCompiler.exe" -24 -encoding UTF-8 -cp $classpath -d "$runtime\app\winup-files" "$work\src\vendor\file-engine\WinUpFiles.java"
+& "$runtime\WinUpCompiler.exe" -24 -encoding UTF-8 -cp $classpath -d "$runtime\app\winup-files" "$work\src\vendor\file-engine\WinUpFiles.java" "$work\src\vendor\file-engine\WordEncoder.java" "$work\src\vendor\file-engine\WinUpRecovery.java"
 if($LASTEXITCODE) { throw 'Java adapter build failed' }
+New-Item -ItemType Directory -Force "$runtime\app\winup-files\i18n" | Out-Null
+Copy-Item "$work\src\vendor\file-engine\4096words_en.txt" "$runtime\app\winup-files\i18n\4096words_en.txt" -Force
 Add-Type -AssemblyName System.IO.Compression
 $stream=[IO.File]::Create("$work\src\file-engine\file-engine.zip")
 $zip=[IO.Compression.ZipArchive]::new($stream,[IO.Compression.ZipArchiveMode]::Create)

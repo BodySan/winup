@@ -1,4 +1,4 @@
-param([Parameter(Mandatory=$true)][string]$Jdk24)
+﻿param([Parameter(Mandatory=$true)][string]$Jdk24)
 $ErrorActionPreference='Stop'
 $src=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..'))
 $javac=Join-Path $Jdk24 'bin\javac.exe'
@@ -8,8 +8,10 @@ Add-Type -AssemblyName System.IO.Compression.FileSystem
 [IO.Compression.ZipFile]::ExtractToDirectory("$src\file-engine\file-engine.zip",$runtime)
 & "$PSScriptRoot\patch-jfuse.ps1" -Runtime $runtime -Compiler $javac
 $classpath=(@((Get-ChildItem "$runtime\app\mods" -Filter '*.jar').FullName)+@((Get-ChildItem "$runtime\app" -Filter '*.jar').FullName)) -join ';'
-& $javac --release 24 -encoding UTF-8 -cp $classpath -d "$runtime\app\winup-files" "$PSScriptRoot\WinUpFiles.java"
+& $javac --release 24 -encoding UTF-8 -cp $classpath -d "$runtime\app\winup-files" "$PSScriptRoot\WinUpFiles.java" "$PSScriptRoot\WordEncoder.java" "$PSScriptRoot\WinUpRecovery.java"
 if($LASTEXITCODE) { throw "Java adapter build failed; build directory: $runtime" }
+New-Item -ItemType Directory -Force "$runtime\app\winup-files\i18n" | Out-Null
+Copy-Item "$PSScriptRoot\4096words_en.txt" "$runtime\app\winup-files\i18n\4096words_en.txt" -Force
 $stream=[IO.File]::Create("$src\file-engine\file-engine.zip")
 $zip=[IO.Compression.ZipArchive]::new($stream,[IO.Compression.ZipArchiveMode]::Create)
 $hashes=[ordered]@{}

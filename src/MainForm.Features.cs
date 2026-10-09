@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Drawing;
@@ -69,6 +69,10 @@ namespace WinUp {
             AddFileMenu(menu,"Удалить выбранное",DeleteFileSelection);
             AddFileMenu(menu,"Проверить резерв",VerifyFileBackup);
             AddFileMenu(menu,"Проверить пакет",VerifyFilePackage);
+            AddFileMenu(menu,"Сменить пароль хранилища…",()=>ManageFileVault("change-password"));
+            AddFileMenu(menu,"Ключ восстановления хранилища…",()=>ManageFileVault("recovery-key"));
+            AddFileMenu(menu,"Восстановить пароль хранилища…",()=>ManageFileVault("reset-password"));
+            AddFileMenu(menu,"Проверить структуру хранилища…",()=>ManageFileVault("health"));
             AddFileMenu(menu,"Настройки хранилища / проекта",ConfigureFileVault);
             AddFileMenu(menu,"Скопировать путь проекта",CopyProjectPath);
             AddFileMenu(menu,"Открыть проект в редакторе",OpenProjectEditor);
@@ -270,19 +274,20 @@ namespace WinUp {
             passkeyList.Columns.Add("Сайт",300); passkeyList.Columns.Add("Аккаунт",300);
             var bar=new FlowLayoutPanel { Dock=DockStyle.Top,AutoSize=true };
             bar.Controls.Add(FeatureButton("Добавить ключ…",AddPasskeyFromSite));
+            bar.Controls.Add(FeatureButton("История / корзина…",delegate{ShowRecordArchive(passkeyList.SelectedItems.Count==0?null:((LoginEntry)passkeyList.SelectedItems[0].Tag).Id);}));
             bar.Controls.Add(FeatureButton("Открыть сайт",delegate { if(passkeyList.SelectedItems.Count>0) OpenPasskeySite("https://"+((LoginEntry)passkeyList.SelectedItems[0].Tag).Target+"/"); }));
             bar.Controls.Add(FeatureButton("Открыть базу",delegate { if(NeedVault()) RefreshPasskeys(); }));
             bar.Controls.Add(FeatureButton("Обновить",RefreshPasskeys));
             bar.Controls.Add(FeatureButton("Удалить ключ",delegate {
                 if(vault==null || passkeyList.SelectedItems.Count==0) return;
                 var entry=(LoginEntry)passkeyList.SelectedItems[0].Tag;
-                if(MessageBox.Show(this,"Удалить ключ доступа для "+entry.Target+" ("+entry.Login+")?\nВход этим ключом станет недоступен.","WinUp",MessageBoxButtons.YesNo)!=DialogResult.Yes) return;
                 var current=vault;
+                if(MessageBox.Show(this,"Переместить ключ доступа для "+entry.Target+" ("+entry.Login+") в корзину?\nДо восстановления вход этим ключом будет недоступен. Регистрация на сайте не удаляется.","WinUp",MessageBoxButtons.YesNo)!=DialogResult.Yes||vault!=current) return;
                 current.Entries.Remove(entry); if(SaveVault()) { entry.ClearSecrets(); RefreshPasskeys(); }
                 else { if(vault==current) current.Entries.Add(entry); else entry.ClearSecrets(); RefreshPasskeys(); }
             }));
             page.Controls.Add(passkeyList); page.Controls.Add(bar);
-            ArrangeActions(page,new[]{bar},new ActionGroup("Вход",Actions(bar,"Открыть сайт","Открыть базу","Обновить")),new ActionGroup("Ключи",Actions(bar,"Добавить ключ…","Удалить ключ")));
+            ArrangeActions(page,new[]{bar},new ActionGroup("Вход",Actions(bar,"Открыть сайт","Открыть базу","Обновить")),new ActionGroup("Ключи",Actions(bar,"Добавить ключ…","Удалить ключ","История / корзина…")));
             tabs.TabPages.Add(page);
         }
         void AddPasskeyFromSite() {

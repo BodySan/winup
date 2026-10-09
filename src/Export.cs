@@ -94,7 +94,7 @@ namespace WinUp
                 foreach (char c in v ?? "") { if (c == '"') sb.Append('"'); sb.Append(c); }
                 sb.Append('"');
             };
-            sb.Append("Название;Тип;Адрес или программа;Логин;Пароль;2FA;Секрет 2FA;Заметка;Дополнительный логин;Приложение;Резервные коды;Ключ доступа (ID)\r\n");
+            sb.Append("Название;Тип;Адрес или программа;Логин;Пароль;2FA;Секрет 2FA;Заметка;Дополнительный логин;Приложение;Резервные коды;Ключ доступа (ID);Дополнительные поля (JSON)\r\n");
             foreach (var e in entries)
             {
                 if (e.Kind == "passkey") continue;
@@ -104,7 +104,9 @@ namespace WinUp
                 var otp = Linked(e, otps);
                 if (otp == null) q(""); else otp.UseSecret(s => { q(s); return 0; });
                 sb.Append(';'); q(e.Notes); sb.Append(';'); q(e.Login2); sb.Append(';'); q(e.AppTarget); sb.Append(';');
-                e.UseRecoveryCodes(c => { q(c); return 0; }); sb.Append(';'); q(e.PasskeyId); sb.Append("\r\n");
+                e.UseRecoveryCodes(c => { q(c); return 0; }); sb.Append(';'); q(e.PasskeyId); sb.Append(';');
+                var fields=new Dictionary<string,string>();string json=null;try{foreach(var field in e.CustomFields)fields.Add(field.Name,field.Value);json=new System.Web.Script.Serialization.JavaScriptSerializer().Serialize(fields);q(json);}finally{Secure.Wipe(json);foreach(var value in fields.Values)Secure.Wipe(value);}
+                sb.Append("\r\n");
             }
             return Secure.Utf8AndClear(sb, true);
         }
@@ -135,6 +137,7 @@ namespace WinUp
                 if(!string.IsNullOrEmpty(e.PasskeyId)) sb.Append("Ключ доступа: "+e.PasskeyId+" (сам ключ сохраняется в экспорте KDBX)\r\n");
                 if (Linked(e, otps) != null) Linked(e, otps).UseSecret(s => { sb.Append("Секрет 2FA: ").Append(s).Append("\r\n"); return 0; });
                 if (!string.IsNullOrEmpty(e.Notes)) sb.Append("Заметка: " + e.Notes + "\r\n");
+                foreach(var field in e.CustomFields)field.UseValue(value=>{sb.Append(field.Name).Append(": ").Append(value).Append("\r\n");return 0;});
                 sb.Append("\r\n");
             }
             if (otps != null && otps.Count > 0)

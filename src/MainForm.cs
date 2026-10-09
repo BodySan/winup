@@ -950,13 +950,14 @@ namespace WinUp
             Btn(bar, "Копировать код", (s, e) => CopyOtp());
             Btn(bar, "Добавить...", (s, e) => AddOtp());
             Btn(bar, "Импорт из другого приложения...", (s, e) => ImportOtp());
+            Btn(bar, "История / корзина…", (s, e) => ShowRecordArchive(SelectedOtp()==null?null:SelectedOtp().Id,true));
             Btn(bar, "Изменить...", (s, e) => EditOtp());
             Btn(bar, "Удалить", (s, e) => DeleteOtp());
             otpList.DoubleClick += (s, e) => CopyOtp();
             var hint = new Label { Dock = DockStyle.Bottom, Height = 36, Padding = new Padding(6), ForeColor = SystemColors.GrayText,
                 Text = "Двойной щелчок — скопировать код. Коды те же, что в приложении на телефоне, если там добавлен тот же аккаунт." };
             otpOpen.Controls.Add(otpList); otpOpen.Controls.Add(bar); otpOpen.Controls.Add(hint);
-            ArrangeActions(otpOpen,new[]{bar},new ActionGroup("Код",Actions(bar,"Копировать код")),new ActionGroup("Аккаунты",Actions(bar,"Добавить...","Изменить...","Импорт из другого приложения...","Удалить")));
+            ArrangeActions(otpOpen,new[]{bar},new ActionGroup("Код",Actions(bar,"Копировать код")),new ActionGroup("Аккаунты",Actions(bar,"Добавить...","Изменить...","Импорт из другого приложения...","Удалить","История / корзина…")));
             page.Controls.Add(otpOpen); page.Controls.Add(otpLocked);
             tabs.TabPages.Add(page);
             otpTimer.Tick += (s, e) => TickCodes();
@@ -1054,14 +1055,14 @@ namespace WinUp
             var o = SelectedOtp();
             if (o == null) return;
             var used = vault.Entries.Where(x => x.TwoFa == "link" && x.OtpId == o.Id).ToList();
-            var msg = "Удалить аккаунт 2FA «" + o.Title + "»?\n\nЕсли он есть только в WinUp, коды для этого сайта больше негде будет взять — " +
-                      "убедитесь, что он есть в телефоне.";
+            var current=vault;
+            var msg = "Переместить аккаунт 2FA «" + o.Title + "» в корзину?\n\nЕго можно вернуть через «История / корзина…».";
             if (used.Count > 0) msg += "\n\nОн используется в записях: " + string.Join(", ", used.Select(x => x.Name)) + " — у них 2FA станет «Спросить код».";
             if (MessageBox.Show(this, msg, "WinUp", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes) return;
-            if (vault == null) { PwLog("База заблокирована во время подтверждения — удаление отменено."); return; }
+            if (vault != current) { PwLog("База изменилась во время подтверждения — удаление отменено."); return; }
             foreach (var x in used) { x.TwoFa = "ask"; x.OtpId = null; }
             vault.Otp.Remove(o);
-            if (SaveVault()) RefreshOtp();
+            if (SaveVault()) {o.ClearSecret();RefreshOtp();}
         }
 
         // ---------------- Меню: мастер, поиск установщиков, передача, экспорт, справка ----------------
@@ -1620,6 +1621,9 @@ namespace WinUp
             Btn(bar, "Импорт паролей…", (s, e) => {try{ImportPasswords();}catch(Exception ex){MessageBox.Show(this,ex.Message,"WinUp — импорт паролей");}});
             Btn(bar, "Изменить...", (s, e) => EditEntry());
             Btn(bar, "Проверить адреса…", (s, e) => ReviewAccountAddresses());
+            Btn(bar, "Дополнительные поля…", (s, e) => EditSelectedFields());
+            Btn(bar, "Изменить отмеченные…", (s, e) => BulkEditPasswords());
+            Btn(bar, "История / корзина…", (s, e) => ShowRecordArchive(SelectedEntry()==null?null:SelectedEntry().Id));
             Btn(bar, "Закрепить / открепить", (s, e) => TogglePinnedPassword());
             Btn(bar, "Удалить", (s, e) => DeleteEntry());
             Btn(bar, "Генератор...", (s, e) => { using (var d = new GenDialog(false)) d.ShowDialog(this); });
@@ -1643,7 +1647,7 @@ namespace WinUp
             openPanel.Controls.Add(pwList); openPanel.Controls.Add(BuildPasswordFilters());openPanel.Controls.Add(bar); openPanel.Controls.Add(bar2);
             ArrangeActions(openPanel,new[]{bar,bar2},
                 new ActionGroup("Вход",Actions(bar,"Войти","Войти в отмеченные","Копировать логин","Копировать пароль","Код 2FA")),
-                new ActionGroup("Записи",Actions(bar,"Добавить...","Изменить...","Импорт паролей…","Проверить адреса…","Закрепить / открепить","Генератор...","Удалить")),
+                new ActionGroup("Записи",Actions(bar,"Добавить...","Изменить...","Импорт паролей…","Проверить адреса…","Закрепить / открепить","Генератор...","Удалить","Дополнительные поля…","Изменить отмеченные…","История / корзина…")),
                 new ActionGroup("База / браузер",new[]{(Control)browserBox}.Concat(Actions(bar2,"Заблокировать базу","Код восстановления...","Сменить пароль базы...","Папка резерва...")).ToArray()));
 
             page.Controls.Add(openPanel); page.Controls.Add(lockedPanel); page.Controls.Add(pwLog);
@@ -2443,10 +2447,11 @@ namespace WinUp
         {
             var e = SelectedEntry();
             if (e == null) return;
-            if (MessageBox.Show(this, "Удалить запись «" + e.Name + "»?", "WinUp", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
-            if (vault == null) { PwLog("База заблокирована во время подтверждения — удаление отменено."); return; }
+            var current=vault;
+            if (MessageBox.Show(this, "Переместить запись «" + e.Name + "» в корзину?", "WinUp", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
+            if (vault != current) { PwLog("База изменилась во время подтверждения — удаление отменено."); return; }
             vault.Entries.Remove(e);
-            if (SaveVault()) PwLog("Удалено: " + e.Name + ".");
+            if (SaveVault()) {e.ClearSecrets();PwLog("Перемещено в корзину: " + e.Name + ".");}
         }
 
         void CopyField(bool login)
