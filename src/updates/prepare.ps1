@@ -29,5 +29,5 @@ $versions['browser']=(Get-Content "$src\browser\manifest.json" -Raw -Encoding UT
 $versions['psl']=$psl
 $appVersion=[regex]::Match([IO.File]::ReadAllText("$src\Properties\AssemblyInfo.cs"),'AssemblyVersion\("([0-9.]+)"\)').Groups[1].Value
 $v=[Version]$appVersion
-$manifest=[ordered]@{schema=1;api=5;sequence=0;minApp="$($v.Major).$($v.Minor).$($v.Build).0";maxApp="$($v.Major).$($v.Minor).999.999";versions=$versions;files=$files}
+$manifest=[ordered]@{schema=1;api=6;sequence=0;minApp="$($v.Major).$($v.Minor).$($v.Build).0";maxApp="$($v.Major).$($v.Minor).999.999";versions=$versions;files=$files}
 [IO.File]::WriteAllText("$src\updates\components.json",($manifest | ConvertTo-Json -Depth 8),[Text.UTF8Encoding]::new($false))

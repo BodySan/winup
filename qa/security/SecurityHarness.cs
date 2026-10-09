@@ -77,6 +77,7 @@ namespace WinUp
             store.Settings.BackupDir = Path.Combine(Paths.Root, "backup");
             store.Save();
             form = new MainForm(store);
+            Application.ThreadException += delegate(object sender,System.Threading.ThreadExceptionEventArgs e) {Console.WriteLine("FAIL unhandled-ui-exception "+e.Exception);Environment.Exit(1);};
             server = (BrowserServer)typeof(MainForm).GetField("browserServer", Private).GetValue(form);
             if (!trayUi) form.Shown += delegate { Task.Run(Array.IndexOf(args,"--directories-only")>=0 ? (Action)DirectoryRegressionTests : Array.IndexOf(args,"--files-only")>=0 ? (Action)DeliveryFilesOnly : Array.IndexOf(args,"--functional-only")>=0 ? (Action)DeliveryTests : Array.IndexOf(args,"--updates-only")>=0 ? (Action)UpdateRegressionTests : (Action)Tests); };
             Application.Run(form);

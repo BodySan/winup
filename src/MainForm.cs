@@ -97,8 +97,8 @@ namespace WinUp
             Controls.Add(status);
             BuildUpdateBanner(); // до меню: верхние панели раскладываются от последней добавленной, меню остаётся выше плашки
             BuildMenu();
-            tray = new TrayIcon(ShowFromTray, delegate { if (vault != null) { LockVault(); PwLog("Заблокировано из значка WinUp в области уведомлений."); } },
-                                delegate { ShowFromTray(); SelectTab("Пароли"); if (vault == null) Unlock(); }, Close);
+            tray = new TrayIcon(ShowFromTray, delegate { LockVaultCore(true); PwLog("База паролей, 2FA и ключей доступа заблокирована; файловое хранилище не закрывалось."); },
+                                delegate { ShowFromTray(); SelectTab("Пароли"); if (vault == null) Unlock(); }, Close,CloseFileVaultSafely,LockVault);
             BuildPasswordTab();
             BuildCodesTab();
             BuildPasskeyTab();
@@ -136,8 +136,18 @@ namespace WinUp
                 int mins = Math.Max(1, store.Settings.AutoLockMinutes);
                 if ((vault != null || unlockBusy) && Win.Idle().TotalMinutes >= mins)
                 {
-                    LockVault();
+                    bool keepProject=fileVault!=null && filePreferences.ProjectMode && Win.Idle().TotalMinutes<filePreferences.ProjectIdleMinutes;
+                    LockVaultCore(keepProject);
                     PwLog("Заблокировано автоматически после " + mins + " мин простоя.");
+                }
+                if(vault==null&&fileVault!=null&&!fileBusy&&Win.Idle().TotalMinutes>=
+                    (filePreferences.ProjectMode ? filePreferences.ProjectIdleMinutes : mins)) {
+                    try {
+                        var busy=fileVault.BusyFiles();
+                        if(busy.Length==0)TryCloseFileVault();
+                        else fileState.Text="Пароли закрыты. Диск проекта открыт: сохраните и закройте занятые файлы перед отключением.";
+                    } catch(IOException) {fileState.Text="Автоматическое отключение отложено: не удалось проверить занятые файлы. Закройте хранилище вручную.";}
+                      catch(UnauthorizedAccessException) {fileState.Text="Автоматическое отключение отложено: нет доступа к части файлов. Закройте хранилище вручную.";}
                 }
                 // WinUp может неделями стоять открытым: срок напоминания перепроверяется раз в сутки.
                 if (updShownDay != DateTime.Today) RefreshUpdateBanner();
@@ -187,7 +197,7 @@ namespace WinUp
             };
             FormClosed += (s, e) =>
             {
-                tray.Dispose();
+                var closingTray=tray;tray=null;if(closingTray!=null)closingTray.Dispose();
                 browserServer.Stop();
                 FillToast.CloseAll();
                 CloseFileVault();
@@ -1089,7 +1099,7 @@ namespace WinUp
             var help = new ToolStripMenuItem("Справка", null, (s, e) => OpenHelp());
             menu.Items.Add(help);
             lockMenu = new ToolStripMenuItem("🔒 База закрыта") { Alignment = ToolStripItemAlignment.Right, Enabled = false, ToolTipText = "Заблокировать базу паролей (Ctrl+L)" };
-            lockMenu.Click += (s, e) => { if (vault != null) { LockVault(); PwLog("Заблокировано."); } };
+            lockMenu.Click += (s, e) => { LockVault(); PwLog("Выполнена общая блокировка."); };
             menu.Items.Add(lockMenu);
             Controls.Add(menu);
             MainMenuStrip = menu;
@@ -1587,6 +1597,7 @@ namespace WinUp
             pwList.Columns.Add("Название", 160); pwList.Columns.Add("Тип", 75); pwList.Columns.Add("Логин", 130);
             pwList.Columns.Add("Адрес / программа", 200); pwList.Columns.Add("Окно", 110); pwList.Columns.Add("Enter", 45);
             pwList.Columns.Add("2FA", 75); pwList.Columns.Add("Браузер", 90);
+            pwList.Columns.Add("Категория",140).DisplayIndex=2;
 
             var bar = Bar();
             Btn(bar, "Войти", async (s, e) => await LoginSelected());
@@ -1595,7 +1606,9 @@ namespace WinUp
             Btn(bar, "Копировать пароль", (s, e) => CopyField(false));
             Btn(bar, "Код 2FA", (s, e) => CopyTotp());
             Btn(bar, "Добавить...", (s, e) => AddEntry());
+            Btn(bar, "Импорт паролей…", (s, e) => {try{ImportPasswords();}catch(Exception ex){MessageBox.Show(this,ex.Message,"WinUp — импорт паролей");}});
             Btn(bar, "Изменить...", (s, e) => EditEntry());
+            Btn(bar, "Закрепить / открепить", (s, e) => TogglePinnedPassword());
             Btn(bar, "Удалить", (s, e) => DeleteEntry());
             Btn(bar, "Генератор...", (s, e) => { using (var d = new GenDialog(false)) d.ShowDialog(this); });
 
@@ -1605,7 +1618,7 @@ namespace WinUp
             Btn(bar2, "Код восстановления...", (s, e) => MakeRecoveryCode(true));
             Btn(bar2, "Сменить пароль базы...", (s, e) => ChangePasswords());
             Btn(bar2, "Папка резерва...", (s, e) => ChangeBackupDir());
-            Btn(bar2, "Заблокировать", (s, e) => { LockVault(); PwLog("Заблокировано."); });
+            Btn(bar2, "Заблокировать базу", (s, e) => { LockVaultCore(true); PwLog("Пароли / 2FA / ключи доступа закрыты; файлы остаются в прежнем состоянии."); });
             FillBrowsers();
             browserBox.SelectedIndexChanged += (s, e) =>
             {
@@ -1615,7 +1628,7 @@ namespace WinUp
             };
 
             pwList.DoubleClick += async (s, e) => await LoginSelected();
-            openPanel.Controls.Add(pwList); openPanel.Controls.Add(bar); openPanel.Controls.Add(bar2);
+            openPanel.Controls.Add(pwList); openPanel.Controls.Add(BuildPasswordFilters());openPanel.Controls.Add(bar); openPanel.Controls.Add(bar2);
 
             page.Controls.Add(openPanel); page.Controls.Add(lockedPanel); page.Controls.Add(pwLog);
             tabs.TabPages.Add(page);
@@ -1696,7 +1709,8 @@ namespace WinUp
         {
             bool open = vault != null;
             if (tray != null) tray.SetLocked(!open);
-            if (lockMenu != null) { lockMenu.Enabled = open; lockMenu.Text = open ? "🔒 Заблокировать" : "🔒 База закрыта"; }
+            if (tray != null) tray.SetFilesOpen(fileVault!=null&&fileVault.Open);
+            if (lockMenu != null) { lockMenu.Enabled = open || fileVault!=null; lockMenu.Text = "🔒 Заблокировать всё"; }
             Icon = open ? AppIcons.Open : AppIcons.Locked;
         }
 
@@ -1721,7 +1735,7 @@ namespace WinUp
         // Ctrl+L — заблокировать базу с любой вкладки.
         protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
         {
-            if (keyData == (Keys.Control | Keys.L) && vault != null)
+            if (keyData == (Keys.Control | Keys.L) && (vault != null || fileVault!=null || unlockBusy))
             {
                 LockVault();
                 PwLog("Заблокировано (Ctrl+L).");
@@ -1731,10 +1745,16 @@ namespace WinUp
         }
 
         void LockVault()
+        {LockVaultCore(false);}
+        void LockVaultCore(bool keepProject)
         {
             lockGen++;
             browserLogins.Clear();
-            CloseFileVault();
+            if(!keepProject) {
+                CloseFileSecretDialogs();
+                if(fileBusy) {fileLockRequested=true;if(fileCancellation!=null)fileCancellation.Cancel();fileState.Text="База паролей заблокирована. Завершаю отмену операции с файлами.";}
+                else if(!TryCloseFileVault())fileState.Text="База паролей закрыта. Файловый диск остаётся открытым: завершите работу в редакторе и закройте хранилище.";
+            }
             passkeyList.Items.Clear();
             // Порядок важен (ревью R-3/R-4): сначала прекращается ввод и закрываются окна
             // с секретами (их обработчики ещё видят живые данные), только затем затирание.
@@ -1751,6 +1771,7 @@ namespace WinUp
             // 4. Затирание ключа и секретов.
             if (vault != null) { vault.Lock(); vault = null; }
             pwList.Items.Clear();
+            passwordSearch.Clear();
             // 5. След секретов в куче: сборка мусора и обнуляющая аллокация поверх освободившихся копий.
             Secure.ScrubHeap();
             lockedAt = DateTime.UtcNow;
@@ -2347,19 +2368,22 @@ namespace WinUp
 
         void RefreshEntries()
         {
+            if(vault==null)return;
+            RefreshPasswordCategories();
             var checkedIds = new HashSet<string>(pwList.CheckedItems.Cast<ListViewItem>().Select(i => ((LoginEntry)i.Tag).Id));
             var selId = SelectedEntry() == null ? null : SelectedEntry().Id;
             pwList.BeginUpdate(); pwList.Items.Clear();
-            foreach (var e in vault.Entries.OrderBy(x => x.Name, StringComparer.CurrentCultureIgnoreCase))
+            foreach (var e in AccountOrganization.Filter(vault.Entries,store.Templates,passwordSearch.Text,passwordCategory.SelectedIndex>0?passwordCategory.SelectedItem as string:null,passwordKind.SelectedIndex,passwordPinned.Checked))
             {
                 if (e.Kind == "passkey") continue;
-                var it = new ListViewItem(new[] { e.Name, e.Kind == "both" ? "приложение / сайт" : e.Kind == "app" ? "приложение" : "сайт", e.Login ?? "", e.Target ?? "", e.Window ?? "",
-                    e.AutoEnter ? "да" : "нет", TwoFaText(e), e.Kind == "app" ? "" : (string.IsNullOrEmpty(e.Browser) ? "общий" : e.Browser) })
+                var it = new ListViewItem(new[] { (e.Pinned?"★ ":"")+e.Name, e.Kind == "both" ? "приложение / сайт" : e.Kind == "app" ? "приложение" : "сайт", e.Login ?? "", e.Target ?? "", e.Window ?? "",
+                    e.AutoEnter ? "да" : "нет", TwoFaText(e), e.Kind == "app" ? "" : (string.IsNullOrEmpty(e.Browser) ? "общий" : e.Browser),AccountOrganization.Category(e,store.Templates) })
                 { Tag = e, Checked = checkedIds.Contains(e.Id) };
                 pwList.Items.Add(it);
                 if (e.Id == selId) { it.Selected = true; it.Focused = true; }
             }
             pwList.EndUpdate();
+            passwordCount.Text=pwList.Items.Count+" из "+vault.Entries.Count(e=>e.Kind!="passkey");
             if (pwList.SelectedItems.Count == 0 && pwList.Items.Count > 0) { pwList.Items[0].Selected = true; pwList.Items[0].Focused = true; }
         }
 

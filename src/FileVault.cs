@@ -29,13 +29,15 @@ namespace WinUp
         SourceLease vaultDirectories;
         public string Folder { get; private set; }
         public string MountPoint { get; private set; }
+        public bool ReadOnly {get; private set;}
         public bool Open { get { var p=process; try { return p != null && !p.HasExited; } catch { return false; } } }
         [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
         static extern bool CreateDirectoryW(string path, IntPtr security);
 
-        public FileVaultClient(string folder, string password, bool create, CancellationToken cancellation = default(CancellationToken))
+        public FileVaultClient(string folder, string password, bool create, CancellationToken cancellation = default(CancellationToken), bool readOnly=false)
         {
             Folder = Path.GetFullPath(folder);
+            ReadOnly=readOnly;
             SafePaths.NoReparseParents(Folder);
             try
             {
@@ -60,12 +62,12 @@ namespace WinUp
                 process = Process.Start(info);
                 process.ErrorDataReceived += delegate { }; // never persist paths or secrets from diagnostics
                 process.BeginErrorReadLine();
-                using (cancellation.Register(Cancel)) Call(create ? "create" : "open", Folder, password, vaultDirectories.GuardName);
+                using (cancellation.Register(Cancel)) Call(create ? "create" : "open", Folder, password, vaultDirectories.GuardName,readOnly ? "readonly" : "write");
             }
             catch { Dispose(); throw; }
         }
 
-        static string ExtractRuntime(List<FileStream> held,out SourceLease directories)
+        internal static string ExtractRuntime(List<FileStream> held,out SourceLease directories)
         {
             var asm = Assembly.GetExecutingAssembly();
             Dictionary<string, string> hashes;
@@ -111,7 +113,7 @@ namespace WinUp
                 foreach(string path in Directory.GetFiles(directory)) {
                     SafePaths.NoReparseParents(path);
                     string relative = path.Substring(root.Length + 1).Replace('\\','/');
-                    if (!hashes.ContainsKey(relative) && !directories.IsGuardFile(path)) throw new IOException("В папке файлового модуля обнаружен посторонний файл.");
+                    if (!hashes.ContainsKey(relative) && !SourceLease.IsActiveGuardFile(path)) throw new IOException("В папке файлового модуля обнаружен посторонний файл.");
                 }
             }
             return root;
@@ -152,7 +154,7 @@ namespace WinUp
                     commandSent = true;
                     process.StandardInput.WriteLine(line); process.StandardInput.Flush();
                     string response=null; int diagnostics=0;
-                    for(int i=0;i<32;i++) {
+                    for(int i=0;i<256;i++) {
                         string received=process.StandardOutput.ReadLine();
                         if(received==null || received.Length>4*1024*1024) break;
                         int marker=received.IndexOf("WUP2\t",StringComparison.Ordinal);
@@ -207,6 +209,25 @@ namespace WinUp
             WinFspDriver.EnsureRunning();
             Call("mount", drive); MountPoint = drive;
         }
+        internal string[] BusyFiles() {
+            if(MountPoint==null||!Directory.Exists(MountPoint))return new string[0];
+            var busy=new List<string>();var pending=new Stack<string>();pending.Push(MountPoint);int count=0;
+            while(pending.Count>0) {
+                string dir=pending.Pop();
+                foreach(string path in Directory.GetFileSystemEntries(dir)) {
+                    if(Path.GetFileName(path).StartsWith(".winup-",StringComparison.OrdinalIgnoreCase))continue;
+                    if(++count>10000)throw new IOException("Слишком много файлов для проверки закрытия диска. Закройте программы проекта и повторите.");
+                    if((File.GetAttributes(path)&FileAttributes.ReparsePoint)!=0)throw new IOException("В проекте обнаружена ссылка: "+path);
+                    if(Directory.Exists(path)){pending.Push(path);continue;}
+                    try {using(var file=new FileStream(path,FileMode.Open,FileAccess.Read,FileShare.None)){} }
+                    catch(IOException){busy.Add(path);}catch(UnauthorizedAccessException){busy.Add(path);}
+                }
+            }return busy.ToArray();
+        }
+        internal void UnmountSafely() {
+            string[] busy=BusyFiles();if(busy.Length>0)throw new IOException("Диск используется. Сохраните документы и закройте программы, затем повторите.\n"+string.Join("\n",busy.Take(8)));
+            if(MountPoint!=null){Call("unmount");MountPoint=null;}
+        }
         public void Dispose()
         {
             if(Interlocked.Exchange(ref disposed,1)!=0) return;
@@ -226,6 +247,16 @@ namespace WinUp
 
     internal static class SafePaths
     {
+        internal static string Native(string path) {
+            if(path.StartsWith(@"\\?\",StringComparison.Ordinal))return path;
+            int stream=path.IndexOf(':',2);
+            string full=Path.GetFullPath(stream<0?path:path.Substring(0,stream))+(stream<0?"":path.Substring(stream));
+            return full.StartsWith(@"\\",StringComparison.Ordinal) ? @"\\?\UNC\"+full.Substring(2) : @"\\?\"+full;
+        }
+        internal static string Ordinary(string path) {
+            if(path.StartsWith(@"\\?\UNC\",StringComparison.OrdinalIgnoreCase))return @"\\"+path.Substring(8);
+            return path.StartsWith(@"\\?\",StringComparison.Ordinal)?path.Substring(4):path;
+        }
         public static bool IsWithin(string child, string parent) {
             var a = Path.GetFullPath(child).TrimEnd('\\'); var b = Path.GetFullPath(parent).TrimEnd('\\');
             return a.Equals(b, StringComparison.OrdinalIgnoreCase) || a.StartsWith(b + "\\", StringComparison.OrdinalIgnoreCase);
@@ -238,7 +269,7 @@ namespace WinUp
         public static void NoReparseParents(string path) {
             string current = Path.GetFullPath(path);
             while (!string.IsNullOrEmpty(current)) {
-                if ((File.Exists(current) || Directory.Exists(current)) && (File.GetAttributes(current) & FileAttributes.ReparsePoint) != 0)
+                if ((File.Exists(Native(current)) || Directory.Exists(Native(current))) && (File.GetAttributes(Native(current)) & FileAttributes.ReparsePoint) != 0)
                     throw new IOException("Ссылки и точки перенаправления в пути не поддерживаются: " + current);
                 current = Path.GetDirectoryName(current);
             }
@@ -260,6 +291,8 @@ namespace WinUp
         readonly List<SafeFileHandle> directoryLocks = new List<SafeFileHandle>();
         readonly List<SafeFileHandle> directoryGuards = new List<SafeFileHandle>();
         string guardPath;
+        static readonly Dictionary<string,SafeFileHandle> activeGuards=new Dictionary<string,SafeFileHandle>(StringComparer.OrdinalIgnoreCase);
+        internal static bool IsActiveGuardFile(string path) { lock(activeGuards) { SafeFileHandle handle;return activeGuards.TryGetValue(Path.GetFullPath(path),out handle)&&!handle.IsClosed&&!handle.IsInvalid; } }
         internal string GuardName { get { return guardPath == null ? "" : Path.GetFileName(guardPath); } }
         internal bool IsGuardFile(string path) { return guardPath != null && guardPath.Equals(Path.GetFullPath(path), StringComparison.OrdinalIgnoreCase); }
         readonly Dictionary<string, SafeFileHandle> originalDirectories = new Dictionary<string, SafeFileHandle>(StringComparer.OrdinalIgnoreCase);
@@ -267,13 +300,15 @@ namespace WinUp
         string sourceRoot;
         internal string[] Snapshot { get { return snapshot.ToArray(); } }
         internal object ImportSnapshot { get { return new { entries=Snapshot,zoneIdentifiers=zones }; } }
+        internal string ZoneFor(string relative) { string value; return zones.TryGetValue(relative,out value) ? value : null; }
         [StructLayout(LayoutKind.Sequential)] struct HandleInfo {
             public uint Attributes, CreationLow, CreationHigh, AccessLow, AccessHigh, WriteLow, WriteHigh,
                 Volume, SizeHigh, SizeLow, Links, IndexHigh, IndexLow;
         }
         [DllImport("kernel32.dll",SetLastError=true)] static extern bool GetFileInformationByHandle(SafeFileHandle handle,out HandleInfo info);
         [DllImport("kernel32.dll",SetLastError=true)] static extern bool GetFileInformationByHandleEx(SafeFileHandle handle,int kind,IntPtr information,uint size);
-        [DllImport("kernel32.dll", CharSet=CharSet.Unicode, SetLastError=true)] static extern SafeFileHandle CreateFile(string name, uint access, uint share, IntPtr security, uint creation, uint flags, IntPtr template);
+        [DllImport("kernel32.dll", EntryPoint="CreateFileW", CharSet=CharSet.Unicode, SetLastError=true)] static extern SafeFileHandle CreateFileNative(string name, uint access, uint share, IntPtr security, uint creation, uint flags, IntPtr template);
+        static SafeFileHandle CreateFile(string name,uint access,uint share,IntPtr security,uint creation,uint flags,IntPtr template){return CreateFileNative(SafePaths.Native(name),access,share,security,creation,flags,template);}
         [DllImport("kernel32.dll", SetLastError=true)] static extern bool SetFileInformationByHandle(SafeFileHandle handle, int kind, ref int info, uint size);
         [StructLayout(LayoutKind.Sequential,CharSet=CharSet.Unicode)] struct StreamData { public long Size; [MarshalAs(UnmanagedType.ByValTStr,SizeConst=296)] public string Name; }
         [DllImport("kernel32.dll",CharSet=CharSet.Unicode,SetLastError=true)] static extern IntPtr FindFirstStreamW(string path,int info,out StreamData data,uint flags);
@@ -282,7 +317,7 @@ namespace WinUp
         static bool IsZone(string name) { return string.Equals(name,":Zone.Identifier:$DATA",StringComparison.OrdinalIgnoreCase); }
         static void RejectNamedStreams(string path) { RejectNamedStreams(path,false); }
         static bool RejectNamedStreams(string path,bool allowZone) {
-            StreamData stream; IntPtr h=FindFirstStreamW(path,0,out stream,0);
+            StreamData stream; IntPtr h=FindFirstStreamW(SafePaths.Native(path),0,out stream,0);
             if(h==new IntPtr(-1)) {
                 int error=Marshal.GetLastWin32Error();
                 if(error==38 || error==1 || error==87) return false;
@@ -393,6 +428,7 @@ namespace WinUp
                 var guard=CreateFile(result.guardPath,0x80010000u,3,IntPtr.Zero,1,0x04200102u,IntPtr.Zero);
                 if(guard.IsInvalid) { guard.Dispose(); throw new IOException("Не удалось удержать папку для безопасной записи: "+directory); }
                 result.directoryGuards.Add(guard);
+                lock(activeGuards)activeGuards.Add(result.guardPath,guard);
                 result.AllowChildWrites(paths);
                 return result;
             } catch { result.Dispose(); throw; }
@@ -409,7 +445,7 @@ namespace WinUp
         }
         void Visit(string path, bool move) {
             if(files.Count+directories.Count>=10000) throw new IOException("За один раз можно добавить до 10 000 файлов и папок.");
-            var attrs = File.GetAttributes(path);
+            var attrs = File.GetAttributes(SafePaths.Native(path));
             if ((attrs & FileAttributes.ReparsePoint) != 0) throw new IOException("Ссылки в исходной папке не поддерживаются.");
             bool directory = (attrs & FileAttributes.Directory) != 0;
             var handle = CreateFile(path, 0x80000000u | (move ? 0x10000u : 0u), 1, IntPtr.Zero, 3, directory ? 0x02200000u : 0x00200000u, IntPtr.Zero);
@@ -423,7 +459,7 @@ namespace WinUp
             if (!directory) { files.Add(handle); filePaths.Add(path); return; }
             directoryLocks.Add(handle); directories.Add(path);
             originalDirectories.Add(path, handle);
-            foreach (string child in Directory.GetFileSystemEntries(path)) Visit(child, move);
+            foreach (string child in Directory.GetFileSystemEntries(SafePaths.Native(path))) Visit(SafePaths.Ordinary(child), move);
         }
         public void DeleteVerifiedOriginals() {
             // NTFS share modes apply per stream. A newly added named stream can
@@ -458,6 +494,6 @@ namespace WinUp
             }
             foreach (var handle in directoryLocks) handle.Dispose(); directoryLocks.Clear();
         }
-        public void Dispose() { foreach(var zone in zoneLocks)zone.Dispose();zoneLocks.Clear();foreach(string value in zones.Values)Secure.Wipe(value);zones.Clear();foreach (var f in files) f.Dispose(); foreach (var g in directoryGuards) g.Dispose(); foreach (var d in directoryLocks) d.Dispose(); }
+        public void Dispose() { if(guardPath!=null)lock(activeGuards)activeGuards.Remove(guardPath);foreach(var zone in zoneLocks)zone.Dispose();zoneLocks.Clear();foreach(string value in zones.Values)Secure.Wipe(value);zones.Clear();foreach (var f in files) f.Dispose(); foreach (var g in directoryGuards) g.Dispose(); foreach (var d in directoryLocks) d.Dispose(); }
     }
 }

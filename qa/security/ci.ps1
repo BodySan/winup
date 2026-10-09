@@ -30,6 +30,15 @@ $stdout=$process.StandardOutput.ReadToEndAsync(); $stderr=$process.StandardError
 if(!$process.WaitForExit(600000)) { $process.Kill(); throw 'Test harness timeout.' }
 $stdout.Result | Set-Content "$Output\runtime.txt"; $stderr.Result | Set-Content "$Output\errors.txt"
 if($process.ExitCode -or $stdout.Result -notmatch 'TOTAL failures=0') { throw "Tests failed. Read $Output\runtime.txt" }
+if($env:GITHUB_ACTIONS -eq 'true') {
+    $fileLab='C:\WinUpAudit\files-ci-'+[Guid]::NewGuid().ToString('N')
+    New-Item -ItemType Directory $fileLab|Out-Null
+    Copy-Item -LiteralPath "$Output\FileWorkflowProbe.exe" -Destination $fileLab
+    $fileProbe=Start-Process -FilePath "$fileLab\FileWorkflowProbe.exe" -ArgumentList '--ci' -WindowStyle Hidden -PassThru -RedirectStandardOutput "$Output\file-workflows.txt" -RedirectStandardError "$Output\file-errors.txt"
+    if(!$fileProbe.WaitForExit(600000)){$fileProbe.Kill();throw 'File workflows timeout'}
+    $fileResult=[IO.File]::ReadAllText("$Output\file-workflows.txt")
+    if($fileResult -notmatch 'RESULT passed=\d+ failed=0'){throw 'File workflows failed; nothing is ready for release'}
+}
 if($FunctionalOnly) {
     & node "$PSScriptRoot\..\tests\passkey-focus-regression.cjs"
     if($LASTEXITCODE){throw 'Native passkey focus regression failed.'}
