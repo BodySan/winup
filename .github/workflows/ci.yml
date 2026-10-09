@@ -17,6 +17,9 @@ jobs:
       - name: Проверить исходники и расширение
         shell: powershell
         run: ./qa/security/ci.ps1 -FunctionalOnly
+      - name: Собрать архив исходников
+        shell: powershell
+        run: ./qa/tests/source-archive.ps1
       - name: Сохранить результаты
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
