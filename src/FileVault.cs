@@ -34,7 +34,7 @@ namespace WinUp
         [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
         static extern bool CreateDirectoryW(string path, IntPtr security);
 
-        public FileVaultClient(string folder, string password, bool create, CancellationToken cancellation = default(CancellationToken), bool readOnly=false)
+        public FileVaultClient(string folder, string password, bool create, CancellationToken cancellation = default(CancellationToken), bool readOnly=false,bool administration=false)
         {
             Folder = Path.GetFullPath(folder);
             ReadOnly=readOnly;
@@ -62,7 +62,7 @@ namespace WinUp
                 process = Process.Start(info);
                 process.ErrorDataReceived += delegate { }; // never persist paths or secrets from diagnostics
                 process.BeginErrorReadLine();
-                using (cancellation.Register(Cancel)) Call(create ? "create" : "open", Folder, password, vaultDirectories.GuardName,readOnly ? "readonly" : "write");
+                using (cancellation.Register(Cancel)) Call(administration ? "manage" : create ? "create" : "open", Folder, password, vaultDirectories.GuardName,readOnly ? "readonly" : "write");
             }
             catch { Dispose(); throw; }
         }

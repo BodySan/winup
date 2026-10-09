@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.IO;
@@ -1009,6 +1009,9 @@ namespace WinUp
             Row("Ключ доступа:", passkeyBox);
             var editCodes = new Button { Text = "Изменить / показать..." };
             Row("Резервные коды:", WithButton(recoveryInfo, editCodes));
+            var extraFields=new Button{Text="Добавить / изменить защищённые поля…",AutoSize=true};
+            extraFields.Click+=(s,a)=>{using(var fields=new SecretFieldsDialog(entry.CustomFields))fields.ShowDialog(this);};
+            Row("Дополнительные поля:",extraFields);
             Row("Заметка:", notes);
             var saveTpl = new Button { Text = "Сохранить как шаблон", AutoSize = true };
             var entryButtons=Buttons(saveTpl);Grid.Controls.Remove(entryButtons);entryButtons.Dock=DockStyle.Bottom;Controls.Add(entryButtons);scroll.BringToFront();

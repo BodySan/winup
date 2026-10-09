@@ -41,6 +41,15 @@
 - Файловый процесс WinUpFiles — адаптер WinUp под AGPL v3; исходник:
   `vendor/file-engine/WinUpFiles.java`. Он вызывает оригинальные API и не меняет алгоритмы.
   У него нет собственного интерфейса и сетевого сервера. Пароль передаётся через stdin.
+- Ключ восстановления из 44 слов: WordEncoder, словарь и методы RecoveryKeyFactory
+  из Cryptomator 1.19.3, GPL v3. Оригиналы и лицензия сохранены в
+  `vendor/upstream/cryptomator-recovery-1.19.3.zip`; описание адаптации и хэши:
+  `vendor/file-engine/recovery-UPSTREAM.md`. Смена/восстановление пароля вызывает
+  Cryptolib; диагностика структуры — штатные HealthCheck из CryptoFS, без ремонта.
+- История и корзина записей используют штатные KeePassLib PwEntry.History,
+  CreateBackup/RestoreFromBackup и группу RecycleBin; данные входят в обычный KDBX.
+  Импорт форматов опирается на схемы Bitwarden, LastPass и 1Password и соответствующие
+  преобразования KeePass 2.61.1; WinUp самостоятельно выполняет просмотр и поиск дублей.
 - Исходники соответствующих версий: `vendor/upstream/cryptofs-2.8.0.zip`,
   `cryptolib-2.2.0.zip`, `fuse-nio-5.0.5.zip`, `jfuse-0.7.3.zip`; контрольные суммы
   всех вложенных архивов — `vendor/upstream/SHA256.json`.
