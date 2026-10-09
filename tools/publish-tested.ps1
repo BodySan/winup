@@ -74,13 +74,24 @@ try {
     & "$root\src\updates\build-package.ps1" -Sequence $sequence -Source $candidate -Output $release -ProtectedKey $ProtectedKey
     & "$PSScriptRoot\archive-source.ps1" -Source $candidate -Output "$release\src.zip"
     $appVersion=(Get-Item -LiteralPath "$release\WinUp.exe").VersionInfo.FileVersion
-    $notes="WinUp $appVersion, комплект №$sequence. Проверки GitHub Actions пройдены; подпись выполнена локально на ПК владельца. Приложение, исходники с инструментами выпуска и совместимые компоненты. Для обновления EXE закройте программу и замените файл, сохранив data. Для компонентов используйте кнопку WinUp или файл .wup и перезапуск. Полная инструкция и ограничения Firefox/Google включены в исходники; варианты выпуска и риски: https://github.com/$Repository/blob/main/doc/UPDATES-SIMPLE-RU.md. Cryptomator/Java сохраняются в согласованном runtime; KeePass/WinFsp обновляются отдельными кнопками."
+    $notes=@'
+WinUp {{version}}. Комплект обновления №{{sequence}}.
+
+В выпуск входят приложение, исходники и совместимые компоненты.
+
+Чтобы обновить приложение, закройте WinUp и замените WinUp.exe вместе с WinUp.exe.sig. Сохраните папки data, apps и свои файловые хранилища.
+
+Для обновления компонентов откройте меню «Обновления компонентов», загрузите комплект с GitHub или выберите файл components.wup, затем перезапустите WinUp. KeePass и WinFsp обновляются отдельными кнопками.
+
+Инструкция доступна в меню «Справка» и в архиве src.zip. Подробнее об обновлениях: https://github.com/{{repository}}/blob/main/doc/UPDATES-SIMPLE-RU.md.
+'@
+    $notes=$notes.Replace('{{version}}',$appVersion).Replace('{{sequence}}',[string]$sequence).Replace('{{repository}}',$Repository)
     [IO.File]::WriteAllText("$release\notes.txt",$notes,[Text.UTF8Encoding]::new($false))
     [IO.File]::WriteAllText((Join-Path $root 'release-ready.json'),(@{directory=$release;sequence=$sequence;testRunId=$run.databaseId;commit=$run.headSha;repository=$Repository}|ConvertTo-Json),[Text.UTF8Encoding]::new($false))
     if($PrepareOnly) {
         Write-Output "Prepared and locally signed release ${sequence}: $release"; return
     }
-    & $Gh release create "components-$sequence" --repo $Repository --target $run.headSha --title "WinUp: комплект $sequence" --notes-file "$release\notes.txt" "$release\WinUp.exe" "$release\WinUp.exe.sig" "$release\src.zip" "$release\components.wup" "$release\update.json" "$release\update.sig"
+    & $Gh release create "components-$sequence" --repo $Repository --target $run.headSha --title "WinUp $appVersion" --notes-file "$release\notes.txt" "$release\WinUp.exe" "$release\WinUp.exe.sig" "$release\src.zip" "$release\components.wup" "$release\update.json" "$release\update.sig"
     if($LASTEXITCODE) { throw 'Signed release publication failed.' }
     Write-Output "Published verified, locally signed component release $sequence. Restart WinUp after installing it."
 } finally { if($envSet) { Remove-Item Env:GH_TOKEN -ErrorAction SilentlyContinue }; $credential=$null }
