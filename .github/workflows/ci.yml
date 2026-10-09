@@ -19,16 +19,7 @@ jobs:
         run: ./qa/security/ci.ps1 -FunctionalOnly
       - name: Собрать архив исходников
         shell: powershell
-        run: |
-          ./tools/archive-source.ps1 -Source ./src -Output C:/WinUp/test/ci/source-check.zip
-          if ($LASTEXITCODE) { throw 'Source archive creation failed' }
-          Add-Type -AssemblyName System.IO.Compression.FileSystem
-          $archive = [IO.Compression.ZipFile]::OpenRead('C:/WinUp/test/ci/source-check.zip')
-          try {
-            foreach ($name in @('src/build.ps1', 'src/Properties/AssemblyInfo.cs', 'doc/Инструкция.html', 'tools/verify-app.ps1')) {
-              if (!$archive.GetEntry($name)) { throw "Required source archive entry missing: $name" }
-            }
-          } finally { $archive.Dispose() }
+        run: ./qa/tests/source-archive.ps1
       - name: Сохранить результаты
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
