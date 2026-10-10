@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <TargetFramework>net48</TargetFramework>
@@ -9,14 +9,14 @@
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <PlatformTarget>AnyCPU</PlatformTarget>
     <Prefer32Bit>false</Prefer32Bit>
-    <Version>1.17.0</Version>
+    <Version>1.18.0</Version>
     <Product>WinUp</Product>
     <!-- Версия задаётся в Properties\AssemblyInfo.cs (иначе атрибуты дублируются и сборка падает). -->
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
     <GenerateTargetFrameworkAttribute>false</GenerateTargetFrameworkAttribute>
   </PropertyGroup>
   <ItemGroup>
-    <Compile Remove="vendor\**\*.cs" />
+    <Compile Remove="vendor\**\*.cs;system-passkeys\*.cs" />
     <EmbeddedResource Include="updates\components.json" LogicalName="components.json" />
     <EmbeddedResource Include="updates\publisher.xml" LogicalName="component-publisher.xml" />
     <Reference Include="WinUp.PasskeyEngine" HintPath="lib\WinUp.PasskeyEngine.dll" Private="false" />
@@ -26,6 +26,7 @@
     <EmbeddedResource Include="help.html" LogicalName="help.html" />
     <EmbeddedResource Include="THIRD-PARTY.md" LogicalName="THIRD-PARTY.md" />
     <EmbeddedResource Include="licenses\*" LogicalName="licenses/%(Filename)%(Extension)" />
+    <EmbeddedResource Include="system-passkeys\WinUp.Passkeys.msix;system-passkeys\WinUp.Passkeys.cer;system-passkeys\package.json;system-passkeys\Logo.png;system-passkeys\setup.ps1;system-passkeys\WinUp.PasskeyProvider.exe" LogicalName="system-passkeys/%(Filename)%(Extension)" />
     <!-- Файлы расширения браузера (без key.txt — ключ уже вписан в manifest.json). -->
     <EmbeddedResource Include="browser\*.json;browser\*.js;browser\*.html;browser\*.png;browser\winup-firefox.xpi" Exclude="browser\key.txt" LogicalName="browser/%(Filename)%(Extension)" />
   </ItemGroup>

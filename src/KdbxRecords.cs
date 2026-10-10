@@ -27,11 +27,12 @@ namespace WinUp {
             return group;
         }
         void MoveToTrash(PwEntry entry,bool otp){
-            if(otp){var links=db.RootGroup.Entries.Where(p=>GetStr(p,"WinUp.OtpRef")==entry.Uuid.ToHexString()).Select(p=>p.Uuid.ToHexString());SetStr(entry,TrashLinks,string.Join(",",links));}
+            if(otp){var links=AccountRecords().Where(p=>GetStr(p,"WinUp.OtpRef")==entry.Uuid.ToHexString()).Select(p=>p.Uuid.ToHexString());SetStr(entry,TrashLinks,string.Join(",",links));}
+            SetStr(entry,"WinUp.DeletedGroup",entry.ParentGroup.Uuid.ToHexString());
             SetStr(entry,TrashKind,otp?"otp":"entry");SetStr(entry,TrashTime,DateTime.UtcNow.ToString("o"));
-            entry.ParentGroup.Entries.Remove(entry);Trash(true).AddEntry(entry,true);
+            entry.ParentGroup.Entries.Remove(entry);Trash(true).AddEntry(entry,true);entry.LocationChanged=DateTime.UtcNow;entry.Touch(true,false);
         }
-        PwEntry ActiveRecord(string id,bool otp){var group=otp?FindOtpGroup(false):db.RootGroup;return group==null?null:group.Entries.FirstOrDefault(e=>e.Uuid.ToHexString()==id);}
+        PwEntry ActiveRecord(string id,bool otp){var group=FindOtpGroup(false);return (otp?(group==null?new PwEntry[0]:group.Entries.ToArray()):AccountRecords()).FirstOrDefault(e=>e.Uuid.ToHexString()==id);}
         internal List<RecordVersion> Versions(string id,bool otp){
             var entry=ActiveRecord(id,otp);var result=new List<RecordVersion>();if(entry==null)return result;
             for(int i=(int)entry.History.UCount-1;i>=0;i--){var item=entry.History.GetAt((uint)i);result.Add(new RecordVersion{Id=id,Index=i,Name=item.Strings.ReadSafe("Title"),Kind=otp?"otp":GetStr(item,"WinUp.Kind"),Time=item.LastModificationTime});}return result;
@@ -58,8 +59,9 @@ namespace WinUp {
             bool otp=GetStr(entry,TrashKind)=="otp";string id=entry.Uuid.ToHexString(),links=GetStr(entry,TrashLinks);int count=1;
             if(ActiveRecord(id,otp)!=null)throw new IOException("Запись с этим идентификатором уже существует.");
             if(related&&!otp){foreach(var refId in new[]{GetStr(entry,"WinUp.OtpRef"),GetStr(entry,"WinUp.PasskeyRef")}.Where(s=>!string.IsNullOrEmpty(s))){var match=Trash(false).Entries.FirstOrDefault(e=>e.Uuid.ToHexString()==refId);if(match!=null)count+=RestoreDeletedCore(match,false);}}
-            entry.ParentGroup.Entries.Remove(entry);(otp?FindOtpGroup(true):db.RootGroup).AddEntry(entry,true);
-            entry.Strings.Remove(TrashKind);entry.Strings.Remove(TrashTime);entry.Strings.Remove(TrashLinks);entry.Touch(true,false);
+            entry.ParentGroup.Entries.Remove(entry);var group=otp?FindOtpGroup(true):FindAccountGroup(GetStr(entry,"WinUp.DeletedGroup"))??db.RootGroup;group.AddEntry(entry,true);
+            entry.Strings.Remove("WinUp.DeletedGroup");
+            entry.Strings.Remove(TrashKind);entry.Strings.Remove(TrashTime);entry.Strings.Remove(TrashLinks);entry.LocationChanged=DateTime.UtcNow;entry.Touch(true,false);
             if(otp&&!string.IsNullOrEmpty(links))foreach(var refId in links.Split(',')){var linked=ActiveRecord(refId,false);if(linked!=null&&GetStr(linked,"WinUp.TwoFa")=="ask"&&string.IsNullOrEmpty(GetStr(linked,"WinUp.OtpRef"))){linked.CreateBackup(db);SetStr(linked,"WinUp.TwoFa","link");SetStr(linked,"WinUp.OtpRef",id);linked.Touch(true,false);}}
             return count;
         }

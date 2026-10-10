@@ -65,5 +65,8 @@ foreach($spec in $specs) { $notes+="$($spec.package): $($versions.($spec.id)). Ð
 [IO.File]::WriteAllText("$destination\updates\versions.json",($versions | ConvertTo-Json),[Text.UTF8Encoding]::new($false))
 [IO.File]::WriteAllText("$destination\updates\candidate-report.json",($report | ConvertTo-Json -Depth 5),[Text.UTF8Encoding]::new($false))
 & "$destination\vendor\passkeys\build.ps1"
+# The standalone Windows helper has no crypto-library dependencies. Preserve its
+# locally reviewed bytes when preparing dependency updates; recompiling it here
+# would alter a pinned executable even though its source has not changed.
 & "$destination\updates\prepare.ps1"
 Write-Output "Candidate prepared; NOT signed or published: $destination"

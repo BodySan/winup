@@ -8,10 +8,12 @@ using System.Windows.Forms;
 
 namespace WinUp {
     static class FeatureUiHarness {
-        const string Password="Synthetic-Feature-UI-2026!";
+        static readonly string Password=NewPassword();
+        static string NewPassword(){var bytes=new byte[32];using(var rng=System.Security.Cryptography.RandomNumberGenerator.Create())rng.GetBytes(bytes);try{return Convert.ToBase64String(bytes);}finally{Array.Clear(bytes,0,bytes.Length);}}
         const string Token="b1a77fc0887665443322110000ffeeddccbbaa99887766554433221100ffeedd";
         const BindingFlags Private=BindingFlags.Instance|BindingFlags.NonPublic;
         [STAThread] static void Main(string[] args) {
+            if(Environment.UserName!="WDAGUtilityAccount")throw new Exception("Windows Sandbox only");
             if(!Paths.Root.StartsWith(@"C:\WinUpAudit\feature-browser",StringComparison.OrdinalIgnoreCase)) throw new Exception("Sandbox synthetic lab only");
             if(args.Length==2 && args[0]=="--stage-package") { ComponentResources.Store.Install(args[1]); return; }
             if(args.Length>0 && args[0].StartsWith("chrome-extension://")) { BrowserBridge.Run(args[0]); return; }
@@ -42,6 +44,8 @@ namespace WinUp {
                     if(command=="lock") typeof(MainForm).GetMethod("LockVault",Private).Invoke(form,null);
                     if(command=="lock") File.AppendAllText(@"C:\WinUp\test\features\command-proof.txt","locked="+(form.VaultNow==null)+" generation="+form.BrowserGeneration+"\n");
                     if(command=="reopen") open();
+                    if(command=="passkey-occlusion") form.WindowState=FormWindowState.Maximized;
+                    if(command=="passkey-normal") form.WindowState=FormWindowState.Normal;
                     if(command=="confirmation-entry") {
                         form.VaultNow.Entries.Add(new LoginEntry {Id="ui-confirmation",Name="Synthetic Foreign",Kind="site",Target="http://different.example.invalid/",Login="confirmation-user",Password="Synthetic-Confirmation-Password!"});
                     }
@@ -52,6 +56,16 @@ namespace WinUp {
                         var entry=form.VaultNow.Entries.First(e=>e.Name=="Synthetic Test");
                         entry.LoginUrl="http://localhost:9265/flow/user";entry.AutoEnter=true;
                         File.WriteAllText(@"C:\WinUp\test\corrections\flow-launch.txt",form.BeginBrowserLogin(entry));
+                    }
+                    if(command=="reference-fields") {
+                        open();var database=form.VaultNow;var entry=database.Entries.First(e=>e.Name=="Synthetic Test");
+                        var main=new LoginEntry{Name="Synthetic primary source",Kind="app",Login="sandbox-user",Password="Synthetic-Site-Password!"};
+                        var secondary=new LoginEntry{Name="Synthetic secondary source",Kind="app",Login="synthetic@example.com"};
+                        database.Entries.Add(main);database.Entries.Add(secondary);database.Save();
+                        entry.Login=KdbxStore.Reference(main.Id,'U');entry.Login2=KdbxStore.Reference(secondary.Id,'U');entry.Password=KdbxStore.Reference(main.Id,'P');
+                        entry.LoginUrl="http://localhost:9265/flow/user";entry.AutoEnter=true;database.Save();
+                        File.WriteAllText(@"C:\WinUp\test\corrections\flow-launch.txt",form.BeginBrowserLogin(entry));
+                        File.WriteAllText(@"C:\WinUp\test\advanced-1.18\reference-fixture-ready.txt","ready");
                     }
                     if(command.StartsWith("launch-button|",StringComparison.Ordinal)) {
                         string[] parts=command.Split('|');
@@ -78,7 +92,7 @@ namespace WinUp {
                         seen.Add(dialog);
                         File.AppendAllText(@"C:\WinUp\test\login-1.15.1\confirmation-dialog-proof.txt",DateTime.UtcNow.ToString("o")+" visible="+dialog.Visible+" native-confirmation\n");
                         ((Button)typeof(Dlg).GetField("Ok",Private).GetValue(dialog)).PerformClick();
-                    } else if(dialog is PasswordPrompt && dialog.Text.Contains("localhost")) {
+                    } else if(dialog is PasswordPrompt && (dialog.Text.Contains("localhost") || File.Exists(Path.Combine(Paths.Root,"github-test-enabled")) && dialog.Text=="WinUp: ключ доступа для github.com")) {
                         seen.Add(dialog); ((TextBox)typeof(PasswordPrompt).GetField("box",Private).GetValue(dialog)).Text=Password;
                         ((Button)typeof(Dlg).GetField("Ok",Private).GetValue(dialog)).PerformClick();
                     }

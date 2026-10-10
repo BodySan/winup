@@ -99,13 +99,13 @@ namespace WinUp
             {
                 if (e.Kind == "passkey") continue;
                 q(e.Name); sb.Append(';'); q(e.Kind == "app" ? "программа" : "сайт"); sb.Append(';');
-                q(e.Target); sb.Append(';'); q(e.Login); sb.Append(';');
+                q(e.Target); sb.Append(';'); q(e.ResolvedLogin); sb.Append(';');
                 e.UsePassword(pw => { q(pw); return 0; }); sb.Append(';'); q(TwoFaName(e)); sb.Append(';');
                 var otp = Linked(e, otps);
                 if (otp == null) q(""); else otp.UseSecret(s => { q(s); return 0; });
-                sb.Append(';'); q(e.Notes); sb.Append(';'); q(e.Login2); sb.Append(';'); q(e.AppTarget); sb.Append(';');
+                sb.Append(';'); q(e.Notes); sb.Append(';'); q(e.ResolvedLogin2); sb.Append(';'); q(e.AppTarget); sb.Append(';');
                 e.UseRecoveryCodes(c => { q(c); return 0; }); sb.Append(';'); q(e.PasskeyId); sb.Append(';');
-                var fields=new Dictionary<string,string>();string json=null;try{foreach(var field in e.CustomFields)fields.Add(field.Name,field.Value);json=new System.Web.Script.Serialization.JavaScriptSerializer().Serialize(fields);q(json);}finally{Secure.Wipe(json);foreach(var value in fields.Values)Secure.Wipe(value);}
+                var fields=new Dictionary<string,string>();string json=null;try{foreach(var field in e.CustomFields)field.UseResolvedValue(v=>{fields.Add(field.Name,new string(v.ToCharArray()));return 0;});json=new System.Web.Script.Serialization.JavaScriptSerializer().Serialize(fields);q(json);}finally{Secure.Wipe(json);foreach(var value in fields.Values)Secure.Wipe(value);}
                 sb.Append("\r\n");
             }
             return Secure.Utf8AndClear(sb, true);
@@ -129,15 +129,15 @@ namespace WinUp
                 if (e.Kind == "passkey") continue;
                 sb.Append("== " + e.Name + " ==\r\n");
                 if (!string.IsNullOrEmpty(e.Target)) sb.Append((e.Kind == "app" ? "Программа: " : "Сайт: ") + e.Target + "\r\n");
-                sb.Append("Логин: " + e.Login + "\r\n");
-                if(!string.IsNullOrEmpty(e.Login2)) sb.Append("Дополнительный логин: "+e.Login2+"\r\n");
+                sb.Append("Логин: " + e.ResolvedLogin + "\r\n");
+                if(!string.IsNullOrEmpty(e.Login2)) sb.Append("Дополнительный логин: "+e.ResolvedLogin2+"\r\n");
                 if(!string.IsNullOrEmpty(e.AppTarget)) sb.Append("Приложение: "+e.AppTarget+"\r\n");
                 e.UsePassword(pw => { sb.Append("Пароль: ").Append(pw).Append("\r\n"); return 0; });
                 e.UseRecoveryCodes(c => { if(!string.IsNullOrWhiteSpace(c)) sb.Append("Резервные коды:\r\n").Append(c).Append("\r\n"); return 0; });
                 if(!string.IsNullOrEmpty(e.PasskeyId)) sb.Append("Ключ доступа: "+e.PasskeyId+" (сам ключ сохраняется в экспорте KDBX)\r\n");
                 if (Linked(e, otps) != null) Linked(e, otps).UseSecret(s => { sb.Append("Секрет 2FA: ").Append(s).Append("\r\n"); return 0; });
                 if (!string.IsNullOrEmpty(e.Notes)) sb.Append("Заметка: " + e.Notes + "\r\n");
-                foreach(var field in e.CustomFields)field.UseValue(value=>{sb.Append(field.Name).Append(": ").Append(value).Append("\r\n");return 0;});
+                foreach(var field in e.CustomFields)field.UseResolvedValue(value=>{sb.Append(field.Name).Append(": ").Append(value).Append("\r\n");return 0;});
                 sb.Append("\r\n");
             }
             if (otps != null && otps.Count > 0)

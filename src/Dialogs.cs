@@ -902,6 +902,8 @@ namespace WinUp
         readonly ComboBox templateKind = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList };
         readonly ComboBox templateCategory = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList };
         readonly ComboBox category = new ComboBox { DropDownStyle = ComboBoxStyle.DropDown, MaxLength=64 };
+        readonly ComboBox accountGroup=new ComboBox{DropDownStyle=ComboBoxStyle.DropDownList};
+        readonly TextBox accountTags=new TextBox{MaxLength=2080};
         readonly CheckBox pinned = new CheckBox { Text="Закрепить в начале списка",AutoSize=true };
         readonly Label savedHint = new Label {AutoSize=true,MaximumSize=new Size(590,0),ForeColor=Color.DarkGoldenrod};
         readonly List<LoginEntry> savedEntries;
@@ -947,7 +949,7 @@ namespace WinUp
             public override string ToString() { return O.Title; }
         }
 
-        public EntryDialog(LoginEntry entry, AppStore store, bool isNew, List<OtpEntry> otps, IEnumerable<LoginEntry> passkeys = null) : base(isNew ? "Новая запись для входа" : "Запись для входа")
+        public EntryDialog(LoginEntry entry, AppStore store, bool isNew, List<OtpEntry> otps, IEnumerable<LoginEntry> passkeys = null,IEnumerable<AccountGroupInfo> groups=null) : base(isNew ? "Новая запись для входа" : "Запись для входа")
         {
             e = entry; this.store = store; this.otps = otps;
             savedEntries=(passkeys??new LoginEntry[0]).Where(x=>x.Id!=entry.Id).ToList();
@@ -977,6 +979,9 @@ namespace WinUp
             FullRow(savedHint);
             category.Items.AddRange(AccountOrganization.Categories.Concat(savedEntries.Select(x=>AccountOrganization.Category(x,store.Templates))).Distinct(StringComparer.CurrentCultureIgnoreCase).OrderBy(x=>x,StringComparer.CurrentCultureIgnoreCase).ToArray());
             Row("Категория:",category);Row("",pinned);
+            foreach(var group in groups??new AccountGroupInfo[0])accountGroup.Items.Add(group);
+            Row("Группа:",accountGroup);accountGroup.Enabled=accountGroup.Items.Count>0;
+            Row("Метки:",accountTags);Note("Несколько меток разделяйте точкой с запятой. Группа может содержать вложенные группы.",SystemColors.GrayText);
             Row("Тип:", kinds);
             targetCaption=Row("Адрес сайта:", WithButton(target, browse));
             Row("Адрес страницы входа:", loginUrl);
@@ -1017,6 +1022,7 @@ namespace WinUp
             var entryButtons=Buttons(saveTpl);Grid.Controls.Remove(entryButtons);entryButtons.Dock=DockStyle.Bottom;Controls.Add(entryButtons);scroll.BringToFront();
 
             FillFrom(e);
+            accountTags.Text=string.Join("; ",e.Tags);accountGroup.SelectedItem=accountGroup.Items.Cast<AccountGroupInfo>().FirstOrDefault(g=>g.Id==e.GroupId);if(accountGroup.SelectedIndex<0&&accountGroup.Items.Count>0)accountGroup.SelectedIndex=0;
 
             chooseApp.Click += async (s,a) => {
                 using(var d = new LocalApplicationDialog(name.Text)) {
@@ -1198,6 +1204,8 @@ namespace WinUp
 
             e.Name = name.Text.Trim(); e.Kind = app.Checked ? "app" : both.Checked ? "both" : "site";
             e.Category=category.Text.Trim();e.Pinned=pinned.Checked;
+            try{e.Tags=KdbxStore.ParseTags(accountTags.Text);}catch(Exception ex){Fail(ex.Message);return;}
+            if(accountGroup.SelectedItem!=null)e.GroupId=((AccountGroupInfo)accountGroup.SelectedItem).Id;
             if (site.Checked && t.Length > 0 && !t.Contains("://")) t = "https://" + t;
             e.Target = t; e.AppTarget = both.Checked ? appTarget.Text.Trim() : ""; e.Args = app.Checked || both.Checked ? args.Text.Trim() : "";
             e.LoginUrl=app.Checked ? null : loginUrl.Text.Trim();e.LoginProfile=app.Checked ? null : loginProfile;

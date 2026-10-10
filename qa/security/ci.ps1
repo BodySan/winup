@@ -31,13 +31,29 @@ if(!$process.WaitForExit(600000)) { $process.Kill(); throw 'Test harness timeout
 $stdout.Result | Set-Content "$Output\runtime.txt"; $stderr.Result | Set-Content "$Output\errors.txt"
 if($process.ExitCode -or $stdout.Result -notmatch 'TOTAL failures=0') { throw "Tests failed. Read $Output\runtime.txt" }
 if($env:GITHUB_ACTIONS -eq 'true') {
-    $fileLab='C:\WinUpAudit\files-ci-'+[Guid]::NewGuid().ToString('N')
+    $fileLab='C:\WinUpAudit\fci-'+[Guid]::NewGuid().ToString('N').Substring(0,8)
     New-Item -ItemType Directory $fileLab|Out-Null
+    Copy-Item -LiteralPath "$Output\SystemProviderProbe.exe" -Destination $fileLab
+    $nativeProbe=Start-Process -FilePath "$fileLab\SystemProviderProbe.exe" -ArgumentList '--ci','--encoding-only' -WindowStyle Hidden -PassThru -RedirectStandardOutput "$Output\native-encoding.txt" -RedirectStandardError "$Output\native-errors.txt"
+    [void]$nativeProbe.Handle
+    if(!$nativeProbe.WaitForExit(30000)){$nativeProbe.Kill();throw 'Native response encoding timeout'}
+    if(Test-Path -LiteralPath "$fileLab\encoding-proof.txt"){Copy-Item -LiteralPath "$fileLab\encoding-proof.txt" -Destination "$Output\native-api.txt"}
+    if($nativeProbe.ExitCode -eq 0){
+        & node "$PSScriptRoot\..\tests\native-response-probe.cjs" $fileLab | Tee-Object -FilePath "$Output\native-response.txt"
+        if($LASTEXITCODE){throw 'Windows native response verification failed'}
+    }elseif($nativeProbe.ExitCode -eq 3 -and [IO.File]::ReadAllText("$Output\native-encoding.txt") -match '^SKIP native response encoding:'){
+        Write-Output ([IO.File]::ReadAllText("$Output\native-encoding.txt").Trim())
+    }else{throw 'Windows native response encoding failed'}
     Copy-Item -LiteralPath "$Output\FileWorkflowProbe.exe" -Destination $fileLab
     $fileProbe=Start-Process -FilePath "$fileLab\FileWorkflowProbe.exe" -ArgumentList '--ci' -WindowStyle Hidden -PassThru -RedirectStandardOutput "$Output\file-workflows.txt" -RedirectStandardError "$Output\file-errors.txt"
     if(!$fileProbe.WaitForExit(600000)){$fileProbe.Kill();throw 'File workflows timeout'}
     $fileResult=[IO.File]::ReadAllText("$Output\file-workflows.txt")
     if($fileResult -notmatch 'RESULT passed=\d+ failed=0'){throw 'File workflows failed; nothing is ready for release'}
+    Copy-Item -LiteralPath "$Output\AdvancedWorkflowProbe.exe" -Destination $fileLab
+    $advanced=Start-Process -FilePath "$fileLab\AdvancedWorkflowProbe.exe" -ArgumentList '--ci' -WindowStyle Hidden -PassThru -RedirectStandardOutput "$Output\advanced-workflows.txt" -RedirectStandardError "$Output\advanced-errors.txt"
+    [void]$advanced.Handle
+    if(!$advanced.WaitForExit(600000)){$advanced.Kill();throw 'Advanced workflows timeout'}
+    if($advanced.ExitCode -ne 0 -or [IO.File]::ReadAllText("$Output\advanced-workflows.txt") -notmatch 'RESULT passed=\d+ failed=0'){throw 'Advanced workflows failed; nothing is ready for release'}
     $layoutProbe=Start-Process -FilePath "$fileLab\FileWorkflowProbe.exe" -ArgumentList '--ci','--layout' -WindowStyle Hidden -PassThru -RedirectStandardOutput "$Output\layout.txt" -RedirectStandardError "$Output\layout-errors.txt"
     # Cache the process handle before waiting: Windows PowerShell may otherwise
     # leave ExitCode null even though the redirected checks finished successfully.

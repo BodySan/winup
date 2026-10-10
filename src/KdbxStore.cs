@@ -562,6 +562,7 @@ namespace WinUp
         {
             if (saveFailed) throw new InvalidOperationException("Предыдущее сохранение не завершено. Откройте базу заново.");
             SyncToDb();
+            BindReferences();
             // Явный путь: база могла быть открыта из recovery.kdbx (вход кодом) — сохраняем в vault.kdbx.
             var writes = new List<KeyValuePair<string, Action<Stream>>>();
             writes.Add(new KeyValuePair<string, Action<Stream>>(KdbxPath, stream => new KdbxFile(db).Save(new Paths.LeaveOpenStream(stream), null, KdbxFormat.Default, NullLog)));
@@ -579,7 +580,7 @@ namespace WinUp
             }
             var tab = TabBytes();
             writes.Add(new KeyValuePair<string, Action<Stream>>(TabPath, stream => stream.Write(tab, 0, tab.Length)));
-            try { Paths.AtomicWriteBatch(writes); db.Modified = false; }
+            try { Paths.AtomicWriteBatch(writes); db.Modified = false; RecordRevision++; }
             catch { saveFailed = true; throw; }
             finally { Array.Clear(tab, 0, tab.Length); }
         }
@@ -756,7 +757,7 @@ namespace WinUp
             Entries.Clear();
             Otp.Clear();
             var otpGroup = FindOtpGroup(false);
-            foreach (var pe in db.RootGroup.Entries)
+            foreach (var pe in AccountRecords())
                 Entries.Add(FromEntry(pe));
             if (otpGroup != null)
                 foreach (var pe in otpGroup.Entries)
@@ -764,6 +765,7 @@ namespace WinUp
                     var o = OtpFromEntry(pe);
                     if (o != null) Otp.Add(o);
                 }
+            BindReferences();
         }
 
         void SyncToDb()
@@ -799,14 +801,17 @@ namespace WinUp
                 }
 
             // 2) записи: WinUp.OtpRef уже обновлён картой
-            var existing = db.RootGroup.Entries.Where(e => !InGroup(otpGroup, e)).ToDictionary(e => e.Uuid.ToHexString());
+            var existing = AccountRecords().ToDictionary(e => e.Uuid.ToHexString());
             var keep = new HashSet<string>();
             foreach (var le in Entries)
             {
                 string id = le.Id ?? "";
                 PwEntry pe;
                 if (id.Length == 32 && existing.TryGetValue(id, out pe)) { }
-                else { pe = new PwEntry(true, true); le.Id = pe.Uuid.ToHexString(); db.RootGroup.AddEntry(pe, true); }
+                else { pe = new PwEntry(true, true); le.Id = pe.Uuid.ToHexString(); AccountGroup(le.GroupId).AddEntry(pe, true); }
+                var destination=AccountGroup(le.GroupId);
+                if(pe.ParentGroup!=destination){pe.ParentGroup.Entries.Remove(pe);destination.AddEntry(pe,true);pe.LocationChanged=DateTime.UtcNow;}
+                le.GroupId=destination.Uuid.ToHexString();
                 UpdateWithHistory(pe, p=>FillEntry(p,le), existing.ContainsKey(pe.Uuid.ToHexString()));
                 keep.Add(pe.Uuid.ToHexString());
             }
@@ -829,11 +834,14 @@ namespace WinUp
 
         static void FillEntry(PwEntry pe, LoginEntry le)
         {
+            pe.Tags=le.Tags.Distinct(StringComparer.CurrentCultureIgnoreCase).ToList();
+            pe.AutoType.DefaultSequence=le.AutoTypeSequence??"";pe.AutoType.Clear();
+            foreach(var rule in le.AutoTypeRules)pe.AutoType.Add(new KeePassLib.Collections.AutoTypeAssociation(rule.Window??"",rule.Sequence??""));
             foreach(var name in pe.Strings.GetKeys().Where(IsUserField).ToList())pe.Strings.Remove(name);
             foreach(var field in le.CustomFields){ValidateFieldName(field.Name);field.UseValue(v=>{pe.Strings.Set(field.Name,ProtectedUtf8(v));return 0;});}
             pe.Strings.Set(PwDefs.TitleField, new ProtectedString(false, le.Name ?? ""));
             pe.Strings.Set(PwDefs.UserNameField, new ProtectedString(false, le.Login ?? ""));
-            le.UsePassword(pw => { pe.Strings.Set(le.Kind == "passkey" ? "KPEX_PASSKEY_PRIVATE_KEY_PEM" : PwDefs.PasswordField, ProtectedUtf8(pw)); return 0; });
+            var rawPassword=le.Password;try{pe.Strings.Set(le.Kind == "passkey" ? "KPEX_PASSKEY_PRIVATE_KEY_PEM" : PwDefs.PasswordField, ProtectedUtf8(rawPassword));}finally{Secure.Wipe(rawPassword);}
             if (le.Kind == "passkey") {
                 pe.Strings.Remove(PwDefs.PasswordField);
                 SetStr(pe,"KPEX_PASSKEY_CREDENTIAL_ID",le.Args);
@@ -909,6 +917,8 @@ namespace WinUp
                 Login = pe.Strings.ReadSafe(PwDefs.UserNameField),
                 Login2 = GetStr(pe, "WinUp.Login2"),
                 Category = GetStr(pe, "WinUp.Category"),
+                GroupId=pe.ParentGroup==null?null:pe.ParentGroup.Uuid.ToHexString(), Tags=pe.Tags.ToList(),
+                AutoTypeSequence=pe.AutoType.DefaultSequence,AutoTypeRules=pe.AutoType.Associations.Select(a=>new AppWindowRule{Window=a.WindowName,Sequence=a.Sequence}).ToList(),
                 Pinned = GetStr(pe, "WinUp.Pinned") == "1",
                 AppTarget = GetStr(pe, "WinUp.AppTarget"),
                 LoginUrl = GetStr(pe, "WinUp.LoginUrl"),

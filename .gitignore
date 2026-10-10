@@ -1,5 +1,6 @@
 src/bin/
 src/obj/
+src/system-passkeys/build-*/
 
 doc/chrome-prof/
 doc/Загрузки/

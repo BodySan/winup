@@ -81,7 +81,7 @@ namespace WinUp
         readonly Label updText = new Label { AutoSize = true, Margin = new Padding(6, 9, 6, 3) };
         DateTime updShownDay;
 
-        public MainForm(AppStore store)
+        public MainForm(AppStore store, bool refreshBrowserConnection = true)
         {
             this.store = store;
             Win.CaptureProtection = store.Settings.HideFromCapture; // до создания окон: они защищаются при появлении
@@ -111,6 +111,7 @@ namespace WinUp
             Appearance.MainStatus(status);
             RefreshApps();
             ShowLocked();
+            RefreshSystemPasskeyCache();
             // Файл базы мог появиться или исчезнуть, пока окно открыто (восстановили vault-*.kdbx из резерва):
             // при каждом заходе на вкладку замок показывает актуальную кнопку «Открыть» / «Создать базу».
             tabs.SelectedIndexChanged += (s, e) => { if (vault == null) ShowLocked(); };
@@ -159,7 +160,7 @@ namespace WinUp
             if (!string.IsNullOrEmpty(CoreLoader.Note)) PwLog(CoreLoader.Note);
 
             // Расширение браузера: обновить путь exe/версию папки, если подключено; принять канал моста.
-            try { BrowserSetup.RefreshIfNeeded(); } catch { }
+            if (refreshBrowserConnection) try { BrowserSetup.RefreshIfNeeded(); } catch { }
             if (BrowserSetup.RestoredFiles > 0)
                 PwLog("Расширение браузера: файлы в " + BrowserSetup.BrowserDir + " отличались от встроенных в WinUp — восстановлены. " +
                       "Если вы их не меняли, проверьте ПК антивирусом. Перезапустите браузер, чтобы он загрузил исправные файлы.");
@@ -202,6 +203,7 @@ namespace WinUp
                 FillToast.CloseAll();
                 CloseFileVault();
                 if (vault != null) vault.Lock();
+                RefreshSystemPasskeyCache();
                 if (pin != null) { pin.Clear(); pin = null; }
                 SecureClip.ClearNow();
             };
@@ -1205,16 +1207,19 @@ namespace WinUp
             base.OnHandleCreated(e);
             Win.SessionNotifyRegister(Handle);
             Win.ApplyCaptureProtection(this);
+            RegisterAutoTypeHotkey();
         }
 
         protected override void OnHandleDestroyed(EventArgs e)
         {
+            if(autoTypeRegistered){UnregisterHotKey(Handle,AutoTypeHotkeyId);autoTypeRegistered=false;}
             Win.SessionNotifyUnregister(Handle);
             base.OnHandleDestroyed(e);
         }
 
         protected override void WndProc(ref Message m)
         {
+            if(m.Msg==0x0312&&m.WParam.ToInt32()==AutoTypeHotkeyId){BeginAutoTypeForeground();return;}
             if (m.Msg == Win.WmShowWinUp)
             {
                 ShowFromTray();
@@ -1622,6 +1627,9 @@ namespace WinUp
             Btn(bar, "Изменить...", (s, e) => EditEntry());
             Btn(bar, "Проверить адреса…", (s, e) => ReviewAccountAddresses());
             Btn(bar, "Дополнительные поля…", (s, e) => EditSelectedFields());
+            Btn(bar,"Вложения…",(s,e)=>ManageAttachments());
+            Btn(bar,"Ссылки между полями…",(s,e)=>ManageReferences());
+            Btn(bar,"Автоввод в приложение…",(s,e)=>EditApplicationAutoType());
             Btn(bar, "Изменить отмеченные…", (s, e) => BulkEditPasswords());
             Btn(bar, "История / корзина…", (s, e) => ShowRecordArchive(SelectedEntry()==null?null:SelectedEntry().Id));
             Btn(bar, "Закрепить / открепить", (s, e) => TogglePinnedPassword());
@@ -1629,6 +1637,9 @@ namespace WinUp
             Btn(bar, "Генератор...", (s, e) => { using (var d = new GenDialog(false)) d.ShowDialog(this); });
 
             var bar2 = Bar();
+            Btn(bar2,"Группы…",(s,e)=>ManageAccountGroups());
+            Btn(bar2,"Объединить копии базы…",(s,e)=>MergeDatabaseCopies());
+            Btn(bar2,"Автоввод / горячая клавиша…",(s,e)=>ConfigureAutoTypeHotkey());
             bar2.Controls.Add(new Label { Text = "Сайты открывать в:", AutoSize = true, Margin = new Padding(6, 8, 3, 3) });
             bar2.Controls.Add(browserBox);
             Btn(bar2, "Код восстановления...", (s, e) => MakeRecoveryCode(true));
@@ -1646,9 +1657,9 @@ namespace WinUp
             pwList.DoubleClick += async (s, e) => await LoginSelected();
             openPanel.Controls.Add(pwList); openPanel.Controls.Add(BuildPasswordFilters());openPanel.Controls.Add(bar); openPanel.Controls.Add(bar2);
             ArrangeActions(openPanel,new[]{bar,bar2},
-                new ActionGroup("Вход",Actions(bar,"Войти","Войти в отмеченные","Копировать логин","Копировать пароль","Код 2FA")),
-                new ActionGroup("Записи",Actions(bar,"Добавить...","Изменить...","Импорт паролей…","Проверить адреса…","Закрепить / открепить","Генератор...","Удалить","Дополнительные поля…","Изменить отмеченные…","История / корзина…")),
-                new ActionGroup("База / браузер",new[]{(Control)browserBox}.Concat(Actions(bar2,"Заблокировать базу","Код восстановления...","Сменить пароль базы...","Папка резерва...")).ToArray()));
+                new ActionGroup("Вход",Actions(bar,"Войти","Войти в отмеченные","Копировать логин","Копировать пароль","Код 2FA","Автоввод в приложение…")),
+                new ActionGroup("Записи",Actions(bar,"Добавить...","Изменить...","Импорт паролей…","Проверить адреса…","Закрепить / открепить","Генератор...","Удалить","Дополнительные поля…","Вложения…","Ссылки между полями…","Изменить отмеченные…","История / корзина…")),
+                new ActionGroup("База / браузер",new[]{(Control)browserBox}.Concat(Actions(bar2,"Группы…","Объединить копии базы…","Автоввод / горячая клавиша…","Заблокировать базу","Код восстановления...","Сменить пароль базы...","Папка резерва...")).ToArray()));
 
             page.Controls.Add(openPanel); page.Controls.Add(lockedPanel); page.Controls.Add(pwLog);
             tabs.TabPages.Add(page);
@@ -1722,6 +1733,7 @@ namespace WinUp
             RefreshEntries();
             RefreshOtp();
             UpdateLockUi();
+            RefreshSystemPasskeyCache();
         }
 
         // Состояние базы — в значке окна и трея, кнопка «Заблокировать» в строке меню доступна с любой вкладки.
@@ -1790,6 +1802,7 @@ namespace WinUp
                     try { f.Close(); } catch { }
             // 4. Затирание ключа и секретов.
             if (vault != null) { vault.Lock(); vault = null; }
+            RefreshSystemPasskeyCache();
             pwList.Items.Clear();
             passwordSearch.Clear();
             // 5. След секретов в куче: сборка мусора и обнуляющая аллокация поверх освободившихся копий.
@@ -2370,7 +2383,7 @@ namespace WinUp
                 Backup.LastError = backupErrors.Count == 0 ? null : string.Join("; ", backupErrors);
                 // v может быть ещё не текущей базой (вход кодом восстановления, сброс пароля 1):
                 // список записей рисуем только для открытой вкладки, иначе NRE на null vault.
-                if (vault == v) RefreshEntries();
+                if (vault == v) { RefreshEntries(); RefreshSystemPasskeyCache(); }
                 return true;
             }
             catch (Exception ex) {
@@ -2393,10 +2406,10 @@ namespace WinUp
             var checkedIds = new HashSet<string>(pwList.CheckedItems.Cast<ListViewItem>().Select(i => ((LoginEntry)i.Tag).Id));
             var selId = SelectedEntry() == null ? null : SelectedEntry().Id;
             pwList.BeginUpdate(); pwList.Items.Clear();
-            foreach (var e in AccountOrganization.Filter(vault.Entries,store.Templates,passwordSearch.Text,passwordCategory.SelectedIndex>0?passwordCategory.SelectedItem as string:null,passwordKind.SelectedIndex,passwordPinned.Checked))
+            foreach (var e in AccountOrganization.Filter(vault.Entries,store.Templates,passwordSearch.Text,passwordCategory.SelectedIndex>0?passwordCategory.SelectedItem as string:null,passwordKind.SelectedIndex,passwordPinned.Checked).Where(e=>vault.InAccountGroup(e,passwordGroup.SelectedItem is AccountGroupInfo?((AccountGroupInfo)passwordGroup.SelectedItem).Id:null)&&(passwordTag.SelectedIndex<=0||e.Tags.Contains((string)passwordTag.SelectedItem,StringComparer.CurrentCultureIgnoreCase))))
             {
                 if (e.Kind == "passkey") continue;
-                var it = new ListViewItem(new[] { (e.Pinned?"★ ":"")+e.Name, e.Kind == "both" ? "приложение / сайт" : e.Kind == "app" ? "приложение" : "сайт", e.Login ?? "", e.Target ?? "", e.Window ?? "",
+                var it = new ListViewItem(new[] { (e.Pinned?"★ ":"")+e.Name, e.Kind == "both" ? "приложение / сайт" : e.Kind == "app" ? "приложение" : "сайт", AccountOrganization.DisplayLogin(e), e.Target ?? "", e.Window ?? "",
                     e.AutoEnter ? "да" : "нет", TwoFaText(e), e.Kind == "app" ? "" : (string.IsNullOrEmpty(e.Browser) ? "общий" : e.Browser),AccountOrganization.Category(e,store.Templates) })
                 { Tag = e, Checked = checkedIds.Contains(e.Id) };
                 pwList.Items.Add(it);
@@ -2414,7 +2427,7 @@ namespace WinUp
             if (vault == null) { PwLog("База заблокирована — добавление отменено."); return; }
             var e = new LoginEntry { Id = AppStore.NewId(), AutoEnter = true };
             bool retained=false;
-            using (var d = new EntryDialog(e, store, true, vault.Otp, vault.Entries))
+            using (var d = new EntryDialog(e, store, true, vault.Otp, vault.Entries,vault.AccountGroups()))
             { try {
                 if (d.ShowDialog(this) != DialogResult.OK) return;
                 if (vault == null) { PwLog("База заблокирована во время ввода — запись не сохранена."); return; }
@@ -2432,7 +2445,7 @@ namespace WinUp
             if (e == null || !vault.Entries.Contains(e)) return;
             var copy = e.Copy();
             bool retained = false;
-            try { using (var d = new EntryDialog(copy, store, false, vault.Otp, vault.Entries))
+            try { using (var d = new EntryDialog(copy, store, false, vault.Otp, vault.Entries,vault.AccountGroups()))
             {
                 if (d.ShowDialog(this) != DialogResult.OK) return;
                 if (vault == null) { PwLog("База заблокирована во время правки — изменения не сохранены."); return; }
@@ -2458,7 +2471,7 @@ namespace WinUp
         {
             var e = SelectedEntry();
             if (e == null) return;
-            var text = login ? e.Login : e.Password;
+            var text = login ? e.ResolvedLogin : e.UsePassword(p=>new string((p??"").ToCharArray()));
             if (string.IsNullOrEmpty(text)) { PwLog(e.Name + ": " + (login ? "логин" : "пароль") + " не задан."); return; }
             try { SecureClip.Copy(text); }
             finally { if (!login) Secure.Wipe(text); }
@@ -2696,11 +2709,12 @@ namespace WinUp
                 if(!string.IsNullOrWhiteSpace(e.Target)) StartTarget(e);
                 PwLog(e.Name+": пароль не сохранён. "+(string.IsNullOrEmpty(e.PasskeyId) ? "Сайт или приложение открыт." : "Выберите на сайте вход ключом доступа.")); return;
             }
-            if (string.IsNullOrWhiteSpace(e.Window)) { PwLog(e.Name + ": не задан заголовок окна."); return; }
+            if (string.IsNullOrWhiteSpace(e.Window)&&e.AutoTypeRules.Count==0) { PwLog(e.Name + ": не задан заголовок окна."); return; }
             string targetReason;
             var targetBinding = DesktopTarget.Create(e.Target, out targetReason);
             if (targetBinding == null) { PwLog(e.Name + ": " + targetReason); return; }
-            IntPtr h = Win.Find(e.Window, targetBinding.Matches);
+            Func<IntPtr,bool> match=hWindow=>targetBinding.Matches(hWindow)&&ApplicationAutoType.Matches(e,Win.Title(hWindow));
+            IntPtr h = Win.Windows().Where(w=>match(w.Key)).Select(w=>w.Key).FirstOrDefault();
             if (h == IntPtr.Zero && !string.IsNullOrWhiteSpace(e.Target))
             {
                 if (!StartTarget(e)) return;
@@ -2709,7 +2723,7 @@ namespace WinUp
                 {
                     await Task.Delay(300);
                     if (ct.IsCancellationRequested || vault == null) { PwLog(e.Name + ": ввод отменён — база заблокирована."); return; }
-                    h = Win.Find(e.Window, targetBinding.Matches);
+                    h = Win.Windows().Where(w=>match(w.Key)).Select(w=>w.Key).FirstOrDefault();
                 }
             }
             if (h == IntPtr.Zero) { PwLog(e.Name + ": окно «" + e.Window + "» не найдено, ввод отменён."); return; }
@@ -2728,10 +2742,15 @@ namespace WinUp
             // Ещё одна проверка перед печатью секрета: блокировка могла прийти в момент отсчёта.
             if (ct.IsCancellationRequested || vault == null) { PwLog(e.Name + ": ввод отменён — база заблокирована."); return; }
             if (!targetBinding.Verify(h, out targetReason)) { PwLog(e.Name + ": " + targetReason); return; }
+            string customSequence=ApplicationAutoType.SequenceFor(e,Win.Title(h));
+            if(!string.IsNullOrEmpty(customSequence)){
+                bool ok=await ApplicationAutoType.Run(e,vault,customSequence,h,targetBinding,ct);
+                PwLog(e.Name+": "+(ok?"последовательность автоввода выполнена.":"автоввод остановлен — окно или состояние базы изменилось."));return;
+            }
             // Фокус проверяется перед каждым символом: если окно потеряло передний план — ввод прерывается.
-            if (!string.IsNullOrEmpty(e.Login))
+            if (!string.IsNullOrEmpty(e.ResolvedLogin))
             {
-                if (!Win.TypeText(h, e.Login) || !Win.Key(h, Win.TAB)) { PwLog(e.Name + ": фокус ушёл из окна, ввод прерван."); return; }
+                if (!Win.TypeText(h, e.ResolvedLogin) || !Win.Key(h, Win.TAB)) { PwLog(e.Name + ": фокус ушёл из окна, ввод прерван."); return; }
             }
             if (!Win.IsForeground(h)) { PwLog(e.Name + ": фокус ушёл из окна, пароль не введён."); return; }
             if (!targetBinding.Verify(h, out targetReason)) { PwLog(e.Name + ": " + targetReason); return; }

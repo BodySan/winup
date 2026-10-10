@@ -197,6 +197,43 @@ namespace WinUp {
             Ui(Lock);
             var locked=Request(new {type="login-step",token=token,nonce=nonce,tab="1",url="https://example.com/login",stage="otp"});
             Check("login-lock-removes-job",!(bool)locked["ok"] && !locked.ContainsKey("otp"),"lock invalidates outstanding capabilities");
+            BrowserReferenceWorkflowTests();
+        }
+        static void BrowserReferenceRegression(){
+            try{BrowserReferenceWorkflowTests();}catch(Exception ex){Check("browser-reference-workflow-exception",false,ex.ToString());}
+            finally{Ui(delegate {form.Close();});}
+        }
+        static void BrowserReferenceWorkflowTests(){
+            const string token="synthetic-reference-workflow";string id=null,sourceId=null,nonce=null;
+            Ui(delegate {
+                NewVault(false);var v=form.VaultNow;var linked=v.Entries[0];linked.LoginUrl="https://example.com/login";
+                var source=new LoginEntry{Name="Shared browser source",Kind="app",Login="shared-user@example.invalid",Password="Synthetic-Shared-Browser!"};
+                var secondary=new LoginEntry{Name="Secondary browser source",Kind="app",Login="secondary-user@example.invalid"};
+                v.Entries.Add(source);v.Entries.Add(secondary);v.Save();sourceId=source.Id;
+                linked.Login=KdbxStore.Reference(source.Id,'U');linked.Login2=KdbxStore.Reference(secondary.Id,'U');linked.Password=KdbxStore.Reference(source.Id,'P');v.Save();id=linked.Id;
+                BrowserPair.Save(token,"Synthetic reference workflows");BrowserSetup.Connect();
+                Check("browser-save-matches-resolved-primary-login",MainForm.BrowserSaveMatches(v,"https://example.com/login",source.Login).SingleOrDefault()==linked,"shared account is updated rather than added again");
+                Check("browser-save-matches-resolved-secondary-login",MainForm.BrowserSaveMatches(v,"https://example.com/login",secondary.Login).SingleOrDefault()==linked,"secondary shared identity is also recognised");
+                var launch=form.BeginBrowserLogin(linked);nonce=launch.Substring(launch.IndexOf("winup-login=",StringComparison.Ordinal)+12);
+            });
+            var list=Request(new{type="list",token=token,url="https://example.com/login"});
+            var row=((ArrayList)list["items"]).Cast<Dictionary<string,object>>().Single(r=>(string)r["id"]==id);
+            Check("browser-list-displays-resolved-login",(string)row["login"]=="shared-user@example.invalid","account picker shows the actual username");
+            var search=Request(new{type="search",token=token,url="https://example.com/login",query="shared-user@example.invalid"});
+            Check("browser-search-finds-shared-login",(bool)search["ok"]&&((ArrayList)search["items"]).Count==1,"search includes resolved primary identity");
+            search=Request(new{type="search",token=token,url="https://example.com/login",query="secondary-user@example.invalid"});
+            Check("browser-search-finds-shared-secondary-login",(bool)search["ok"]&&((ArrayList)search["items"]).Count==1,"search includes resolved secondary identity");
+            var claim=Request(new{type="login-claim",token=token,nonce=nonce,tab="references",url="https://example.com/login"});
+            Check("browser-shared-login-claim",(bool)claim["ok"],"normal reviewed login job is accepted");
+            var user=Request(new{type="login-step",token=token,nonce=nonce,tab="references",url="https://example.com/login",stage="user"});
+            Check("browser-login-stage-materializes-both-shared-logins",(bool)user["ok"]&&(string)user["login"]=="shared-user@example.invalid"&&(string)user["login2"]=="secondary-user@example.invalid","site receives usernames rather than reference syntax");
+            var pw=Request(new{type="login-step",token=token,nonce=nonce,tab="references",url="https://example.com/login",stage="password"});
+            Check("browser-login-stage-materializes-shared-password",(bool)pw["ok"]&&(string)pw["password"]=="Synthetic-Shared-Browser!","password stage keeps shared-field behavior");
+            Ui(delegate {var v=form.VaultNow;var source=v.Entries.Single(e=>e.Id==sourceId);v.Entries.Remove(source);v.Save();source.ClearSecrets();});
+            list=Request(new{type="list",token=token,url="https://example.com/login"});
+            row=((ArrayList)list["items"]).Cast<Dictionary<string,object>>().Single(r=>(string)r["id"]==id);
+            Check("browser-list-reports-missing-reference-without-breaking",(bool)list["ok"]&&((string)row["login"]).Contains("недоступен"),"missing source does not make account list disappear");
+            Ui(delegate {Check("browser-save-keeps-valid-secondary-when-primary-reference-breaks",MainForm.BrowserSaveMatches(form.VaultNow,"https://example.com/login","secondary-user@example.invalid").Count==1,"independent secondary field still matches");Lock();});
         }
         [System.Runtime.InteropServices.DllImport("user32.dll")] static extern bool EnumWindows(NativeWindowEnum callback,IntPtr value);
         delegate bool NativeWindowEnum(IntPtr hwnd,IntPtr value);

@@ -14,6 +14,7 @@ foreach($name in 'KeePassLib','WinUp.PasskeyEngine','BouncyCastle.Cryptography',
 foreach($file in Get-ChildItem "$src\browser" -File | Where-Object { $_.Extension -in '.json','.js','.html','.png' -or $_.Name -eq 'winup-firefox.xpi' }) { $args += "/resource:$($file.FullName),browser/$($file.Name)" }
 foreach($name in 'file-engine.zip','file-engine.json','winfsp.msi') { $args += "/resource:$src\file-engine\$name,$name" }
 foreach($file in Get-ChildItem "$src\licenses" -File) { $args += "/resource:$($file.FullName),licenses/$($file.Name)" }
+foreach($name in 'WinUp.Passkeys.msix','WinUp.Passkeys.cer','package.json','Logo.png','setup.ps1','WinUp.PasskeyProvider.exe'){$args += "/resource:$src\system-passkeys\$name,system-passkeys/$name"}
 $args += (Get-ChildItem $src -Filter '*.cs').FullName
 $args += "$src\Properties\AssemblyInfo.cs"
 & $csc @args

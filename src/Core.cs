@@ -359,6 +359,7 @@ namespace WinUp
         public string LastKeyFile { get; set; }        // путь последнего ключ-файла (подстановка при входе)
         public bool FillNotify { get; set; }           // уведомление о каждой вставке пароля расширением браузера
         public bool MinimizeToTray { get; set; }       // галочка меняет поведение кнопки сворачивания
+        public int AutoTypeHotkey {get;set;}
         // Папка резерва по умолчанию — в «Документах» того, кто запустил WinUp (вне папки программы).
         public static string DefaultBackupDir
         {
@@ -369,6 +370,7 @@ namespace WinUp
         {
             AutoLockMinutes = 10; BackupDir = DefaultBackupDir; BackupKeep = 20; HideFromCapture = true; FillNotify = true;
             Browser = ""; IgnoredFiles = new List<string>(); LastKeyFile = "";
+            AutoTypeHotkey=(int)(System.Windows.Forms.Keys.Control|System.Windows.Forms.Keys.Alt|System.Windows.Forms.Keys.A);
         }
     }
 

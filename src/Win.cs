@@ -108,6 +108,11 @@ namespace WinUp
         }
 
         public static bool IsForeground(IntPtr h) { return GetForegroundWindow() == h; }
+        internal static IntPtr Foreground {get{return GetForegroundWindow();}}
+        [DllImport("user32.dll")]static extern short GetAsyncKeyState(int key);
+        internal static bool ModifiersReleased{get{return new[]{0x10,0x11,0x12}.All(k=>(GetAsyncKeyState(k)&0x8000)==0);}}
+        static bool Modifier(ushort key,bool up){var input=new INPUT{type=1};input.u.ki.wVk=key;input.u.ki.dwFlags=up?KEYUP:0;return SendInput(1,new[]{input},Marshal.SizeOf(typeof(INPUT)))==1;}
+        internal static bool Chord(IntPtr target,ushort key,bool control,bool shift){if(!IsForeground(target))return false;try{if(control&&!Modifier(0x11,false))return false;if(shift&&!Modifier(0x10,false))return false;return Key(target,key);}finally{if(shift)Modifier(0x10,true);if(control)Modifier(0x11,true);}}
 
         // Окно уже запущенного WinUp из этой же папки (другой процесс) — развернуть и вывести вперёд.
         public static bool ActivateMainWindow(string title)

@@ -9,7 +9,7 @@ namespace WinUp {
         internal static List<LoginEntry> BrowserSaveMatches(KdbxStore current,string url,string login) {
             string host=SiteDomain.HostOf(url);
             return current.Entries.Where(e => (e.Kind == "site" || e.Kind == "both") &&
-                (SiteDomain.SameHost(SiteDomain.HostOf(e.Target),host) || LoginProfiles.MatchesLoginOrigin(e,url)) && (e.Login == login || e.Login2 == login))
+                (SiteDomain.SameHost(SiteDomain.HostOf(e.Target),host) || LoginProfiles.MatchesLoginOrigin(e,url)) && AccountOrganization.HasLogin(e,login))
                 .OrderByDescending(e=>SiteDomain.SameHost(SiteDomain.HostOf(e.Target),host)).ThenBy(e=>e.Name).ToList();
         }
         internal string BrowserSave(string url, string login, string password, Func<bool> authorized) {
@@ -58,7 +58,7 @@ namespace WinUp {
     sealed class BrowserSaveChoiceDialog : Dlg, ILockableDialog {
         sealed class Item {
             public LoginEntry Entry;
-            public override string ToString() {return Entry.Name+" — "+Entry.Target+" — "+Entry.Login;}
+            public override string ToString() {return Entry.Name+" — "+Entry.Target+" — "+AccountOrganization.DisplayLogin(Entry);}
         }
         readonly System.Windows.Forms.ListBox choices=new System.Windows.Forms.ListBox {Height=180,IntegralHeight=false,HorizontalScrollbar=true};
         public LoginEntry Selected {get {var item=choices.SelectedItem as Item;return item==null ? null : item.Entry;}}

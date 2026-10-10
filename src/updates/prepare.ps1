@@ -34,6 +34,7 @@ try {
 $files=[ordered]@{}
 $mapping=[ordered]@{}
 foreach($name in 'file-engine.zip','file-engine.json','winfsp.msi') { $mapping[$name]=Join-Path "$src\file-engine" $name }
+foreach($name in 'WinUp.Passkeys.msix','WinUp.Passkeys.cer','package.json','Logo.png','setup.ps1','WinUp.PasskeyProvider.exe'){$mapping["system-passkeys/$name"]="$src\system-passkeys\$name"}
 foreach($name in 'WinUp.PasskeyEngine','BouncyCastle.Cryptography','CBOR','Numbers') { $mapping["$name.dll"]="$src\lib\$name.dll" }
 $mapping['public-suffix-list.dat']="$src\public-suffix-list.dat"
 $mapping['THIRD-PARTY.md']="$src\THIRD-PARTY.md"

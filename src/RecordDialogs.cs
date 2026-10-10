@@ -12,7 +12,7 @@ namespace WinUp {
             source=fields;this.fields=fields.Select(f=>f.Copy()).ToList();this.viewOnly=viewOnly;Note("Значения хранятся зашифрованными в базе. Скопированное значение очищается из буфера через 30 секунд.");
             list.Columns.Add("Поле",320);list.Columns.Add("Значение",170);Row("Поля:",list);
             var bar=new FlowLayoutPanel{AutoSize=true};Row("Действия:",bar);
-            Add(bar,viewOnly?"Посмотреть…":"Изменить…",Edit);Add(bar,"Скопировать",()=>{var field=Selected();if(field!=null)field.UseValue(v=>{SecureClip.Copy(v);return 0;});});
+            Add(bar,viewOnly?"Посмотреть…":"Изменить…",Edit);Add(bar,"Скопировать",()=>{var field=Selected();if(field!=null)field.UseResolvedValue(v=>{SecureClip.Copy(v);return 0;});});
             if(!viewOnly){Add(bar,"Добавить…",()=>EditField(null));Add(bar,"Удалить",()=>{var field=Selected();if(field!=null){this.fields.Remove(field);field.Clear();Refresh();}});}
             Buttons();if(viewOnly){Ok.Text="Закрыть";Cancel.Visible=false;}Refresh();
         }

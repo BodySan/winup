@@ -312,9 +312,21 @@ public final class WinUpFiles {
                 if(op.equals("change-password")){replaceMasterkey(key,CharBuffer.wrap(replacement));return Map.of("ok",true);}
                 var checks=HealthCheck.allChecks();if(checks.isEmpty())throw new IOException("health_checks_unavailable");
                 var results=new ArrayList<Object>();int[] counts=new int[4];
+                int fixed=0;var failures=new ArrayList<String>();
                 try(var cryptor=CryptorProvider.forScheme(config.getCipherCombo()).provide(key,RNG)){
+                    if(op.equals("repair")){
+                        Path marker=storage.resolve(".winup-repair-copy");
+                        if(!Files.isRegularFile(marker,LinkOption.NOFOLLOW_LINKS)||Files.size(marker)>100||!Files.readString(marker).startsWith("WUR1:"))throw new IOException("repair_copy_required");
+                        for(int pass=0;pass<3;pass++){
+                            var pending=new ArrayList<DiagnosticResult>();
+                            for(var check:checks)check.check(storage,config,key,cryptor,result->{if(result.getSeverity()!=DiagnosticResult.Severity.GOOD&&pending.size()<1000)pending.add(result);});
+                            int repaired=0;for(var item:pending){try{var fix=item.getFix(storage,config,key,cryptor);if(fix.isPresent()){fix.get().apply();fixed++;repaired++;}}catch(Exception ex){if(failures.size()<100)failures.add(item.toString()+": "+ex.getClass().getSimpleName());}}
+                            if(repaired==0)break;
+                        }
+                    }
                     for(var check:checks)check.check(storage,config,key,cryptor,result->{counts[result.getSeverity().ordinal()]++;if(result.getSeverity()!=DiagnosticResult.Severity.GOOD&&results.size()<1000)results.add(Map.of("check",check.name(),"severity",result.getSeverity().name(),"message",result.toString(),"details",result.details()));});
                 }
+                if(op.equals("repair")){Files.deleteIfExists(storage.resolve(".winup-repair-copy"));return Map.of("ok",true,"checks",checks.size(),"good",counts[0],"info",counts[1],"warnings",counts[2],"critical",counts[3],"results",results,"truncated",counts[1]+counts[2]+counts[3]>results.size(),"fixed",fixed,"failedFixes",failures);}
                 return Map.of("ok",true,"checks",checks.size(),"good",counts[0],"info",counts[1],"warnings",counts[2],"critical",counts[3],"results",results,"truncated",counts[1]+counts[2]+counts[3]>results.size());
             }
         } finally {Arrays.fill(input,'\0');Arrays.fill(replacement,'\0');Arrays.fill(raw,(byte)0);}
@@ -325,7 +337,7 @@ public final class WinUpFiles {
             if(fs!=null||storage!=null)throw new IOException("already_open");storage=Path.of(decode(p[1])).toAbsolutePath().normalize();
             String guard=decode(p[3]);if(!guard.matches("\\.winup-path-lease-[0-9a-f]{32}")||!Files.isRegularFile(storage.resolve(guard),LinkOption.NOFOLLOW_LINKS))throw new IOException("missing_path_guard");pathGuard=storage.resolve(guard);return Map.of("ok",true);
         }
-        if(op.equals("recovery-key")||op.equals("change-password")||op.equals("reset-password")||op.equals("health"))return manage(op,p);
+        if(op.equals("recovery-key")||op.equals("change-password")||op.equals("reset-password")||op.equals("health")||op.equals("repair"))return manage(op,p);
         if (op.equals("open") || op.equals("create")) {
             if (p.length != 4 && p.length!=5) throw new IOException("bad_open_command");
             open(decode(p[1]), p[2], decode(p[3]), op.equals("create"),p.length==5&&decode(p[4]).equals("readonly")); return Map.of("ok",true);
