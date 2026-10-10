@@ -68,7 +68,7 @@ namespace WinUp {
         void ConfigureAutoTypeHotkey(){using(var d=new AutoTypeHotkeyDialog((Keys)store.Settings.AutoTypeHotkey)){if(d.ShowDialog(this)!=DialogResult.OK)return;int old=store.Settings.AutoTypeHotkey;store.Settings.AutoTypeHotkey=(int)d.Value;RegisterAutoTypeHotkey();if(d.Value!=Keys.None&&!autoTypeRegistered){store.Settings.AutoTypeHotkey=old;RegisterAutoTypeHotkey();MessageBox.Show(this,"Сочетание занято. Выберите другое.","WinUp");return;}SaveApps();}}
     }
     sealed class AutoTypeChooseDialog:Dlg,ILockableDialog {
-        readonly ComboBox entries=new ComboBox{DropDownStyle=ComboBoxStyle.DropDownList};sealed class Item{internal LoginEntry E;public override string ToString(){return E.Name+" — "+E.Login;}}
+        readonly ComboBox entries=new ComboBox{DropDownStyle=ComboBoxStyle.DropDownList};sealed class Item{internal LoginEntry E;public override string ToString(){return E.Name+" — "+AccountOrganization.DisplayLogin(E);}}
         internal LoginEntry Selected{get{return ((Item)entries.SelectedItem).E;}}
         internal AutoTypeChooseDialog(IEnumerable<LoginEntry> source):base("Выберите аккаунт для автоввода"){foreach(var e in source)entries.Items.Add(new Item{E=e});entries.SelectedIndex=0;Row("Аккаунт:",entries);Buttons();}
     }

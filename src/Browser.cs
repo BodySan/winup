@@ -1032,7 +1032,7 @@ namespace WinUp
                         if (q.Length < 1) continue;
                         if (!((e.Name ?? "").ToLowerInvariant().Contains(q) ||
                               (e.Target ?? "").ToLowerInvariant().Contains(q) ||
-                              (e.Login ?? "").ToLowerInvariant().Contains(q) || (e.Login2 ?? "").ToLowerInvariant().Contains(q))) continue;
+                              AccountOrganization.DisplayLogin(e).ToLowerInvariant().Contains(q) || AccountOrganization.DisplayLogin(e,true).ToLowerInvariant().Contains(q))) continue;
                         if (items.Count >= 30) return;
                     }
                     else if (!SiteDomain.SameSite(host, pageHost) && !LoginProfiles.MatchesLoginOrigin(e,url)) continue;
@@ -1049,7 +1049,7 @@ namespace WinUp
         {
             return new Dictionary<string, object>
             {
-                { "id", e.Id }, { "name", e.Name ?? "" }, { "login", e.Login ?? "" },
+                { "id", e.Id }, { "name", e.Name ?? "" }, { "login", AccountOrganization.DisplayLogin(e) },
                 { "otp", e.TwoFa == "link" && !string.IsNullOrEmpty(e.OtpId) },
                 { "match", match }, { "exact", exact }, { "site", host }
             };

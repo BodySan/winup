@@ -1,5 +1,8 @@
 ﻿param([Parameter(Mandatory=$true)][string]$Root,[ValidateSet('install','remove')][string]$Mode='install')
 $ErrorActionPreference='Stop'
+# Load the Windows PowerShell module explicitly; Get-FileHash can otherwise be
+# unavailable when WinUp inherits a module search path from another PowerShell.
+Import-Module -Name (Join-Path $PSHOME 'Modules\Microsoft.PowerShell.Utility\Microsoft.PowerShell.Utility.psd1') -ErrorAction Stop
 [Console]::OutputEncoding=[Text.UTF8Encoding]::new($false)
 $Root=[IO.Path]::GetFullPath($Root)
 $package=Join-Path $Root 'system-passkeys\WinUp.Passkeys.msix'
@@ -12,6 +15,9 @@ if($Mode -eq 'remove'){
  if(!$process.WaitForExit(30000)){$process.Kill();throw 'Windows не завершила отключение провайдера.'}
  if($process.ExitCode -lt 0){throw ('Windows не отключила провайдер. Код: 0x'+$process.ExitCode.ToString('X8'))}
  Get-AppxPackage -Name WinUp.Passkeys|Remove-AppxPackage
+ $registration='HKCU:\Software\WinUp\SystemPasskeys'
+ $current=Get-ItemProperty -LiteralPath $registration -ErrorAction SilentlyContinue
+ if($current -and $current.Root -eq $Root){Remove-Item -LiteralPath $registration}
  Write-Output 'WinUp отключён от Windows. Ключи в базе сохранены.'
 }else{
  $registration='HKCU:\Software\WinUp\SystemPasskeys'

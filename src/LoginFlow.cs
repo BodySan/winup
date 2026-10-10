@@ -129,7 +129,10 @@ namespace WinUp {
             if(job.Profile.Mode=="none" || job.Profile.Mode=="manual") return fail("manual");
             // Consume each stage once. Failed/replaced forms require a new explicit login action.
             job.Done.Add(stage);
-            if(stage=="user") return serializer.Serialize(new {ok=true,login=job.Entry.Login ?? "",login2=job.Entry.Login2 ?? ""});
+            if(stage=="user") {
+                try{return serializer.Serialize(new {ok=true,login=job.Entry.ResolvedLogin ?? "",login2=job.Entry.ResolvedLogin2 ?? ""});}
+                catch(IOException ex){PwLog(job.Entry.Name+": "+ex.Message);return fail("not_found");}
+            }
             if(stage=="password") return job.Entry.UsePassword(p=>serializer.Serialize(new {ok=true,password=p ?? ""}));
             string code=null;
             if(job.Entry.TwoFa=="link") {

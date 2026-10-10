@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Package xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10" xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10" xmlns:uap10="http://schemas.microsoft.com/appx/manifest/uap/windows10/10" xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities" xmlns:com="http://schemas.microsoft.com/appx/manifest/com/windows10" xmlns:uap3="http://schemas.microsoft.com/appx/manifest/uap/windows10/3" xmlns:desktop="http://schemas.microsoft.com/appx/manifest/desktop/windows10" IgnorableNamespaces="uap uap10 rescap com uap3 desktop">
-  <Identity Name="WinUp.Passkeys" Publisher="CN=WinUp" Version="1.18.0.1" ProcessorArchitecture="neutral" />
+  <Identity Name="WinUp.Passkeys" Publisher="CN=WinUp" Version="1.18.0.3" ProcessorArchitecture="neutral" />
   <Properties><DisplayName>WinUp</DisplayName><PublisherDisplayName>WinUp</PublisherDisplayName><Logo>system-passkeys\Logo.png</Logo><uap10:AllowExternalContent>true</uap10:AllowExternalContent></Properties>
   <Dependencies><TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.26100.0" MaxVersionTested="10.0.26200.0" /></Dependencies>
   <Resources><Resource Language="ru-ru" /></Resources>

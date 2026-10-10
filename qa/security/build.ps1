@@ -1,4 +1,4 @@
-param([string]$Output = 'C:\WinUp\test\audit\candidate',[string]$Source)
+param([string]$Output = 'C:\WinUp\test\audit\candidate',[string]$Source,[switch]$HostNativeReview,[switch]$HostNativeReviewOnly,[switch]$SystemProviderOnly)
 $ErrorActionPreference = 'Stop'
 $src = if($Source) { [IO.Path]::GetFullPath($Source) } else { [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..\src')) }
 New-Item -ItemType Directory -Force $Output | Out-Null
@@ -22,6 +22,17 @@ $common += "/resource:$src\public-suffix-list.dat,public-suffix-list.dat"
 $common += "/resource:$src\updates\components.json,components.json","/resource:$src\updates\publisher.xml,component-publisher.xml"
 foreach($file in Get-ChildItem "$src\licenses" -File) { $common += "/resource:$($file.FullName),licenses/$($file.Name)" }
 foreach($name in 'WinUp.Passkeys.msix','WinUp.Passkeys.cer','package.json','Logo.png','setup.ps1','WinUp.PasskeyProvider.exe'){$common += "/resource:$src\system-passkeys\$name,system-passkeys/$name"}
+function BuildHostNativeReview {
+    New-Item -ItemType Directory -Force "$Output\host-native-review"|Out-Null
+    & $csc @common '/target:winexe' '/main:WinUp.HostNativeReview' "/out:$Output\host-native-review\WinUp.exe" @sources "$PSScriptRoot\HostNativeReview.cs" "$PSScriptRoot\NativeResponseProbe.cs"
+    if($LASTEXITCODE){throw 'Host native review build failed'}
+}
+if($HostNativeReviewOnly){BuildHostNativeReview;return}
+function BuildSystemProviderProbe {
+    & $csc @common '/target:exe' '/main:WinUp.SystemProviderProbe' "/out:$Output\SystemProviderProbe.exe" @sources "$PSScriptRoot\SystemProviderProbe.cs" "$PSScriptRoot\NativeResponseProbe.cs"
+    if ($LASTEXITCODE) { throw 'System provider probe build failed' }
+}
+if($SystemProviderOnly){BuildSystemProviderProbe;return}
 & $csc @common '/target:winexe' "/out:$Output\WinUp.exe" @sources
 if ($LASTEXITCODE) { throw 'Production build failed' }
 & $csc @common '/target:exe' '/main:WinUp.SecurityHarness' "/out:$Output\SecurityHarness.exe" @sources "$PSScriptRoot\SecurityHarness.cs" "$PSScriptRoot\HardeningTests.cs" "$PSScriptRoot\FeatureTests.cs" "$PSScriptRoot\CorrectionsTests.cs" "$PSScriptRoot\UpdateTests.cs" "$PSScriptRoot\DeepStorageTests.cs" "$PSScriptRoot\DeepBrowserTests.cs" "$PSScriptRoot\DeepFileTests.cs" "$PSScriptRoot\DeliveryTests.cs"
@@ -37,8 +48,8 @@ if ($LASTEXITCODE) { throw 'File workflow probe build failed' }
 if ($LASTEXITCODE) { throw 'File UI probe build failed' }
 & $csc @common '/target:exe' '/main:WinUp.AdvancedWorkflowProbe' "/out:$Output\AdvancedWorkflowProbe.exe" @sources "$PSScriptRoot\AdvancedWorkflowProbe.cs"
 if ($LASTEXITCODE) { throw 'Advanced workflow probe build failed' }
-& $csc @common '/target:exe' '/main:WinUp.SystemProviderProbe' "/out:$Output\SystemProviderProbe.exe" @sources "$PSScriptRoot\SystemProviderProbe.cs"
-if ($LASTEXITCODE) { throw 'System provider probe build failed' }
+BuildSystemProviderProbe
+if($HostNativeReview){BuildHostNativeReview}
 & $csc @common '/target:exe' '/main:WinUp.AdvancedUiProbe' "/out:$Output\AdvancedUiProbe.exe" @sources "$PSScriptRoot\AdvancedUiProbe.cs"
 if ($LASTEXITCODE) { throw 'Advanced UI probe build failed' }
 & $csc '/nologo' '/target:exe' "/out:$Output\MemoryProbe.exe" "$PSScriptRoot\MemoryProbe.cs"

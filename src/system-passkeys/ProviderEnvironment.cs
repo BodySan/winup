@@ -9,7 +9,20 @@ using System.Windows.Forms;
 
 namespace WinUp {
     internal static class ProviderProgram {
-        [STAThread]static void Main(string[] args){try{if(args.Contains("--system-passkey-register-quiet"))Environment.ExitCode=SystemPasskeyProvider.Register();else if(args.Contains("--system-passkey-remove-quiet"))Environment.ExitCode=SystemPasskeyProvider.Remove();else if(args.Contains("--system-passkey"))SystemPasskeyProvider.Run();else Environment.ExitCode=2;}catch(Exception ex){Environment.ExitCode=Marshal.GetHRForException(ex);}}
+        [STAThread]static void Main(string[] args){try{if(args.Contains("--system-passkey-register-quiet"))Environment.ExitCode=SystemPasskeyProvider.Register();else if(args.Contains("--system-passkey-remove-quiet"))Environment.ExitCode=SystemPasskeyProvider.Remove();else if(args.Contains("--system-passkey-sync"))SyncCredentials();else if(args.Contains("--system-passkey-cache-list"))Output(new System.Web.Script.Serialization.JavaScriptSerializer().Serialize(SystemPasskeyCache.Read()),false);else if(args.Contains("--system-passkey"))SystemPasskeyProvider.Run();else Environment.ExitCode=2;}catch(Exception ex){Output("HRESULT=0x"+Marshal.GetHRForException(ex).ToString("X8")+" "+ex.Message,true);Environment.ExitCode=Marshal.GetHRForException(ex);}}
+        static void Output(string text,bool error){try{byte[] data=new UTF8Encoding(false).GetBytes(text+"\n");var stream=error?Console.OpenStandardError():Console.OpenStandardOutput();stream.Write(data,0,data.Length);stream.Flush();}catch{}}
+        static void SyncCredentials(){
+            using(var registry=Microsoft.Win32.Registry.CurrentUser.OpenSubKey(@"Software\WinUp\SystemPasskeys")){
+                if(registry==null||!Proc.SameFile(registry.GetValue("Root") as string,Paths.Root))throw new IOException("Provider registration belongs to another WinUp folder");
+            }
+            using(var input=new MemoryStream()){
+                var buffer=new byte[4096];int count;
+                var stream=Console.OpenStandardInput();while((count=stream.Read(buffer,0,buffer.Length))!=0){if(input.Length+count>4*1024*1024)throw new IOException("Credential labels are too large");input.Write(buffer,0,count);}
+                var data=new System.Web.Script.Serialization.JavaScriptSerializer{MaxJsonLength=4*1024*1024}.Deserialize<SystemPasskeyCredential[]>(new UTF8Encoding(false,true).GetString(input.ToArray()));
+                if(data==null)throw new IOException("Credential labels are missing");SystemPasskeyCache.Synchronize(data);
+                Output("PASS Windows credential labels synchronized: "+data.Length,false);
+            }
+        }
     }
     internal static class Paths {internal static readonly string Root=Path.GetDirectoryName(AppDomain.CurrentDomain.BaseDirectory.TrimEnd('\\'));}
     internal static class BrowserPipe {internal static string Name{get{using(var sha=SHA256.Create())return "WinUp-browser-"+Convert.ToBase64String(sha.ComputeHash(Encoding.UTF8.GetBytes(Paths.Root.ToUpperInvariant()))).Replace("/","_").Replace("+","-").TrimEnd('=');}}}

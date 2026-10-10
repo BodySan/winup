@@ -47,6 +47,21 @@ namespace WinUp {
         static string Text(char* pointer){if(pointer==null)return "";string text=new string(pointer);if(text.Length>4096)throw new IOException("Platform text too long");return text;}
         static string[] CredentialIds(WebAuthnCredentialList list){if(list.cCredentials>1024)throw new IOException("Too many credentials");var result=new List<string>();for(uint i=0;i<list.cCredentials;i++){var item=list.ppCredentials[i];if(item!=null&&Text(item->pwszCredentialType)=="public-key")result.Add(PasskeyPolicy.Encode(Bytes(item->pbId,item->cbId,1024)));}return result.ToArray();}
         static bool IsCancelled(Guid id){lock(sync)return !running.ContainsKey(id);}
+        internal static int EncodeRegistration(byte[] auth,byte[] credential,out uint length,out IntPtr result){
+            uint count=0;byte* encoded=null;int hr;
+            fixed(byte* authP=auth)fixed(char* format="none"){
+                var value=new WebAuthnCredentialAttestation{dwVersion=WebAuthnConstants.AttestationCurrentVersion,pwszFormatType=format,cbAuthenticatorData=(uint)auth.Length,pbAuthenticatorData=authP};
+                hr=WebAuthnPluginApi.WebAuthNEncodeMakeCredentialResponse(&value,&count,&encoded);
+            }length=count;result=(IntPtr)encoded;return hr;
+        }
+        internal static int EncodeAssertion(byte[] auth,byte[] credential,byte[] signature,byte[] userId,out uint length,out IntPtr result){
+            uint count=0;byte* encoded=null;int hr;
+            fixed(byte* authP=auth)fixed(byte* sigP=signature)fixed(byte* credentialP=credential)fixed(byte* userP=userId)fixed(char* type="public-key")fixed(char* name=""){
+                var user=new WebAuthnUserEntityInformation{dwVersion=1,cbId=(uint)userId.Length,pbId=userP,pwszName=name,pwszDisplayName=name};
+                var value=new WebAuthnCtapCborGetAssertionResponse{WebAuthNAssertion=new WebAuthnAssertion{dwVersion=WebAuthnConstants.AssertionCurrentVersion,cbAuthenticatorData=(uint)auth.Length,pbAuthenticatorData=authP,cbSignature=(uint)signature.Length,pbSignature=sigP,cbUserId=(uint)userId.Length,pbUserId=userP,Credential=new WebAuthnCredential{dwVersion=1,cbId=(uint)credential.Length,pbId=credentialP,pwszCredentialType=type}},pUserInformation=&user,dwNumberOfCredentials=1,lUserSelected=1};
+                hr=WebAuthnPluginApi.WebAuthNEncodeGetAssertionResponse(&value,&count,&encoded);
+            }length=count;result=(IntPtr)encoded;return hr;
+        }
         int Operate(bool create,IntPtr requestRaw,IntPtr responseRaw){
             SystemPasskeyProvider.BeginOperation();
             if(requestRaw==IntPtr.Zero||responseRaw==IntPtr.Zero){SystemPasskeyProvider.EndOperation();return unchecked((int)0x80070057);}var request=(WebAuthnPluginOperationRequest*)requestRaw;var response=(WebAuthnPluginOperationResponse*)responseRaw;*response=new WebAuthnPluginOperationResponse();Guid id=request->transactionId;byte[] encoded=null;
@@ -57,8 +72,10 @@ namespace WinUp {
                 else{WebAuthnCtapCborGetAssertionRequest* decoded=null;int hr=WebAuthnPluginApi.WebAuthNDecodeGetAssertionRequest(request->cbEncodedRequest,request->pbEncodedRequest,&decoded);if(hr<0)return hr;try{if(decoded==null||decoded->cbClientDataHash!=32)return unchecked((int)0x80070057);message["rp"]=Utf8(decoded->pbRpId,decoded->cbRpId);message["hash"]=PasskeyPolicy.Encode(Bytes(decoded->pbClientDataHash,32,32));message["ids"]=CredentialIds(decoded->CredentialList);}finally{if(decoded!=null)WebAuthnPluginApi.WebAuthNFreeDecodedGetAssertionRequest(decoded);}}
                 if(IsCancelled(id))return Cancelled;var reply=SystemPasskeyProvider.Call(message);if(IsCancelled(id))return Cancelled;if(!reply.ContainsKey("ok")||!(bool)reply["ok"])return Cancelled;
                 byte[] auth=Decode((string)reply["auth"],4096),credential=Decode((string)reply["id"],1024);uint length=0;byte* result=null;int encodeHr;
-                if(create){byte[] att=Engine.Attestation(auth);fixed(byte* authP=auth)fixed(byte* attP=att)fixed(byte* credentialP=credential)fixed(char* format="none"){var value=new WebAuthnCredentialAttestation{dwVersion=4,pwszFormatType=format,cbAuthenticatorData=(uint)auth.Length,pbAuthenticatorData=authP,cbAttestationObject=(uint)att.Length,pbAttestationObject=attP,cbCredentialId=(uint)credential.Length,pbCredentialId=credentialP,bResidentKey=1,dwUsedTransport=0x10};encodeHr=WebAuthnPluginApi.WebAuthNEncodeMakeCredentialResponse(&value,&length,&result);}}
-                else{byte[] signature=Decode((string)reply["signature"],4096),userId=Decode((string)reply["userId"],64);fixed(byte* authP=auth)fixed(byte* sigP=signature)fixed(byte* credentialP=credential)fixed(byte* userP=userId)fixed(char* type="public-key"){var user=new WebAuthnUserEntityInformation{dwVersion=1,cbId=(uint)userId.Length,pbId=userP};var value=new WebAuthnCtapCborGetAssertionResponse{WebAuthNAssertion=new WebAuthnAssertion{dwVersion=1,cbAuthenticatorData=(uint)auth.Length,pbAuthenticatorData=authP,cbSignature=(uint)signature.Length,pbSignature=sigP,Credential=new WebAuthnCredential{dwVersion=1,cbId=(uint)credential.Length,pbId=credentialP,pwszCredentialType=type}},pUserInformation=&user,dwNumberOfCredentials=1,lUserSelected=1};encodeHr=WebAuthnPluginApi.WebAuthNEncodeGetAssertionResponse(&value,&length,&result);}}
+                IntPtr encodedResult;
+                if(create)encodeHr=EncodeRegistration(auth,credential,out length,out encodedResult);
+                else{byte[] signature=Decode((string)reply["signature"],4096),userId=Decode((string)reply["userId"],64);encodeHr=EncodeAssertion(auth,credential,signature,userId,out length,out encodedResult);}
+                result=(byte*)encodedResult;
                 if(encodeHr<0)return encodeHr;response->cbEncodedResponse=length;response->pbEncodedResponse=result;return 0;
             }catch(Exception ex){return Marshal.GetHRForException(ex);}finally{lock(sync)running.Remove(id);if(encoded!=null)Array.Clear(encoded,0,encoded.Length);SystemPasskeyProvider.EndOperation();}
         }

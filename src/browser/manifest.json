@@ -1,86 +1,86 @@
 {
-    "manifest_version":  3,
-    "name":  "WinUp — пароли",
-    "version":  "1.6.7",
-    "description":  "Пароли, коды 2FA и ключи доступа из WinUp. Связь с локальным приложением через Native Messaging.",
-    "key":  "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA7vIO66Z3vUpcx86YpXFk3kbODr7Z6auzw7uFE5e1OjaFyBxWYhUef4z5/Y9SdUtPbZCZVapqk6/ZSkUIIJyaH6737mgpKy1ACNRK1wdHRZlfjg5I4m4EV2jmvUtM7Q5jFnLiDUjXSbAUK+1pQYqh0mVYcmkypn14gCMUQdGZgQVMGn0cXyCmDoFS6hG1U5lsro8MG809559qWEhosKmwnjWMzgrpkc48mhB4i9vqkmoQjdqH5VI4K1P3CH6oZMEKE/JRFs1wYTEudcWZ0ydKamPi4l0BzWm3siIJ6azzw7gPo2+UC7IlIQnmgYd1RD3Yc4DCinXTHTongXzWa7d1wQIDAQAB",
-    "minimum_chrome_version":  "111",
-    "permissions":  [
-                        "nativeMessaging",
-                        "storage",
-                        "activeTab"
-                    ],
-    "background":  {
-                       "service_worker":  "background-v1.6.7.js"
-                   },
-    "action":  {
-                   "default_title":  "WinUp — пароли",
-                   "default_popup":  "popup.html",
-                   "default_icon":  {
-                                        "16":  "icon16.png",
-                                        "32":  "icon32.png",
-                                        "48":  "icon48.png"
-                                    }
-               },
-    "icons":  {
-                  "16":  "icon16.png",
-                  "32":  "icon32.png",
-                  "48":  "icon48.png",
-                  "128":  "icon128.png"
-              },
-    "content_scripts":  [
-                            {
-                                "matches":  [
-                                                "https://*/*",
-                                                "http://localhost/*"
-                                            ],
-                                "js":  [
-                                           "passkeys.js"
-                                       ],
-                                "world":  "MAIN",
-                                "run_at":  "document_start"
-                            },
-                            {
-                                "matches":  [
-                                                "https://*/*",
-                                                "http://localhost/*"
-                                            ],
-                                "js":  [
-                                           "passkey-relay.js"
-                                       ],
-                                "run_at":  "document_start"
-                            },
-                            {
-                                "matches":  [
-                                                "http://*/*",
-                                                "https://*/*"
-                                            ],
-                                "js":  [
-                                           "content.js"
-                                       ],
-                                "all_frames":  true,
-                                "run_at":  "document_idle"
-                            },
-                            {
-                                "matches":  [
-                                                "https://*/*",
-                                                "http://localhost/*"
-                                            ],
-                                "js":  [
-                                           "autologin.js"
-                                       ],
-                                "run_at":  "document_start"
-                            }
-                        ],
-    "web_accessible_resources":  [
-                                     {
-                                         "resources":  [
-                                                           "icon32.png"
-                                                       ],
-                                         "matches":  [
-                                                         "http://*/*",
-                                                         "https://*/*"
-                                                     ]
-                                     }
-                                 ]
+  "manifest_version": 3,
+  "name": "WinUp — пароли",
+  "version": "1.6.7",
+  "description": "Пароли, коды 2FA и ключи доступа из WinUp. Связь с локальным приложением через Native Messaging.",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA7vIO66Z3vUpcx86YpXFk3kbODr7Z6auzw7uFE5e1OjaFyBxWYhUef4z5/Y9SdUtPbZCZVapqk6/ZSkUIIJyaH6737mgpKy1ACNRK1wdHRZlfjg5I4m4EV2jmvUtM7Q5jFnLiDUjXSbAUK+1pQYqh0mVYcmkypn14gCMUQdGZgQVMGn0cXyCmDoFS6hG1U5lsro8MG809559qWEhosKmwnjWMzgrpkc48mhB4i9vqkmoQjdqH5VI4K1P3CH6oZMEKE/JRFs1wYTEudcWZ0ydKamPi4l0BzWm3siIJ6azzw7gPo2+UC7IlIQnmgYd1RD3Yc4DCinXTHTongXzWa7d1wQIDAQAB",
+  "minimum_chrome_version": "111",
+  "permissions": [
+    "nativeMessaging",
+    "storage",
+    "activeTab"
+  ],
+  "background": {
+    "service_worker": "background-v1.6.7.js"
+  },
+  "action": {
+    "default_title": "WinUp — пароли",
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icon16.png",
+      "32": "icon32.png",
+      "48": "icon48.png"
+    }
+  },
+  "icons": {
+    "16": "icon16.png",
+    "32": "icon32.png",
+    "48": "icon48.png",
+    "128": "icon128.png"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://*/*",
+        "http://localhost/*"
+      ],
+      "js": [
+        "passkeys.js"
+      ],
+      "world": "MAIN",
+      "run_at": "document_start"
+    },
+    {
+      "matches": [
+        "https://*/*",
+        "http://localhost/*"
+      ],
+      "js": [
+        "passkey-relay.js"
+      ],
+      "run_at": "document_start"
+    },
+    {
+      "matches": [
+        "http://*/*",
+        "https://*/*"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "all_frames": true,
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://*/*",
+        "http://localhost/*"
+      ],
+      "js": [
+        "autologin.js"
+      ],
+      "run_at": "document_start"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "icon32.png"
+      ],
+      "matches": [
+        "http://*/*",
+        "https://*/*"
+      ]
+    }
+  ]
 }

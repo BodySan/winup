@@ -111,6 +111,7 @@ namespace WinUp
             Appearance.MainStatus(status);
             RefreshApps();
             ShowLocked();
+            RefreshSystemPasskeyCache();
             // Файл базы мог появиться или исчезнуть, пока окно открыто (восстановили vault-*.kdbx из резерва):
             // при каждом заходе на вкладку замок показывает актуальную кнопку «Открыть» / «Создать базу».
             tabs.SelectedIndexChanged += (s, e) => { if (vault == null) ShowLocked(); };
@@ -202,6 +203,7 @@ namespace WinUp
                 FillToast.CloseAll();
                 CloseFileVault();
                 if (vault != null) vault.Lock();
+                RefreshSystemPasskeyCache();
                 if (pin != null) { pin.Clear(); pin = null; }
                 SecureClip.ClearNow();
             };
@@ -1731,6 +1733,7 @@ namespace WinUp
             RefreshEntries();
             RefreshOtp();
             UpdateLockUi();
+            RefreshSystemPasskeyCache();
         }
 
         // Состояние базы — в значке окна и трея, кнопка «Заблокировать» в строке меню доступна с любой вкладки.
@@ -1799,6 +1802,7 @@ namespace WinUp
                     try { f.Close(); } catch { }
             // 4. Затирание ключа и секретов.
             if (vault != null) { vault.Lock(); vault = null; }
+            RefreshSystemPasskeyCache();
             pwList.Items.Clear();
             passwordSearch.Clear();
             // 5. След секретов в куче: сборка мусора и обнуляющая аллокация поверх освободившихся копий.
@@ -2379,7 +2383,7 @@ namespace WinUp
                 Backup.LastError = backupErrors.Count == 0 ? null : string.Join("; ", backupErrors);
                 // v может быть ещё не текущей базой (вход кодом восстановления, сброс пароля 1):
                 // список записей рисуем только для открытой вкладки, иначе NRE на null vault.
-                if (vault == v) RefreshEntries();
+                if (vault == v) { RefreshEntries(); RefreshSystemPasskeyCache(); }
                 return true;
             }
             catch (Exception ex) {

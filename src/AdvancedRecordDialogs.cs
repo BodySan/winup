@@ -41,7 +41,7 @@ namespace WinUp {
         void Delete(){var f=Selected;if(f==null)return;if(MessageBox.Show(this,"Удалить вложение «"+f.Name+"»? Предыдущая версия останется в истории записи.",Text,MessageBoxButtons.YesNo)!=DialogResult.Yes||IsDisposed)return;Store.RemoveAttachment(id,f.Name);if(Persist())RefreshList();}
     }
     sealed class FieldReferenceDialog:Dlg,ILockableDialog {
-        sealed class Item{internal LoginEntry Entry;public override string ToString(){return Entry.Name+" — "+Entry.Login;}}
+        sealed class Item{internal LoginEntry Entry;public override string ToString(){return Entry.Name+" — "+AccountOrganization.DisplayLogin(Entry);}}
         readonly ComboBox source=new ComboBox{DropDownStyle=ComboBoxStyle.DropDownList};
         readonly CheckBox login=new CheckBox{Text="Использовать логин выбранной записи",AutoSize=true},password=new CheckBox{Text="Использовать пароль выбранной записи",AutoSize=true,Checked=true};
         internal LoginEntry Source{get{return ((Item)source.SelectedItem).Entry;}}internal bool LinkLogin{get{return login.Checked;}}internal bool LinkPassword{get{return password.Checked;}}

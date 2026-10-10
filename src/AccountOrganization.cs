@@ -25,6 +25,10 @@ namespace WinUp {
             try{return (secondary?entry.ResolvedLogin2:entry.ResolvedLogin)??"";}
             catch(System.IO.IOException){return "Связанный логин недоступен";}
         }
+        internal static bool HasLogin(LoginEntry entry,string login){
+            try{if(entry.ResolvedLogin==login)return true;}catch(System.IO.IOException){}
+            try{return entry.ResolvedLogin2==login;}catch(System.IO.IOException){return false;}
+        }
         internal static IEnumerable<LoginEntry> Filter(IEnumerable<LoginEntry> entries,IEnumerable<LoginTemplate> templates,string search,string category,int kind,bool pinnedOnly){
             string query=(search??"").Trim();
             return entries.Where(e=>e.Kind!="passkey"&&(!pinnedOnly||e.Pinned)&&

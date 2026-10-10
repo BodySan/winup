@@ -57,6 +57,16 @@ namespace WinUp {
                         entry.LoginUrl="http://localhost:9265/flow/user";entry.AutoEnter=true;
                         File.WriteAllText(@"C:\WinUp\test\corrections\flow-launch.txt",form.BeginBrowserLogin(entry));
                     }
+                    if(command=="reference-fields") {
+                        open();var database=form.VaultNow;var entry=database.Entries.First(e=>e.Name=="Synthetic Test");
+                        var main=new LoginEntry{Name="Synthetic primary source",Kind="app",Login="sandbox-user",Password="Synthetic-Site-Password!"};
+                        var secondary=new LoginEntry{Name="Synthetic secondary source",Kind="app",Login="synthetic@example.com"};
+                        database.Entries.Add(main);database.Entries.Add(secondary);database.Save();
+                        entry.Login=KdbxStore.Reference(main.Id,'U');entry.Login2=KdbxStore.Reference(secondary.Id,'U');entry.Password=KdbxStore.Reference(main.Id,'P');
+                        entry.LoginUrl="http://localhost:9265/flow/user";entry.AutoEnter=true;database.Save();
+                        File.WriteAllText(@"C:\WinUp\test\corrections\flow-launch.txt",form.BeginBrowserLogin(entry));
+                        File.WriteAllText(@"C:\WinUp\test\advanced-1.18\reference-fixture-ready.txt","ready");
+                    }
                     if(command.StartsWith("launch-button|",StringComparison.Ordinal)) {
                         string[] parts=command.Split('|');
                         if(parts.Length!=3 || (parts[2]!="first" && parts[2]!="second"))throw new Exception("Unexpected launch fixture");
