@@ -250,6 +250,8 @@ namespace WinUp {
         [System.Runtime.InteropServices.DllImport("user32.dll")] static extern bool UnhookWindowsHookEx(IntPtr hook);
         [System.Runtime.InteropServices.DllImport("user32.dll")] static extern IntPtr CallNextHookEx(IntPtr hook,int code,IntPtr window,IntPtr details);
         [System.Runtime.InteropServices.DllImport("kernel32.dll")] static extern uint GetCurrentThreadId();
+        [System.Runtime.InteropServices.DllImport("user32.dll")] static extern bool EnumThreadWindows(uint thread,RecordWindowVisitor visitor,IntPtr value);
+        [System.Runtime.InteropServices.DllImport("user32.dll",CharSet=System.Runtime.InteropServices.CharSet.Unicode)] static extern IntPtr SendMessageTimeout(IntPtr window,uint message,IntPtr count,StringBuilder text,uint flags,uint timeout,out IntPtr result);
         static void RecordSaveErrorScenarios(){
             const BindingFlags flags=BindingFlags.Instance|BindingFlags.NonPublic;
             foreach(bool bulk in new[]{false,true}){
@@ -335,6 +337,7 @@ namespace WinUp {
             Console.WriteLine("UI snapshot created");
             var form=new MainForm(store);const BindingFlags flags=BindingFlags.Instance|BindingFlags.NonPublic;
             Console.WriteLine("UI form created");
+            uint uiThread=GetCurrentThreadId();System.Threading.Tasks.Task.Run(()=>{Thread.Sleep(3000);Console.WriteLine("UI diagnostic registered="+SystemPasskeySetup.OwnsRegistration());EnumThreadWindows(uiThread,(window,value)=>{var type=new StringBuilder(100);GetClassName(window,type,100);Console.WriteLine("UI window "+type);if(type.ToString()=="#32770"){var text=new StringBuilder(2000);IntPtr result;SendMessageTimeout(GetDlgItem(window,65535),0x0d,new IntPtr(text.Capacity),text,2,500,out result);Console.WriteLine("UI dialog "+text);}return true;},IntPtr.Zero);});
             typeof(MainForm).GetField("vault",flags).SetValue(form,vault);typeof(MainForm).GetMethod("ShowOpen",flags).Invoke(form,null);
             typeof(MainForm).GetMethod("RememberFileVault",flags).Invoke(form,new object[]{folder});typeof(MainForm).GetField("fileVault",flags).SetValue(form,client);
             var preferences=new FileVaultPreferences{Drive="R:\\",HistoryMiB=16,HistoryKeep=3};preferences.Save(folder);typeof(MainForm).GetField("filePreferences",flags).SetValue(form,preferences);
