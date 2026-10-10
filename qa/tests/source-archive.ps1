@@ -11,5 +11,9 @@ try{
  foreach($taskName in @('src/build.ps1','src/Properties/AssemblyInfo.cs','doc/Инструкция.html','tools/verify-app.ps1')){
   if(!$taskArchive.GetEntry($taskName)){throw "Required source archive entry missing: $taskName"}
  }
+ $taskGuide=[IO.StreamReader]::new($taskArchive.GetEntry('doc/Инструкция.html').Open())
+ $taskHelp=[IO.StreamReader]::new($taskArchive.GetEntry('src/help.html').Open())
+ try{if($taskGuide.ReadToEnd() -cne $taskHelp.ReadToEnd()){throw 'Archived manual differs from the application help.'}}
+ finally{$taskGuide.Dispose();$taskHelp.Dispose()}
 }finally{$taskArchive.Dispose()}
 Write-Output 'PASS source archive built and required source, instruction and signature verifier present.'
