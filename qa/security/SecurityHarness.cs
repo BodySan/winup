@@ -76,9 +76,12 @@ namespace WinUp
             if (trayUi) store.Settings.HideFromCapture = false; // synthetic UI lab only
             store.Settings.BackupDir = Path.Combine(Paths.Root, "backup");
             store.Save();
+            Console.WriteLine("STEP harness creating form");
             form = new MainForm(store);
+            Console.WriteLine("STEP harness form created");
             Application.ThreadException += delegate(object sender,System.Threading.ThreadExceptionEventArgs e) {Console.WriteLine("FAIL unhandled-ui-exception "+e.Exception);Environment.Exit(1);};
             server = (BrowserServer)typeof(MainForm).GetField("browserServer", Private).GetValue(form);
+            form.Shown += delegate {Console.WriteLine("STEP harness form shown");};
             if (!trayUi) form.Shown += delegate { Task.Run(Array.IndexOf(args,"--origin-security-only")>=0 ? (Action)OriginSecurityRegression : Array.IndexOf(args,"--browser-references-only")>=0 ? (Action)BrowserReferenceRegression : Array.IndexOf(args,"--directories-only")>=0 ? (Action)DirectoryRegressionTests : Array.IndexOf(args,"--files-only")>=0 ? (Action)DeliveryFilesOnly : Array.IndexOf(args,"--functional-only")>=0 ? (Action)DeliveryTests : Array.IndexOf(args,"--updates-only")>=0 ? (Action)UpdateRegressionTests : (Action)Tests); };
             Application.Run(form);
             Console.WriteLine("TOTAL failures=" + failures);

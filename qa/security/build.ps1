@@ -1,4 +1,4 @@
-param([string]$Output = 'C:\WinUp\test\audit\candidate',[string]$Source,[switch]$HostNativeReview,[switch]$HostNativeReviewOnly,[switch]$SystemProviderOnly,[switch]$SecurityReviewOnly,[switch]$PackageSecurityOnly)
+param([string]$Output = 'C:\WinUp\test\audit\candidate',[string]$Source,[switch]$HostNativeReview,[switch]$HostNativeReviewOnly,[switch]$SystemProviderOnly,[switch]$SecurityReviewOnly,[switch]$PackageSecurityOnly,[switch]$FollowupSecurityOnly,[switch]$FileWorkflowsOnly)
 $ErrorActionPreference = 'Stop'
 $src = if($Source) { [IO.Path]::GetFullPath($Source) } else { [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..\src')) }
 New-Item -ItemType Directory -Force $Output | Out-Null
@@ -38,6 +38,16 @@ function BuildPackageSecurityProbe {
     if($LASTEXITCODE){throw 'Package security probe build failed'}
 }
 if($PackageSecurityOnly){BuildPackageSecurityProbe;return}
+function BuildFollowupSecurityProbe {
+    & $csc @common '/target:exe' '/main:WinUp.FollowupSecurityProbe' "/out:$Output\FollowupSecurityProbe.exe" @sources "$PSScriptRoot\FollowupSecurityProbe.cs"
+    if($LASTEXITCODE){throw 'Follow-up security probe build failed'}
+}
+if($FollowupSecurityOnly){BuildFollowupSecurityProbe;return}
+function BuildFileWorkflowProbe {
+    & $csc @common '/target:exe' '/main:WinUp.FileWorkflowProbe' "/out:$Output\FileWorkflowProbe.exe" @sources "$PSScriptRoot\FileWorkflowProbe.cs"
+    if ($LASTEXITCODE) { throw 'File workflow probe build failed' }
+}
+if($FileWorkflowsOnly){BuildFileWorkflowProbe;return}
 if($SecurityReviewOnly){
     & $csc @common '/target:exe' '/main:WinUp.SecurityHarness' "/out:$Output\SecurityHarness.exe" @sources "$PSScriptRoot\SecurityHarness.cs" "$PSScriptRoot\HardeningTests.cs" "$PSScriptRoot\FeatureTests.cs" "$PSScriptRoot\CorrectionsTests.cs" "$PSScriptRoot\UpdateTests.cs" "$PSScriptRoot\DeepStorageTests.cs" "$PSScriptRoot\DeepBrowserTests.cs" "$PSScriptRoot\DeepFileTests.cs" "$PSScriptRoot\DeliveryTests.cs" "$PSScriptRoot\OriginSecurityTests.cs"
     if($LASTEXITCODE){throw 'Security review build failed'}
@@ -52,9 +62,9 @@ New-Item -ItemType Directory -Force "$Output\browser-lab" | Out-Null
 if ($LASTEXITCODE) { throw 'Browser lab build failed' }
 & $csc @common '/target:exe' '/main:WinUp.ComponentRuntimeProbe' "/out:$Output\ComponentRuntimeProbe.exe" @sources "$PSScriptRoot\ComponentRuntimeProbe.cs"
 if ($LASTEXITCODE) { throw 'Component runtime probe build failed' }
-& $csc @common '/target:exe' '/main:WinUp.FileWorkflowProbe' "/out:$Output\FileWorkflowProbe.exe" @sources "$PSScriptRoot\FileWorkflowProbe.cs"
-if ($LASTEXITCODE) { throw 'File workflow probe build failed' }
+BuildFileWorkflowProbe
 BuildPackageSecurityProbe
+BuildFollowupSecurityProbe
 & $csc @common '/target:winexe' '/main:WinUp.FileWorkflowProbe' "/out:$Output\FileUiProbe.exe" @sources "$PSScriptRoot\FileWorkflowProbe.cs"
 if ($LASTEXITCODE) { throw 'File UI probe build failed' }
 & $csc @common '/target:exe' '/main:WinUp.AdvancedWorkflowProbe' "/out:$Output\AdvancedWorkflowProbe.exe" @sources "$PSScriptRoot\AdvancedWorkflowProbe.cs"

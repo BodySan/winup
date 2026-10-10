@@ -716,10 +716,8 @@ namespace WinUp
             ProcessStartInfo psi;
             if (Directory.Exists(path))
                 psi = new ProcessStartInfo(path);
-            else if (path.EndsWith(".ps1", StringComparison.OrdinalIgnoreCase))
-                psi = new ProcessStartInfo("powershell.exe", "-NoProfile -ExecutionPolicy Bypass -NoExit -File \"" + path + "\" " + args);
-            else if (path.EndsWith(".cmd", StringComparison.OrdinalIgnoreCase) || path.EndsWith(".bat", StringComparison.OrdinalIgnoreCase))
-                psi = new ProcessStartInfo("cmd.exe", "/k \"\"" + path + "\" " + args + "\"");
+            else if (path.EndsWith(".ps1", StringComparison.OrdinalIgnoreCase) || path.EndsWith(".cmd", StringComparison.OrdinalIgnoreCase) || path.EndsWith(".bat", StringComparison.OrdinalIgnoreCase))
+                psi = ProcessArguments.Script(path,args);
             else
                 psi = new ProcessStartInfo(path, args);
             psi.UseShellExecute = true;
@@ -739,15 +737,16 @@ namespace WinUp
                 "WinUp — проверьте перед запуском", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes;
         }
 
-        void InstallChecked()
+        bool installAuthorizing;
+        async void InstallChecked()
         {
+            if(installAuthorizing)return;
             var sel = instList.CheckedItems.Cast<ListViewItem>().Select(i => (AppItem)i.Tag).ToList();
             if (sel.Count == 0) { MessageBox.Show(this, "Отметьте галочками, что установить.", "WinUp"); return; }
             if (!ConfirmUntrusted(sel)) return;
             if (Win.IsAdmin()) { using (var f = new InstallForm(sel, silentBox.Checked)) f.ShowDialog(this); return; }
-            // Один запрос UAC на всю пачку: перезапуск себя с правами администратора. Процесс с правами
-            // администратора получает отпечаток списка, который видит это окно, и сверяет его с файлом:
-            // подмена apps.json между нажатием кнопки и UAC не пройдёт.
+            // One UAC for the batch. Send an immutable selection only to the
+            // exact process started by this window, through a one-use pipe.
             var hash = Integrity.AppsHash();
             var expected = appsUntrusted ? appsTamperHash : Integrity.GetApps();
             if (hash != null && !string.IsNullOrEmpty(expected) && hash != expected)
@@ -756,10 +755,11 @@ namespace WinUp
                     "Установка отменена. Перезапустите WinUp: он покажет, что изменилось.", "WinUp", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
-            var args = "--install " + string.Join(",", sel.Select(a => a.Id)) + (silentBox.Checked ? "" : " --manual") +
-                       (hash != null ? " --apps-sha256 " + hash : "");
-            try { Process.Start(new ProcessStartInfo(Application.ExecutablePath, args) { UseShellExecute = true, Verb = "runas" }); }
+            installAuthorizing=true;
+            try { await InstallAuthorization.Launch(sel.ToArray(),silentBox.Checked);SetStatus("Выбранный список передан очереди установки."); }
             catch (Win32Exception) { SetStatus("Установка отменена: права администратора не выданы."); }
+            catch(Exception ex){MessageBox.Show(this,ex.Message,"WinUp — установка отменена",MessageBoxButtons.OK,MessageBoxIcon.Warning);}
+            finally{installAuthorizing=false;}
         }
 
         // ---------------- Каталог (winget) ----------------
@@ -2652,7 +2652,7 @@ namespace WinUp
                 var name = string.IsNullOrEmpty(e.Browser) ? store.Settings.Browser : e.Browser;
                 var b = Browsers.Find(name);
                 if (!string.IsNullOrEmpty(name) && b == null) PwLog(e.Name + ": браузер «" + name + "» не найден на этом ПК — открываю в браузере по умолчанию.");
-                psi = b != null ? new ProcessStartInfo(b.Exe, "\"" + e.Target + "\"") : new ProcessStartInfo(e.Target);
+                try{psi=BrowserPages.SiteLaunch(e.Target,b);}catch(Exception ex){PwLog(e.Name+": "+ex.Message);return false;}
                 if (b != null) where = " в " + b.Name;
             }
             psi.UseShellExecute = true;

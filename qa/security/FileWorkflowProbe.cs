@@ -1,4 +1,4 @@
-﻿// Functional tests of real encryption, mounted disk and portable recovery. Synthetic Sandbox data only.
+// Functional tests of real encryption, mounted disk and portable recovery. Synthetic Sandbox data only.
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -23,8 +23,7 @@ namespace WinUp {
             string root=Path.Combine(Paths.Root,"files-workflow-"+Guid.NewGuid().ToString("N"));Directory.CreateDirectory(root);
             if(args.Contains("--interop")){Interop(root);return 0;}
             if(args.Contains("--routes")){Routes();return 0;}
-            if(args.Contains("--ui")){Ui(root);return 0;}
-            if(args.Contains("--layout")){Ui(root,true);return 0;}
+            if(args.Contains("--ui")||args.Contains("--layout")){try{Ui(root,args.Contains("--layout"));return 0;}catch(Exception ex){Console.WriteLine("FAIL UI "+ex);return 1;}}
             if(args.Contains("--readonly")){try{ReadOnlyProbe(root);}catch(Exception ex){Console.WriteLine(ex);failed++;}Console.WriteLine("RESULT passed="+passed+" failed="+failed);return failed==0?0:1;}
             try{Run(root);}catch(Exception ex){Console.WriteLine("FAIL exception "+ex);failed++;}
             Console.WriteLine("RESULT passed="+passed+" failed="+failed);return failed==0?0:1;
@@ -33,7 +32,10 @@ namespace WinUp {
             RecordScenarios();
             ImportScenarios(root);
             RecordDialogScenarios();
-            RecordSaveErrorScenarios();
+            // Native MessageBox handling needs an interactive Windows desktop.
+            // These two UI regressions run in Sandbox; the hosted service runner
+            // still exercises persistence failures in the application harness.
+            if(Environment.GetEnvironmentVariable("GITHUB_ACTIONS")=="true")Console.WriteLine("SKIP save-error native UI: run both scenarios in interactive Windows Sandbox");else RecordSaveErrorScenarios();
             FileAdministrationScenarios(root);
             CheckWaitingAddressUi();
             var apps=new[]{new LocalApplication{Name="ChatGPT",Target=LocalApplications.ShellPrefix+"Synthetic.ChatGPT!App"}};
@@ -241,24 +243,42 @@ namespace WinUp {
         [System.Runtime.InteropServices.DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr window,out uint pid);
         [System.Runtime.InteropServices.DllImport("user32.dll",CharSet=System.Runtime.InteropServices.CharSet.Unicode)] static extern int GetClassName(IntPtr window,StringBuilder name,int size);
         [System.Runtime.InteropServices.DllImport("user32.dll")] static extern bool PostMessage(IntPtr window,int message,IntPtr w,IntPtr l);
+        [System.Runtime.InteropServices.DllImport("user32.dll")] static extern IntPtr GetDlgItem(IntPtr window,int id);
+        delegate IntPtr RecordModalHook(int code,IntPtr window,IntPtr details);
+        [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)] struct RecordWindowResult {internal IntPtr result,lparam,wparam;internal uint message;internal IntPtr window;}
+        [System.Runtime.InteropServices.DllImport("user32.dll")] static extern IntPtr SetWindowsHookEx(int kind,RecordModalHook hook,IntPtr module,uint thread);
+        [System.Runtime.InteropServices.DllImport("user32.dll")] static extern bool UnhookWindowsHookEx(IntPtr hook);
+        [System.Runtime.InteropServices.DllImport("user32.dll")] static extern IntPtr CallNextHookEx(IntPtr hook,int code,IntPtr window,IntPtr details);
+        [System.Runtime.InteropServices.DllImport("kernel32.dll")] static extern uint GetCurrentThreadId();
         static void RecordSaveErrorScenarios(){
             const BindingFlags flags=BindingFlags.Instance|BindingFlags.NonPublic;
             foreach(bool bulk in new[]{false,true}){
+                Console.WriteLine("STEP record-save-error "+(bulk?"bulk":"fields")+" create");
                 var store=KdbxStore.Create(Password,null);var originals=new[]{new LoginEntry{Name="Save failure A",Target="https://example.org/",Password="Synthetic-original-A!"},new LoginEntry{Name="Save failure B",Target="https://example.net/",Password="Synthetic-original-B!"}};
                 originals[0].CustomFields.Add(new AccountSecretField{Name="Token",Value="Synthetic-original-token"});store.Entries.AddRange(originals);store.Save();byte[] before=File.ReadAllBytes(KdbxStore.KdbxFile);
                 var app=new AppStore{Templates=Defaults.Load().Templates};app.Settings.WizardDone=true;app.Settings.AutoLockMinutes=1440;bool errorSeen=false,edited=false;Exception error=null;
                 using(var form=new MainForm(app))using(var timer=new System.Windows.Forms.Timer{Interval=100}){
+                    Console.WriteLine("STEP record-save-error show");
                     typeof(MainForm).GetField("vault",flags).SetValue(form,store);typeof(MainForm).GetMethod("ShowOpen",flags).Invoke(form,null);form.Show();Application.DoEvents();
                     var list=(ListView)typeof(MainForm).GetField("pwList",flags).GetValue(form);list.Items[0].Selected=true;foreach(ListViewItem item in list.Items)item.Checked=bulk;
                     timer.Tick+=(s,e)=>{
                         try{
                             if(!edited){var dialog=Application.OpenForms.Cast<Form>().FirstOrDefault(f=>bulk?f is BulkRecordDialog:f is SecretFieldsDialog);if(dialog!=null){edited=true;if(bulk){Descendants(dialog).OfType<CheckBox>().Single(c=>c.Text=="Изменить категорию").Checked=true;Descendants(dialog).OfType<TextBox>().Single(t=>!(t.Parent is NumericUpDown)).Text="Synthetic category";}else{var rows=Descendants(dialog).OfType<ListView>().Single();rows.Items[0].Selected=true;Descendants(dialog).OfType<Button>().Single(b=>b.Text=="Удалить").PerformClick();}dialog.DialogResult=DialogResult.OK;dialog.Close();}}
-                            EnumWindows((window,value)=>{uint pid;GetWindowThreadProcessId(window,out pid);if(pid!=System.Diagnostics.Process.GetCurrentProcess().Id)return true;var name=new StringBuilder(100);GetClassName(window,name,100);if(name.ToString()!="#32770")return true;if(!errorSeen){errorSeen=true;typeof(MainForm).GetMethod("LockVault",flags).Invoke(form,null);}PostMessage(window,0x10,IntPtr.Zero,IntPtr.Zero);return true;},IntPtr.Zero);
+                            EnumWindows((window,value)=>{uint pid;GetWindowThreadProcessId(window,out pid);if(pid!=System.Diagnostics.Process.GetCurrentProcess().Id)return true;var name=new StringBuilder(100);GetClassName(window,name,100);if(name.ToString()!="#32770")return true;int accept=GetDlgItem(window,1)!=IntPtr.Zero?1:GetDlgItem(window,2)!=IntPtr.Zero?2:0;if(accept==0)return true;if(!errorSeen){Console.WriteLine("STEP record-save-error lock");errorSeen=true;typeof(MainForm).GetMethod("LockVault",flags).Invoke(form,null);}PostMessage(window,0x111,new IntPtr(accept),IntPtr.Zero);PostMessage(window,0x10,IntPtr.Zero,IntPtr.Zero);return true;},IntPtr.Zero);
                         }catch(Exception ex){error=ex;timer.Stop();foreach(var dialog in Application.OpenForms.Cast<Form>().Where(f=>f!=form).ToArray()){dialog.DialogResult=DialogResult.Cancel;dialog.Close();}}
                     };
-                    try{using(var lease=new FileStream(KdbxStore.KdbxFile,FileMode.Open,FileAccess.Read,FileShare.None)){timer.Start();typeof(MainForm).GetMethod(bulk?"BulkEditPasswords":"EditSelectedFields",flags).Invoke(form,null);timer.Stop();}if(error!=null)throw error;
+                    RecordModalHook callback=(code,unused,details)=>{
+                        if(code==0){var message=(RecordWindowResult)System.Runtime.InteropServices.Marshal.PtrToStructure(details,typeof(RecordWindowResult));IntPtr window=message.window;var type=new StringBuilder(100);if(message.message==0x110)GetClassName(window,type,100);if(type.ToString()=="#32770"){
+                            Console.WriteLine("STEP record-save-error native initialization");
+                            try{if(!errorSeen){errorSeen=true;typeof(MainForm).GetMethod("LockVault",flags).Invoke(form,null);}
+                                int accept=GetDlgItem(window,1)!=IntPtr.Zero?1:2;PostMessage(window,0x111,new IntPtr(accept),IntPtr.Zero);PostMessage(window,0x10,IntPtr.Zero,IntPtr.Zero);
+                            }catch(Exception ex){error=ex;PostMessage(window,0x111,new IntPtr(2),IntPtr.Zero);}
+                        }}return CallNextHookEx(IntPtr.Zero,code,unused,details);
+                    };
+                    IntPtr hook=SetWindowsHookEx(12,callback,IntPtr.Zero,GetCurrentThreadId());if(hook==IntPtr.Zero)throw new Exception("Cannot observe the owned save-error dialog");
+                    try{using(var lease=new FileStream(KdbxStore.KdbxFile,FileMode.Open,FileAccess.Read,FileShare.None)){Console.WriteLine("STEP record-save-error edit");timer.Start();typeof(MainForm).GetMethod(bulk?"BulkEditPasswords":"EditSelectedFields",flags).Invoke(form,null);timer.Stop();}if(error!=null)throw error;
                         Check(bulk?"bulk-save-error-lock-does-not-restore-secrets":"fields-save-error-lock-does-not-restore-secrets",edited&&errorSeen&&typeof(MainForm).GetField("vault",flags).GetValue(form)==null&&originals.All(entry=>entry.UsePassword(string.IsNullOrEmpty))&&store.Entries.Count==0&&before.SequenceEqual(File.ReadAllBytes(KdbxStore.KdbxFile)));
-                    }finally{form.Close();store.Lock();foreach(var entry in originals)entry.ClearSecrets();}
+                    }finally{UnhookWindowsHookEx(hook);GC.KeepAlive(callback);form.Close();store.Lock();foreach(var entry in originals)entry.ClearSecrets();}
                 }
             }
         }
@@ -274,7 +294,7 @@ namespace WinUp {
                     var operation=(System.Threading.Tasks.Task)typeof(AccountAddressDialog).GetMethod("Web",BindingFlags.NonPublic|BindingFlags.Instance).Invoke(dialog,null);
                     Check("address-web-pending-blocks-edit-and-apply",Descendants(dialog).OfType<Button>().Where(b=>b.Text=="Изменить запись…"||b.Text=="Применить отмеченные исправления").All(b=>!b.Enabled));
                     timeout=DateTime.UtcNow.AddSeconds(12);while(!operation.IsCompleted&&DateTime.UtcNow<timeout){Application.DoEvents();Thread.Sleep(20);}if(!operation.IsCompleted)throw new Exception("Address Web status timeout");operation.GetAwaiter().GetResult();
-                    Check("address-web-result-and-actions-restored",list.Items[0].SubItems[1].Text.Contains("HTTP 200")&&Descendants(dialog).OfType<Button>().Where(b=>b.Text=="Изменить запись…"||b.Text=="Применить отмеченные исправления").All(b=>b.Enabled));
+                    Check("address-web-rejected-result-and-actions-restored",list.Items[0].SubItems[1].Text.Contains("HTTPS")&&!response.IsCompleted&&Descendants(dialog).OfType<Button>().Where(b=>b.Text=="Изменить запись…"||b.Text=="Применить отмеченные исправления").All(b=>b.Enabled));
                     dialog.Close();
                 }
             }finally{listener.Stop();listener.Close();}
@@ -302,6 +322,7 @@ namespace WinUp {
         }
         static void Ui(string root,bool layout=false){
             Console.WriteLine("UI initializing");
+            Application.SetUnhandledExceptionMode(UnhandledExceptionMode.ThrowException);
             Application.EnableVisualStyles();Directory.CreateDirectory(Paths.Data);
             var store=new AppStore{Templates=Defaults.Load().Templates};store.Settings.WizardDone=true;store.Settings.HideFromCapture=false;store.Settings.AutoLockMinutes=1440;store.Settings.BackupDir=Path.Combine(root,"password-backups");store.Save();
             var vault=KdbxStore.Create(Password,null);
@@ -314,10 +335,19 @@ namespace WinUp {
             Console.WriteLine("UI snapshot created");
             var form=new MainForm(store);const BindingFlags flags=BindingFlags.Instance|BindingFlags.NonPublic;
             Console.WriteLine("UI form created");
-            typeof(MainForm).GetField("vault",flags).SetValue(form,vault);typeof(MainForm).GetMethod("ShowOpen",flags).Invoke(form,null);
-            typeof(MainForm).GetMethod("RememberFileVault",flags).Invoke(form,new object[]{folder});typeof(MainForm).GetField("fileVault",flags).SetValue(form,client);
-            var preferences=new FileVaultPreferences{Drive="R:\\",HistoryMiB=16,HistoryKeep=3};preferences.Save(folder);typeof(MainForm).GetField("filePreferences",flags).SetValue(form,preferences);
-            form.Shown+=(s,e)=>{typeof(MainForm).GetMethod("RefreshFileItems",flags).Invoke(form,null);if(layout){var timer=new System.Windows.Forms.Timer{Interval=200};timer.Tick+=(a,b)=>{timer.Stop();try{CheckActionLayout(form);form.Close();}catch(Exception error){Console.WriteLine("FAIL layout "+error);Environment.Exit(1);}finally{timer.Dispose();}};timer.Start();}};
+            var preferences=new FileVaultPreferences{Drive="R:\\",HistoryMiB=16,HistoryKeep=3};preferences.Save(folder);
+            // Opening a vault is a user action after the form has been shown.
+            // Exercise that lifecycle with a running Windows message loop.
+            form.Shown+=(s,e)=>{
+                Console.WriteLine("UI shown");
+                typeof(MainForm).GetField("vault",flags).SetValue(form,vault);typeof(MainForm).GetMethod("ShowOpen",flags).Invoke(form,null);
+                Console.WriteLine("UI credentials opened");
+                typeof(MainForm).GetMethod("RememberFileVault",flags).Invoke(form,new object[]{folder});typeof(MainForm).GetField("fileVault",flags).SetValue(form,client);
+                typeof(MainForm).GetField("filePreferences",flags).SetValue(form,preferences);
+                typeof(MainForm).GetMethod("RefreshFileItems",flags).Invoke(form,null);
+                Console.WriteLine("UI files listed");
+                if(layout){var timer=new System.Windows.Forms.Timer{Interval=200};timer.Tick+=(a,b)=>{timer.Stop();try{CheckActionLayout(form);form.Close();}catch(Exception error){Console.WriteLine("FAIL layout "+error);Environment.Exit(1);}finally{timer.Dispose();}};timer.Start();}
+            };
             File.WriteAllText(Path.Combine(root,"..","ui-ready.json"),new System.Web.Script.Serialization.JavaScriptSerializer().Serialize(new{pid=System.Diagnostics.Process.GetCurrentProcess().Id,root=root,password=Password,vault=folder}));
             Application.Run(form);
         }

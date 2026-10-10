@@ -17,6 +17,14 @@ jobs:
       - name: Проверить исходники и расширение
         shell: powershell
         run: ./qa/security/ci.ps1 -FunctionalOnly
+      - name: Подготовить Go для проверки сборки
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
+        with:
+          go-version: '1.27.2'
+          cache: false
+      - name: Проверить происхождение файлового помощника
+        shell: powershell
+        run: ./tools/verify-file-packages.ps1 -Output C:/WinUp/test/ci/candidate/package-rebuild
       - name: Собрать архив исходников
         shell: powershell
         run: ./qa/tests/source-archive.ps1

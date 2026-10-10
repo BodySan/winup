@@ -22,17 +22,21 @@ try {
     $input=$entry.Open(); $outputStream=[IO.File]::Create("$lab\official-KeePass.exe")
     try { $input.CopyTo($outputStream) } finally { $input.Dispose(); $outputStream.Dispose() }
 } finally { $archive.Dispose() }
-$info=[Diagnostics.ProcessStartInfo]::new("$lab\SecurityHarness.exe")
-if($FunctionalOnly){$info.Arguments='--functional-only'}
-$info.UseShellExecute=$false; $info.CreateNoWindow=$true; $info.RedirectStandardOutput=$true; $info.RedirectStandardError=$true
-$process=[Diagnostics.Process]::new(); $process.StartInfo=$info; [void]$process.Start()
-$stdout=$process.StandardOutput.ReadToEndAsync(); $stderr=$process.StandardError.ReadToEndAsync()
-if(!$process.WaitForExit(600000)) { $process.Kill(); throw 'Test harness timeout.' }
-$stdout.Result | Set-Content "$Output\runtime.txt"; $stderr.Result | Set-Content "$Output\errors.txt"
-if($process.ExitCode -or $stdout.Result -notmatch 'TOTAL failures=0') { throw "Tests failed. Read $Output\runtime.txt" }
+$harnessOptions=@{FilePath="$lab\SecurityHarness.exe";WindowStyle='Hidden';PassThru=$true;RedirectStandardOutput="$Output\runtime.txt";RedirectStandardError="$Output\errors.txt"}
+if($FunctionalOnly){$harnessOptions.ArgumentList='--functional-only'}
+$process=Start-Process @harnessOptions
+[void]$process.Handle
+if(!$process.WaitForExit(600000)) { $process.Kill();[void]$process.WaitForExit(5000);throw "Test harness timeout. Read $Output\runtime.txt" }
+if($process.ExitCode -or [IO.File]::ReadAllText("$Output\runtime.txt") -notmatch 'TOTAL failures=0') { throw "Tests failed. Read $Output\runtime.txt" }
 if($env:GITHUB_ACTIONS -eq 'true') {
     $fileLab='C:\WinUpAudit\fci-'+[Guid]::NewGuid().ToString('N').Substring(0,8)
     New-Item -ItemType Directory $fileLab|Out-Null
+    Copy-Item -LiteralPath "$Output\FollowupSecurityProbe.exe" -Destination $fileLab
+    $followup=Start-Process -FilePath "$fileLab\FollowupSecurityProbe.exe" -ArgumentList '--ci' -WindowStyle Hidden -PassThru -RedirectStandardOutput "$Output\followup-security.txt" -RedirectStandardError "$Output\followup-errors.txt"
+    [void]$followup.Handle
+    if(!$followup.WaitForExit(90000)){$followup.Kill();throw 'Follow-up security tests timed out'}
+    if($followup.ExitCode -ne 0 -or [IO.File]::ReadAllText("$Output\followup-security.txt") -notmatch 'RESULT passed=\d+ failed=0'){throw 'Follow-up security checks failed'}
+    & "$PSScriptRoot\SystemSetupFailureProbe.ps1" -Source $Source -Output "$Output\setup-failure.txt"
     Copy-Item -LiteralPath "$Output\SystemProviderProbe.exe" -Destination $fileLab
     $nativeProbe=Start-Process -FilePath "$fileLab\SystemProviderProbe.exe" -ArgumentList '--ci','--encoding-only' -WindowStyle Hidden -PassThru -RedirectStandardOutput "$Output\native-encoding.txt" -RedirectStandardError "$Output\native-errors.txt"
     [void]$nativeProbe.Handle
@@ -59,7 +63,10 @@ if($env:GITHUB_ACTIONS -eq 'true') {
     [void]$advanced.Handle
     if(!$advanced.WaitForExit(600000)){$advanced.Kill();throw 'Advanced workflows timeout'}
     if($advanced.ExitCode -ne 0 -or [IO.File]::ReadAllText("$Output\advanced-workflows.txt") -notmatch 'RESULT passed=\d+ failed=0'){throw 'Advanced workflows failed; nothing is ready for release'}
-    $layoutProbe=Start-Process -FilePath "$fileLab\FileWorkflowProbe.exe" -ArgumentList '--ci','--layout' -WindowStyle Hidden -PassThru -RedirectStandardOutput "$Output\layout.txt" -RedirectStandardError "$Output\layout-errors.txt"
+    $layoutLab='C:\WinUpAudit\lci-'+[Guid]::NewGuid().ToString('N').Substring(0,8)
+    New-Item -ItemType Directory $layoutLab|Out-Null
+    Copy-Item -LiteralPath "$Output\FileWorkflowProbe.exe" -Destination $layoutLab
+    $layoutProbe=Start-Process -FilePath "$layoutLab\FileWorkflowProbe.exe" -ArgumentList '--ci','--layout' -WindowStyle Hidden -PassThru -RedirectStandardOutput "$Output\layout.txt" -RedirectStandardError "$Output\layout-errors.txt"
     # Cache the process handle before waiting: Windows PowerShell may otherwise
     # leave ExitCode null even though the redirected checks finished successfully.
     [void]$layoutProbe.Handle

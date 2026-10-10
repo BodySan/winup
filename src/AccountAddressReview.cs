@@ -56,27 +56,10 @@ namespace WinUp {
             row.Message=messages.Count==0?"Локальная проверка пройдена; доступность сайта ещё не проверена":string.Join(". ",messages);
             return row;
         }
-        // A status check never sends credentials, cookies, or changes a stored address.
+        // Validate and pin public destinations; never follow redirects or send
+        // credentials, cookies, ambient proxy authentication, or a GET body.
         internal static string CheckWeb(string address,CancellationToken cancellation){
-            Uri uri;
-            if(!Uri.TryCreate(address,UriKind.Absolute,out uri)||LoginProfiles.Origin(address)==null)return "Неверный адрес";
-            try{
-                ServicePointManager.SecurityProtocol|=(SecurityProtocolType)3072;
-                var request=(HttpWebRequest)WebRequest.Create(uri);request.Method="GET";request.AllowAutoRedirect=false;
-                request.Timeout=7000;request.ReadWriteTimeout=7000;request.UserAgent="WinUp address check";request.KeepAlive=false;
-                request.UseDefaultCredentials=false;request.CookieContainer=null;
-                using(cancellation.Register(request.Abort)){
-                    HttpWebResponse response;
-                    try{response=(HttpWebResponse)request.GetResponse();}catch(WebException ex){response=ex.Response as HttpWebResponse;if(response==null)throw;}
-                    using(response){
-                        int code=(int)response.StatusCode;
-                        if(code>=300&&code<400)return "HTTP "+code+": переход на "+(response.Headers["Location"]??"другую страницу")+" — проверьте в браузере";
-                        if(code==401||code==403||code==429)return "HTTP "+code+": сайт ограничил проверку; адрес может работать в браузере";
-                        if(code>=400)return "HTTP "+code+": возможная ошибка адреса";
-                        return "HTTP "+code+": адрес отвечает; наличие формы входа проверьте в браузере";
-                    }
-                }
-            }catch(WebException){return cancellation.IsCancellationRequested?"Проверка отменена":"Не удалось подключиться: проверьте сеть и адрес";}
+            return PublicWebProbe.Check(address,cancellation);
         }
     }
     sealed class AccountAddressDialog:Form,ILockableDialog {

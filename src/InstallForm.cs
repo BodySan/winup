@@ -92,9 +92,7 @@ namespace WinUp
                 Log(a.Name + ": запуск " + (quiet ? "тихо (" + a.Args + ")" : "вручную"));
                 try
                 {
-                    var psi = path.EndsWith(".msi", StringComparison.OrdinalIgnoreCase)
-                        ? new ProcessStartInfo(SystemTool("msiexec.exe"), "/i \"" + path + "\"" + (quiet ? " " + a.Args : ""))
-                        : new ProcessStartInfo(path, quiet ? a.Args : "");
+                    var psi = LaunchInfo(path, quiet ? a.Args : "");
                     psi.UseShellExecute = true;
                     psi.WorkingDirectory = Path.GetDirectoryName(path);
                     using (var p = Process.Start(psi)) // Process держит хэндл — освобождаем (Dispose)
@@ -134,6 +132,11 @@ namespace WinUp
         }
         internal static string SystemTool(string name) {
             return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), name);
+        }
+        internal static ProcessStartInfo LaunchInfo(string path,string arguments){
+            if(path.EndsWith(".msi",StringComparison.OrdinalIgnoreCase))return new ProcessStartInfo(SystemTool("msiexec.exe"),"/i "+ProcessArguments.Quote(path)+(string.IsNullOrEmpty(arguments)?"":" "+ProcessArguments.Join(ProcessArguments.Parse(arguments))));
+            if(path.EndsWith(".cmd",StringComparison.OrdinalIgnoreCase)||path.EndsWith(".bat",StringComparison.OrdinalIgnoreCase)||path.EndsWith(".ps1",StringComparison.OrdinalIgnoreCase))return ProcessArguments.Script(path,arguments,false);
+            return new ProcessStartInfo(path,arguments);
         }
     }
 }

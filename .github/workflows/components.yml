@@ -24,6 +24,14 @@ jobs:
       - name: Подготовить кандидат
         shell: powershell
         run: ./src/updates/candidate.ps1 -Output C:/WinUp/candidate/src
+      - name: Подготовить Go для проверки сборки
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
+        with:
+          go-version: '1.27.2'
+          cache: false
+      - name: Проверить происхождение файлового помощника
+        shell: powershell
+        run: ./tools/verify-file-packages.ps1 -Source C:/WinUp/candidate/src -Output C:/WinUp/test/ci/candidate/package-rebuild
       - name: Прогнать проверки без ключа подписи
         shell: powershell
         run: ./qa/security/ci.ps1 -Source C:/WinUp/candidate/src -FunctionalOnly

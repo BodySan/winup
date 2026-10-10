@@ -60,15 +60,25 @@ namespace WinUp
         // lookups could combine the old process path with a reused PID's time.
         internal static ProcessIdentity Identity(int pid)
         {
-            if(pid<=0) return null;
+            ProcessIdentity identity=null;
+            WithProcess(pid,(handle,value)=>{identity=value;return true;});
+            return identity;
+        }
+
+        // Keep the kernel process object open while all identity-dependent
+        // checks run. A second PID lookup must not select a replacement process.
+        internal static bool WithProcess(int pid,Func<IntPtr,ProcessIdentity,bool> inspect)
+        {
+            if(pid<=0) return false;
             var handle=OpenProcess(QueryLimited,false,pid);
-            if(handle==IntPtr.Zero) return null;
+            if(handle==IntPtr.Zero) return false;
             try {
                 var name=new StringBuilder(1024); int length=name.Capacity;
                 long created,exited,kernel,user;
                 if(!QueryFullProcessImageName(handle,0,name,ref length) ||
-                    !GetProcessTimes(handle,out created,out exited,out kernel,out user) || created==0 || exited!=0) return null;
-                return new ProcessIdentity { Path=name.ToString(0,length),Started=created };
+                    !GetProcessTimes(handle,out created,out exited,out kernel,out user) || created==0 || exited!=0) return false;
+                return inspect(handle,new ProcessIdentity { Path=name.ToString(0,length),Started=created }) &&
+                    GetProcessTimes(handle,out created,out exited,out kernel,out user) && exited==0;
             } finally { CloseHandle(handle); }
         }
 
