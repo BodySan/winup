@@ -23,8 +23,7 @@ namespace WinUp {
             string root=Path.Combine(Paths.Root,"files-workflow-"+Guid.NewGuid().ToString("N"));Directory.CreateDirectory(root);
             if(args.Contains("--interop")){Interop(root);return 0;}
             if(args.Contains("--routes")){Routes();return 0;}
-            if(args.Contains("--ui")){Ui(root);return 0;}
-            if(args.Contains("--layout")){Ui(root,true);return 0;}
+            if(args.Contains("--ui")||args.Contains("--layout")){try{Ui(root,args.Contains("--layout"));return 0;}catch(Exception ex){Console.WriteLine("FAIL UI "+ex);return 1;}}
             if(args.Contains("--readonly")){try{ReadOnlyProbe(root);}catch(Exception ex){Console.WriteLine(ex);failed++;}Console.WriteLine("RESULT passed="+passed+" failed="+failed);return failed==0?0:1;}
             try{Run(root);}catch(Exception ex){Console.WriteLine("FAIL exception "+ex);failed++;}
             Console.WriteLine("RESULT passed="+passed+" failed="+failed);return failed==0?0:1;
@@ -323,6 +322,7 @@ namespace WinUp {
         }
         static void Ui(string root,bool layout=false){
             Console.WriteLine("UI initializing");
+            Application.SetUnhandledExceptionMode(UnhandledExceptionMode.ThrowException);
             Application.EnableVisualStyles();Directory.CreateDirectory(Paths.Data);
             var store=new AppStore{Templates=Defaults.Load().Templates};store.Settings.WizardDone=true;store.Settings.HideFromCapture=false;store.Settings.AutoLockMinutes=1440;store.Settings.BackupDir=Path.Combine(root,"password-backups");store.Save();
             var vault=KdbxStore.Create(Password,null);
