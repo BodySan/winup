@@ -37,17 +37,17 @@ namespace WinUp {
             result.Append('\\',slashes*2);return result.Append('"').ToString();
         }
         internal static string Join(string[] values){return string.Join(" ",values.Select(Quote));}
-        internal static ProcessStartInfo Script(string path,string arguments){
+        internal static ProcessStartInfo Script(string path,string arguments,bool keepOpen=true){
             string[] values=Parse(arguments);
             if(path.EndsWith(".ps1",StringComparison.OrdinalIgnoreCase))
-                return new ProcessStartInfo(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System),@"WindowsPowerShell\v1.0\powershell.exe"),"-NoProfile -ExecutionPolicy Bypass -NoExit -File "+Quote(path)+" "+Join(values));
+                return new ProcessStartInfo(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System),@"WindowsPowerShell\v1.0\powershell.exe"),"-NoProfile -ExecutionPolicy Bypass "+(keepOpen?"-NoExit ":"")+"-File "+Quote(path)+" "+Join(values));
             // cmd expands even quoted %, !, and control operators. Restrict both
             // the script path and each value before constructing its command.
             if(path.Any(c=>char.IsControl(c)||"\"%!".IndexOf(c)>=0))throw new IOException("Путь сценария содержит подстановку командной строки.");
             foreach(string value in values)
                 if(value.Any(c=>char.IsControl(c)||"\"&|<>^%!()".IndexOf(c)>=0))
                     throw new IOException("Параметры .cmd/.bat содержат управляющие символы командной строки. Поместите команды в сам сценарий, а здесь укажите только значения параметров.");
-            return new ProcessStartInfo(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System),"cmd.exe"),"/d /s /k \""+Quote(path)+" "+Join(values)+"\"");
+            return new ProcessStartInfo(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System),"cmd.exe"),"/d /s "+(keepOpen?"/k":"/c")+" \""+Quote(path)+" "+Join(values)+"\"");
         }
     }
 }

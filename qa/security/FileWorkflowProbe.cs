@@ -241,22 +241,25 @@ namespace WinUp {
         [System.Runtime.InteropServices.DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr window,out uint pid);
         [System.Runtime.InteropServices.DllImport("user32.dll",CharSet=System.Runtime.InteropServices.CharSet.Unicode)] static extern int GetClassName(IntPtr window,StringBuilder name,int size);
         [System.Runtime.InteropServices.DllImport("user32.dll")] static extern bool PostMessage(IntPtr window,int message,IntPtr w,IntPtr l);
+        [System.Runtime.InteropServices.DllImport("user32.dll")] static extern IntPtr GetDlgItem(IntPtr window,int id);
         static void RecordSaveErrorScenarios(){
             const BindingFlags flags=BindingFlags.Instance|BindingFlags.NonPublic;
             foreach(bool bulk in new[]{false,true}){
+                Console.WriteLine("STEP record-save-error "+(bulk?"bulk":"fields")+" create");
                 var store=KdbxStore.Create(Password,null);var originals=new[]{new LoginEntry{Name="Save failure A",Target="https://example.org/",Password="Synthetic-original-A!"},new LoginEntry{Name="Save failure B",Target="https://example.net/",Password="Synthetic-original-B!"}};
                 originals[0].CustomFields.Add(new AccountSecretField{Name="Token",Value="Synthetic-original-token"});store.Entries.AddRange(originals);store.Save();byte[] before=File.ReadAllBytes(KdbxStore.KdbxFile);
                 var app=new AppStore{Templates=Defaults.Load().Templates};app.Settings.WizardDone=true;app.Settings.AutoLockMinutes=1440;bool errorSeen=false,edited=false;Exception error=null;
                 using(var form=new MainForm(app))using(var timer=new System.Windows.Forms.Timer{Interval=100}){
+                    Console.WriteLine("STEP record-save-error show");
                     typeof(MainForm).GetField("vault",flags).SetValue(form,store);typeof(MainForm).GetMethod("ShowOpen",flags).Invoke(form,null);form.Show();Application.DoEvents();
                     var list=(ListView)typeof(MainForm).GetField("pwList",flags).GetValue(form);list.Items[0].Selected=true;foreach(ListViewItem item in list.Items)item.Checked=bulk;
                     timer.Tick+=(s,e)=>{
                         try{
                             if(!edited){var dialog=Application.OpenForms.Cast<Form>().FirstOrDefault(f=>bulk?f is BulkRecordDialog:f is SecretFieldsDialog);if(dialog!=null){edited=true;if(bulk){Descendants(dialog).OfType<CheckBox>().Single(c=>c.Text=="Изменить категорию").Checked=true;Descendants(dialog).OfType<TextBox>().Single(t=>!(t.Parent is NumericUpDown)).Text="Synthetic category";}else{var rows=Descendants(dialog).OfType<ListView>().Single();rows.Items[0].Selected=true;Descendants(dialog).OfType<Button>().Single(b=>b.Text=="Удалить").PerformClick();}dialog.DialogResult=DialogResult.OK;dialog.Close();}}
-                            EnumWindows((window,value)=>{uint pid;GetWindowThreadProcessId(window,out pid);if(pid!=System.Diagnostics.Process.GetCurrentProcess().Id)return true;var name=new StringBuilder(100);GetClassName(window,name,100);if(name.ToString()!="#32770")return true;if(!errorSeen){errorSeen=true;typeof(MainForm).GetMethod("LockVault",flags).Invoke(form,null);}PostMessage(window,0x10,IntPtr.Zero,IntPtr.Zero);return true;},IntPtr.Zero);
+                            EnumWindows((window,value)=>{uint pid;GetWindowThreadProcessId(window,out pid);if(pid!=System.Diagnostics.Process.GetCurrentProcess().Id)return true;var name=new StringBuilder(100);GetClassName(window,name,100);if(name.ToString()!="#32770"||GetDlgItem(window,1)==IntPtr.Zero)return true;if(!errorSeen){Console.WriteLine("STEP record-save-error lock");errorSeen=true;typeof(MainForm).GetMethod("LockVault",flags).Invoke(form,null);}PostMessage(window,0x111,new IntPtr(1),IntPtr.Zero);PostMessage(window,0x10,IntPtr.Zero,IntPtr.Zero);return true;},IntPtr.Zero);
                         }catch(Exception ex){error=ex;timer.Stop();foreach(var dialog in Application.OpenForms.Cast<Form>().Where(f=>f!=form).ToArray()){dialog.DialogResult=DialogResult.Cancel;dialog.Close();}}
                     };
-                    try{using(var lease=new FileStream(KdbxStore.KdbxFile,FileMode.Open,FileAccess.Read,FileShare.None)){timer.Start();typeof(MainForm).GetMethod(bulk?"BulkEditPasswords":"EditSelectedFields",flags).Invoke(form,null);timer.Stop();}if(error!=null)throw error;
+                    try{using(var lease=new FileStream(KdbxStore.KdbxFile,FileMode.Open,FileAccess.Read,FileShare.None)){Console.WriteLine("STEP record-save-error edit");timer.Start();typeof(MainForm).GetMethod(bulk?"BulkEditPasswords":"EditSelectedFields",flags).Invoke(form,null);timer.Stop();}if(error!=null)throw error;
                         Check(bulk?"bulk-save-error-lock-does-not-restore-secrets":"fields-save-error-lock-does-not-restore-secrets",edited&&errorSeen&&typeof(MainForm).GetField("vault",flags).GetValue(form)==null&&originals.All(entry=>entry.UsePassword(string.IsNullOrEmpty))&&store.Entries.Count==0&&before.SequenceEqual(File.ReadAllBytes(KdbxStore.KdbxFile)));
                     }finally{form.Close();store.Lock();foreach(var entry in originals)entry.ClearSecrets();}
                 }

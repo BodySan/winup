@@ -50,6 +50,11 @@ namespace WinUp {
             File.WriteAllText(Path.Combine(Paths.Apps,"fixture.ps1"),"param([string]$Name,[string]$Value)\r\n[IO.File]::WriteAllText((Join-Path $PSScriptRoot 'ps-accepted.txt'),$Name+'|'+$Value)\r\nexit 0\r\n");
             ps.UseShellExecute=false;ps.CreateNoWindow=true;using(var process=Process.Start(ps)){Check("powershell-script-executed",SpinWait.SpinUntil(()=>File.Exists(Path.Combine(Paths.Apps,"ps-accepted.txt")),10000));if(!process.HasExited)process.Kill();}
             Check("powershell-actual-values",File.ReadAllText(Path.Combine(Paths.Apps,"ps-accepted.txt"))=="hello world|literal&value");
+            Check("install-batch-rejects-command-arguments",Reject(()=>InstallForm.LaunchInfo(batch,item.Args+" & echo injected")));
+            var installBatch=InstallForm.LaunchInfo(batch,"safe");installBatch.UseShellExecute=false;installBatch.CreateNoWindow=true;
+            using(var process=Process.Start(installBatch)){Check("install-batch-completes-without-open-console",process.WaitForExit(5000)&&process.ExitCode==0);if(!process.HasExited)process.Kill();}
+            var installPs=InstallForm.LaunchInfo(Path.Combine(Paths.Apps,"fixture.ps1"),"-Name \"hello world\" -Value \"literal&value\"");installPs.UseShellExecute=false;installPs.CreateNoWindow=true;
+            using(var process=Process.Start(installPs)){Check("install-powershell-completes-without-open-console",process.WaitForExit(10000)&&process.ExitCode==0);if(!process.HasExited)process.Kill();}
         }
         static AuthorizedInstallation Permission(){return new AuthorizedInstallation{schema=1,silent=true,items=new[]{new AppItem{Id="fixture",Name="Учебный установщик",File=Path.Combine(Paths.Apps,"fixture.exe"),Args="/quiet"}}};}
         static void Authorization(){
