@@ -1447,12 +1447,13 @@ namespace WinUp
             {
                 if (d.ShowDialog(this) != DialogResult.OK) return;
                 if (vault == null) { PwLog("База заблокирована — экспорт отменён."); return; }
-                var key = d.OwnKey ?? Export.NewKey();
+                var key = d.Zip ? d.OwnKey ?? Export.NewKey() : null;
                 try
                 {
                 var entries = vault.Entries.OrderBy(x => x.Name, StringComparer.CurrentCultureIgnoreCase).ToList();
                 var stem = "WinUp-пароли-" + DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss") + "-" + Guid.NewGuid().ToString("N").Substring(0, 8);
                 var made = new List<string>();
+                string csvSummary = "";
                 try
                 {
                     Directory.CreateDirectory(d.Folder);
@@ -1464,6 +1465,21 @@ namespace WinUp
                         Busy(() => { Export.CopyEncryptedDatabase(KdbxStore.KdbxFile, p); return 0; });
                         if (vault == null) throw new InvalidOperationException("база заблокирована во время экспорта");
                         made.Add(p);
+                    }
+                    if (d.Csv)
+                    {
+                        int exported, skipped;
+                        byte[] bytes = Export.ManagerCsv(entries, vault.Otp, out exported, out skipped);
+                        try
+                        {
+                            if (exported == 0) throw new IOException("Для CSV нет записей с паролем и адресом сайта. Используйте KDBX для полной копии базы.");
+                            var p = Path.Combine(d.Folder, stem + ".csv");
+                            Busy(() => { Export.WriteFresh(p, fs => fs.Write(bytes, 0, bytes.Length)); return 0; });
+                            made.Add(p);
+                            csvSummary = "\n\nCSV: сохранено записей — " + exported + "; пропущено без обычного пароля или адреса сайта — " + skipped +
+                                ".\nCSV не зашифрован. После импорта удалите файл.";
+                        }
+                        finally { Array.Clear(bytes, 0, bytes.Length); }
                     }
                     if (d.Zip)
                     {
@@ -1483,7 +1499,7 @@ namespace WinUp
                 catch (Exception ex) { MessageBox.Show(this, "Ошибка экспорта:\n" + ex.Message, "WinUp", MessageBoxButtons.OK, MessageBoxIcon.Error); }
                 if (made.Count == 0) return;
                 PwLog("Экспорт (" + entries.Count + " записей): " + string.Join(", ", made));
-                var where = string.Join("\n", made);
+                var where = string.Join("\n", made) + csvSummary;
                 if (d.Zip && d.OwnKey == null)
                     using (var k = new KeyDialog("Ключ к экспорту", "Созданы файлы:\n" + where + "\n\nАрхив .zip открывается только этим ключом. Запишите его и храните отдельно от файлов.",
                                key, stem + " — ключ.txt"))

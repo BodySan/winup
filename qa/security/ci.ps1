@@ -5,6 +5,8 @@ $lab='C:\WinUpAudit\ci-'+[Guid]::NewGuid().ToString('N')
 New-Item -ItemType Directory -Force $lab,$Output | Out-Null
 & "$PSScriptRoot\build.ps1" -Source $Source -Output $Output
 & "$PSScriptRoot\..\tests\release-version.ps1" -Source $Source -Executable "$Output\WinUp.exe"
+& "$Output\CsvExportProbe.exe" | Out-File "$Output\csv-export.txt" -Encoding UTF8
+if ($LASTEXITCODE -or [IO.File]::ReadAllText("$Output\csv-export.txt") -notmatch 'RESULT passed=\d+ failed=0') { throw 'CSV transfer export failed' }
 Copy-Item "$Output\WinUp.exe","$Output\SecurityHarness.exe","$Output\MemoryProbe.exe","$Output\SyntheticInstaller.exe" $lab
 $fixture=Join-Path $PSScriptRoot '..\fixtures\KeePass-2.61.1.zip'
 if((Get-FileHash -LiteralPath $fixture).Hash -ne '3952354DB9B117E906F7CD4F9F5591065B95186472370DA47F46F3E246FEA864') { throw 'Official KeePass test fixture digest mismatch.' }

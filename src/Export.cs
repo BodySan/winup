@@ -111,6 +111,50 @@ namespace WinUp
             return Secure.Utf8AndClear(sb, true);
         }
 
+        // One transfer format: Safari's documented columns are also accepted by
+        // Chromium. Unlike the spreadsheet table, credentials stay byte-for-byte
+        // unchanged after CSV decoding; formula escaping would alter passwords.
+        internal static byte[] ManagerCsv(List<LoginEntry> entries, List<OtpEntry> otps, out int exported, out int skipped)
+        {
+            exported = skipped = 0;
+            var sb = new StringBuilder("Title,URL,Username,Password,Notes,OTPAuth\r\n");
+            try
+            {
+                foreach (var e in entries)
+                {
+                    string address = (e.Target ?? "").Trim();
+                    Uri uri;
+                    if (e.Kind == "passkey" || !Uri.TryCreate(address, UriKind.Absolute, out uri) ||
+                        (uri.Scheme != "https" && uri.Scheme != "http") || uri.UserInfo.Length != 0)
+                    { skipped++; continue; }
+                    bool written = e.UsePassword(pw =>
+                    {
+                        if (string.IsNullOrEmpty(pw)) return false;
+                        CsvValue(sb, e.Name); sb.Append(','); CsvValue(sb, address); sb.Append(',');
+                        e.UseResolved(e.Login, login => { CsvValue(sb, login); return 0; });
+                        sb.Append(','); CsvValue(sb, pw); sb.Append(',');
+                        CsvValue(sb, e.Notes); sb.Append(',');
+                        var otp = Linked(e, otps);
+                        string otpUri = null;
+                        try { if (otp != null) otpUri = otp.Uri(); CsvValue(sb, otpUri); }
+                        finally { Secure.Wipe(otpUri); }
+                        sb.Append("\r\n");
+                        return true;
+                    });
+                    if (written) exported++; else skipped++;
+                }
+                return Secure.Utf8AndClear(sb);
+            }
+            finally { for (int i = 0; i < sb.Length; i++) sb[i] = '\0'; sb.Clear(); }
+        }
+
+        static void CsvValue(StringBuilder sb, string value)
+        {
+            sb.Append('"');
+            foreach (char c in value ?? "") { if (c == '"') sb.Append('"'); sb.Append(c); }
+            sb.Append('"');
+        }
+
         static bool CsvFormula(string value)
         {
             if (string.IsNullOrEmpty(value)) return false;
