@@ -39,6 +39,7 @@ namespace WinUp
     {
         readonly CheckBox kdbx = new CheckBox { Text = "Копия базы (.kdbx) — открывается в KeePassXC и на телефоне (KeePassDX / Strongbox) вашим паролем базы", AutoSize = true, Checked = true },
                           zip = new CheckBox { Text = "Архив .zip с шифрованием AES-256 — внутри таблица и текстовый файл; открывается в 7-Zip или WinRAR", AutoSize = true },
+                          csv = new CheckBox { Text = "CSV — для переноса паролей в другие менеджеры (без шифрования)", AutoSize = true },
                           show = new CheckBox { Text = "Показать", AutoSize = true };
         readonly TextBox folder = new TextBox(), own = new TextBox { UseSystemPasswordChar = true, Enabled = false };
         readonly RadioButton gen = new RadioButton { Text = "Сгенерировать надёжный ключ (рекомендуется)", AutoSize = true, Checked = true },
@@ -46,16 +47,28 @@ namespace WinUp
 
         public bool Kdbx { get { return kdbx.Checked; } }
         public bool Zip { get { return zip.Checked; } }
+        public bool Csv { get { return csv.Checked; } }
         public string Folder { get { return folder.Text.Trim(); } }
-        public string OwnKey { get { return mine.Checked ? own.Text : null; } }
+        public string OwnKey { get { return Zip && mine.Checked ? own.Text : null; } }
 
         public ExportDialog() : base("Экспорт паролей")
         {
-            Note("Создаёт отдельные зашифрованные файлы со всеми паролями, которые читаются без WinUp. " +
-                 "Это не замена базе и резервным копиям, а «запасной выход»: открыть пароли там, где WinUp нет.");
+            Note("Сохраните копию базы, зашифрованный архив или CSV для переноса паролей в другой менеджер.");
             var formats = new FlowLayoutPanel { FlowDirection = FlowDirection.TopDown, AutoSize = true };
-            formats.Controls.Add(kdbx); formats.Controls.Add(zip);
+            foreach (var format in new[] { kdbx, zip, csv })
+            {
+                format.AutoSize = false;
+                format.Width = 390;
+                format.Height = TextRenderer.MeasureText(format.Text, Font, new Size(365, int.MaxValue), TextFormatFlags.WordBreak).Height + 6;
+            }
+            formats.Controls.Add(kdbx); formats.Controls.Add(zip); formats.Controls.Add(csv);
             Row("Что создать:", formats);
+            var csvNote = Note("CSV содержит адреса сайтов, логины, пароли, заметки и связанные секреты 2FA. " +
+                 "Менеджер получателя может принять только часть полей. Ключи доступа, записи без пароля или адреса сайта, " +
+                 "дополнительные логины и поля через CSV не переносятся. " +
+                 "Пароли в CSV открыты: импортируйте файл в нужный менеджер и удалите его. Не открывайте CSV для переноса в Excel.", SystemColors.GrayText);
+            csvNote.Visible = false;
+            csv.CheckedChanged += (s, e) => csvNote.Visible = csv.Checked;
             folder.Text = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "WinUp — экспорт");
             var browse = new Button { Text = "Обзор..." };
             browse.Click += (s, e) =>
@@ -66,22 +79,32 @@ namespace WinUp
             Row("Папка:", WithButton(folder, browse));
             var keys = new FlowLayoutPanel { FlowDirection = FlowDirection.TopDown, AutoSize = true };
             keys.Controls.Add(gen); keys.Controls.Add(mine);
-            Row("Ключ архива .zip:", keys);
-            Row("", WithButton(own, show));
-            Note("Ключ нужен только архиву .zip. Сгенерированный ключ покажется один раз — запишите его и не храните рядом с файлами. " +
+            var keyCaption = Row("Ключ архива .zip:", keys);
+            var keyValue = WithButton(own, show);
+            Row("", keyValue);
+            var zipNote = Note("Ключ нужен только архиву .zip. Сгенерированный ключ покажется один раз — запишите его и не храните рядом с файлами. " +
                  "Архив .zip не откроется стандартным Проводником Windows — нужен 7-Zip или WinRAR. " +
                  "После распаковки .zip пароли лежат открытым текстом — удаляйте распакованные файлы.", SystemColors.GrayText);
             Buttons();
             Ok.Text = "Создать";
-            mine.CheckedChanged += (s, e) => own.Enabled = show.Enabled = mine.Checked;
-            show.Enabled = false;
+            mine.CheckedChanged += (s, e) => UpdateKeyState();
+            Action showZip = () => { keyCaption.Visible = keys.Visible = keyValue.Visible = zipNote.Visible = zip.Checked; };
+            zip.CheckedChanged += (s, e) => { UpdateKeyState(); showZip(); };
+            UpdateKeyState();
+            showZip();
             show.CheckedChanged += (s, e) => own.UseSystemPasswordChar = !show.Checked;
             Ok.Click += (s, e) =>
             {
-                if (!kdbx.Checked && !zip.Checked) { Fail("Отметьте хотя бы один формат."); return; }
+                if (!kdbx.Checked && !zip.Checked && !csv.Checked) { Fail("Отметьте хотя бы один формат."); return; }
                 if (Folder.Length == 0 || !Path.IsPathRooted(Folder)) { Fail("Укажите папку."); return; }
-                if (mine.Checked) { var p = Export.KeyProblem(own.Text); if (p != null) { Fail(p); return; } }
+                if (zip.Checked && mine.Checked) { var p = Export.KeyProblem(own.Text); if (p != null) { Fail(p); return; } }
             };
+        }
+
+        void UpdateKeyState()
+        {
+            gen.Enabled = mine.Enabled = zip.Checked;
+            own.Enabled = show.Enabled = zip.Checked && mine.Checked;
         }
     }
 
