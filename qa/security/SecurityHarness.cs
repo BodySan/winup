@@ -79,7 +79,7 @@ namespace WinUp
             form = new MainForm(store);
             Application.ThreadException += delegate(object sender,System.Threading.ThreadExceptionEventArgs e) {Console.WriteLine("FAIL unhandled-ui-exception "+e.Exception);Environment.Exit(1);};
             server = (BrowserServer)typeof(MainForm).GetField("browserServer", Private).GetValue(form);
-            if (!trayUi) form.Shown += delegate { Task.Run(Array.IndexOf(args,"--browser-references-only")>=0 ? (Action)BrowserReferenceRegression : Array.IndexOf(args,"--directories-only")>=0 ? (Action)DirectoryRegressionTests : Array.IndexOf(args,"--files-only")>=0 ? (Action)DeliveryFilesOnly : Array.IndexOf(args,"--functional-only")>=0 ? (Action)DeliveryTests : Array.IndexOf(args,"--updates-only")>=0 ? (Action)UpdateRegressionTests : (Action)Tests); };
+            if (!trayUi) form.Shown += delegate { Task.Run(Array.IndexOf(args,"--origin-security-only")>=0 ? (Action)OriginSecurityRegression : Array.IndexOf(args,"--browser-references-only")>=0 ? (Action)BrowserReferenceRegression : Array.IndexOf(args,"--directories-only")>=0 ? (Action)DirectoryRegressionTests : Array.IndexOf(args,"--files-only")>=0 ? (Action)DeliveryFilesOnly : Array.IndexOf(args,"--functional-only")>=0 ? (Action)DeliveryTests : Array.IndexOf(args,"--updates-only")>=0 ? (Action)UpdateRegressionTests : (Action)Tests); };
             Application.Run(form);
             Console.WriteLine("TOTAL failures=" + failures);
             return failures == 0 ? 0 : 1;
@@ -153,6 +153,8 @@ namespace WinUp
                 FeatureTests();
                 DeepStorageTests();
                 DeepBrowserTests();
+                OriginSecurityTests();
+                ImportSecurityTests();
                 DeepFileTests();
                 Ui(delegate { NewVault(false); });
                 var good = Parse(Fill("https://example.com/login", false, "test-good"));

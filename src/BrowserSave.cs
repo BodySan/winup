@@ -7,10 +7,9 @@ using System.Windows.Forms;
 namespace WinUp {
     partial class MainForm {
         internal static List<LoginEntry> BrowserSaveMatches(KdbxStore current,string url,string login) {
-            string host=SiteDomain.HostOf(url);
             return current.Entries.Where(e => (e.Kind == "site" || e.Kind == "both") &&
-                (SiteDomain.SameHost(SiteDomain.HostOf(e.Target),host) || LoginProfiles.MatchesLoginOrigin(e,url)) && AccountOrganization.HasLogin(e,login))
-                .OrderByDescending(e=>SiteDomain.SameHost(SiteDomain.HostOf(e.Target),host)).ThenBy(e=>e.Name).ToList();
+                (SiteDomain.SameOrigin(e.Target,url) || LoginProfiles.MatchesLoginOrigin(e,url)) && AccountOrganization.HasLogin(e,login))
+                .OrderByDescending(e=>SiteDomain.SameOrigin(e.Target,url)).ThenBy(e=>e.Name).ToList();
         }
         internal string BrowserSave(string url, string login, string password, Func<bool> authorized) {
             string host; var origin = PasskeyPolicy.Origin(url, out host);
@@ -37,7 +36,7 @@ namespace WinUp {
                     Win.Focus(Handle);
                     if(dialog.ShowDialog(this) != DialogResult.OK) return SaveReply(false,"denied");
                     if(vault != current || !authorized()) return SaveReply(false,"locked");
-                    if(copy.Kind == "app" || !(SiteDomain.SameHost(SiteDomain.HostOf(copy.Target),host) || LoginProfiles.MatchesLoginOrigin(copy,url))) return SaveReply(false,"page_changed");
+                    if(copy.Kind == "app" || !(SiteDomain.SameOrigin(copy.Target,url) || LoginProfiles.MatchesLoginOrigin(copy,url))) return SaveReply(false,"page_changed");
                     if(old != null && !current.Entries.Contains(old)) return SaveReply(false,"not_found");
                     int index = old == null ? -1 : current.Entries.IndexOf(old);
                     if(index < 0) current.Entries.Add(copy); else current.Entries[index]=copy;

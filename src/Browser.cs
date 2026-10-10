@@ -84,6 +84,30 @@ namespace WinUp
             return string.Equals(strip(hostA), strip(hostB), StringComparison.OrdinalIgnoreCase);
         }
 
+        internal static string OriginOf(string url)
+        {
+            if (string.IsNullOrWhiteSpace(url)) return null;
+            Uri uri;
+            if (!Uri.TryCreate(url.Trim(), UriKind.Absolute, out uri) &&
+                !Uri.TryCreate("https://" + url.Trim(), UriKind.Absolute, out uri)) return null;
+            if ((uri.Scheme != "https" && uri.Scheme != "http") || uri.UserInfo.Length != 0) return null;
+            string host=uri.IdnHost.TrimEnd('.').ToLowerInvariant();
+            if (host.Length == 0) return null;
+            if (host.IndexOf(':') >= 0 && !host.StartsWith("[")) host="["+host+"]";
+            return uri.Scheme+"://"+host+(uri.IsDefaultPort ? "" : ":"+uri.Port);
+        }
+
+        // Scheme, hostname and port identify the service receiving a password.
+        // Other origins require a reviewed login profile or explicit approval.
+        internal static bool SameOrigin(string first, string second)
+        {
+            string a=OriginOf(first),b=OriginOf(second);
+            if(a==null || b==null) return false;
+            var left=new Uri(a);var right=new Uri(b);
+            return left.Scheme==right.Scheme && left.Port==right.Port &&
+                string.Equals(left.IdnHost.TrimEnd('.'),right.IdnHost.TrimEnd('.'),StringComparison.OrdinalIgnoreCase);
+        }
+
         // Один ли это сайт (по регистрируемому домену; IP и localhost — только точное совпадение).
         public static bool SameSite(string hostA, string hostB)
         {
@@ -899,8 +923,8 @@ namespace WinUp
         string OtpValue(string token, string id, string url, bool insert, bool copy, int generation)
         {
             if (string.IsNullOrEmpty(id)) return Err("bad_request");
-            string host = insert ? SiteDomain.HostOf(url) : null;
-            if (insert && (host == null || SiteDomain.IsHttpUrl(url))) return Err("insecure");
+            string origin = insert ? SiteDomain.OriginOf(url) : null;
+            if (insert && (origin == null || !origin.StartsWith("https://", StringComparison.Ordinal))) return Err("insecure");
             string response = Err("host_error");
             RunUi(delegate
             {
@@ -923,7 +947,7 @@ namespace WinUp
                     try
                     {
                         Win.Focus(owner.Handle);
-                        if (MessageBox.Show(owner, "Вставить код 2FA «" + otp.Title + "» на сайте " + host + "?\n\nПроверьте адрес сайта.",
+                        if (MessageBox.Show(owner, "Вставить код 2FA «" + otp.Title + "» на сайте " + origin + "?\n\nПроверьте адрес сайта.",
                             "WinUp — код 2FA", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes)
                         { response = Err("denied"); return; }
                     }
@@ -1037,7 +1061,7 @@ namespace WinUp
                     }
                     else if (!SiteDomain.SameSite(host, pageHost) && !LoginProfiles.MatchesLoginOrigin(e,url)) continue;
                     bool reviewed=LoginProfiles.MatchesLoginOrigin(e,url);
-                    items.Add(Item(e, host, SiteDomain.SameSite(host, pageHost) || reviewed, SiteDomain.SameHost(host, pageHost) || reviewed || BrowserAllow.Has(e.Id, pageHost)));
+                    items.Add(Item(e, host, SiteDomain.SameSite(host, pageHost) || reviewed, SiteDomain.SameOrigin(e.Target, url) || reviewed || BrowserAllow.Has(e.Id, SiteDomain.OriginOf(url))));
                 }
             });
             if (error != null) return Err(error);
@@ -1088,20 +1112,20 @@ namespace WinUp
                 // Больше FillsWithoutQuestion паролей за минуту — необычно для человека: каждый следующий только
                 // после подтверждения, даже на точном адресе записи.
                 bool sameSite = SiteDomain.SameSite(host, pageHost);
-                bool exact = SiteDomain.SameHost(host, pageHost) || LoginProfiles.MatchesLoginOrigin(e,url);
+                bool exact = SiteDomain.SameOrigin(e.Target, url) || LoginProfiles.MatchesLoginOrigin(e,url);
                 bool burst = recent > FillsWithoutQuestion;
-                if (requireConfirmation || burst || framed || !exact && !(sameSite && BrowserAllow.Has(e.Id, pageHost)))
+                if (requireConfirmation || burst || framed || !exact && !(sameSite && BrowserAllow.Has(e.Id, SiteDomain.OriginOf(url))))
                 {
                     if (askOpen) { error = "busy"; return; }
                     askOpen = true;
                     try
                     {
-                        using (var dlg = new ConfirmFillDialog(pageHost, e.Name, host, sameSite, framed, burst ? recent : 0))
+                        using (var dlg = new ConfirmFillDialog(SiteDomain.OriginOf(url), e.Name, SiteDomain.OriginOf(e.Target), sameSite, framed, burst ? recent : 0))
                         {
                             // Окно WinUp вперёд, иначе вопрос откроется за браузером, где пользователь только что щёлкнул.
                             Win.Focus(owner.Handle);
                             if (dlg.ShowDialog(owner) != DialogResult.OK) { error = "denied"; return; }
-                            if (dlg.Remember) BrowserAllow.Add(e.Id, pageHost, e.Name);
+                            if (dlg.Remember) BrowserAllow.Add(e.Id, SiteDomain.OriginOf(url), e.Name);
                         }
                     }
                     finally { askOpen = false; }
@@ -1188,12 +1212,14 @@ namespace WinUp
 
         public static bool Has(string entryId, string pageHost)
         {
+            if (pageHost == null || SiteDomain.OriginOf(pageHost) != pageHost) return false;
             try { using (var k = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(Key)) return k != null && k.GetValue(Name(entryId, pageHost)) != null; }
             catch { return false; }
         }
 
         public static void Add(string entryId, string pageHost, string entryName)
         {
+            if (pageHost == null || SiteDomain.OriginOf(pageHost) != pageHost) throw new ArgumentException("Expected a canonical web origin.");
             using (var k = Microsoft.Win32.Registry.CurrentUser.CreateSubKey(Key))
                 k.SetValue(Name(entryId, pageHost), (entryName ?? "") + " → " + pageHost + " | " + DateTime.Now.ToString("dd.MM.yyyy"));
         }
@@ -1215,7 +1241,7 @@ namespace WinUp
             : base("WinUp — вставить пароль?")
         {
             Note("Страница " + pageHost + " просит логин и пароль записи «" + entryName + "».");
-            bool exact = SiteDomain.SameHost(entryHost, pageHost);
+            bool exact = SiteDomain.SameOrigin(entryHost, pageHost);
             Note("Адрес записи: " + entryHost + (exact ? "" : sameSite ? " (тот же сайт, другой адрес)" : " — ЭТО ДРУГОЙ САЙТ"),
                  sameSite ? SystemColors.GrayText : Color.Firebrick);
             if (framed)

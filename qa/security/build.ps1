@@ -1,4 +1,4 @@
-param([string]$Output = 'C:\WinUp\test\audit\candidate',[string]$Source,[switch]$HostNativeReview,[switch]$HostNativeReviewOnly,[switch]$SystemProviderOnly)
+param([string]$Output = 'C:\WinUp\test\audit\candidate',[string]$Source,[switch]$HostNativeReview,[switch]$HostNativeReviewOnly,[switch]$SystemProviderOnly,[switch]$SecurityReviewOnly)
 $ErrorActionPreference = 'Stop'
 $src = if($Source) { [IO.Path]::GetFullPath($Source) } else { [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..\src')) }
 New-Item -ItemType Directory -Force $Output | Out-Null
@@ -33,9 +33,14 @@ function BuildSystemProviderProbe {
     if ($LASTEXITCODE) { throw 'System provider probe build failed' }
 }
 if($SystemProviderOnly){BuildSystemProviderProbe;return}
+if($SecurityReviewOnly){
+    & $csc @common '/target:exe' '/main:WinUp.SecurityHarness' "/out:$Output\SecurityHarness.exe" @sources "$PSScriptRoot\SecurityHarness.cs" "$PSScriptRoot\HardeningTests.cs" "$PSScriptRoot\FeatureTests.cs" "$PSScriptRoot\CorrectionsTests.cs" "$PSScriptRoot\UpdateTests.cs" "$PSScriptRoot\DeepStorageTests.cs" "$PSScriptRoot\DeepBrowserTests.cs" "$PSScriptRoot\DeepFileTests.cs" "$PSScriptRoot\DeliveryTests.cs" "$PSScriptRoot\OriginSecurityTests.cs"
+    if($LASTEXITCODE){throw 'Security review build failed'}
+    return
+}
 & $csc @common '/target:winexe' "/out:$Output\WinUp.exe" @sources
 if ($LASTEXITCODE) { throw 'Production build failed' }
-& $csc @common '/target:exe' '/main:WinUp.SecurityHarness' "/out:$Output\SecurityHarness.exe" @sources "$PSScriptRoot\SecurityHarness.cs" "$PSScriptRoot\HardeningTests.cs" "$PSScriptRoot\FeatureTests.cs" "$PSScriptRoot\CorrectionsTests.cs" "$PSScriptRoot\UpdateTests.cs" "$PSScriptRoot\DeepStorageTests.cs" "$PSScriptRoot\DeepBrowserTests.cs" "$PSScriptRoot\DeepFileTests.cs" "$PSScriptRoot\DeliveryTests.cs"
+& $csc @common '/target:exe' '/main:WinUp.SecurityHarness' "/out:$Output\SecurityHarness.exe" @sources "$PSScriptRoot\SecurityHarness.cs" "$PSScriptRoot\HardeningTests.cs" "$PSScriptRoot\FeatureTests.cs" "$PSScriptRoot\CorrectionsTests.cs" "$PSScriptRoot\UpdateTests.cs" "$PSScriptRoot\DeepStorageTests.cs" "$PSScriptRoot\DeepBrowserTests.cs" "$PSScriptRoot\DeepFileTests.cs" "$PSScriptRoot\DeliveryTests.cs" "$PSScriptRoot\OriginSecurityTests.cs"
 if ($LASTEXITCODE) { throw 'Harness build failed' }
 New-Item -ItemType Directory -Force "$Output\browser-lab" | Out-Null
 & $csc @common '/target:winexe' '/main:WinUp.FeatureUiHarness' "/out:$Output\browser-lab\WinUp.exe" @sources "$PSScriptRoot\FeatureUiHarness.cs"
