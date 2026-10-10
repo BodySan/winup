@@ -243,6 +243,7 @@ namespace WinUp {
         [System.Runtime.InteropServices.DllImport("user32.dll")] static extern bool PostMessage(IntPtr window,int message,IntPtr w,IntPtr l);
         [System.Runtime.InteropServices.DllImport("user32.dll")] static extern IntPtr GetDlgItem(IntPtr window,int id);
         delegate IntPtr RecordCbtHook(int code,IntPtr window,IntPtr details);
+        [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)] struct RecordWindowResult {internal IntPtr result,lparam,wparam;internal uint message;internal IntPtr window;}
         [System.Runtime.InteropServices.DllImport("user32.dll")] static extern IntPtr SetWindowsHookEx(int kind,RecordCbtHook hook,IntPtr module,uint thread);
         [System.Runtime.InteropServices.DllImport("user32.dll")] static extern bool UnhookWindowsHookEx(IntPtr hook);
         [System.Runtime.InteropServices.DllImport("user32.dll")] static extern IntPtr CallNextHookEx(IntPtr hook,int code,IntPtr window,IntPtr details);
@@ -264,15 +265,15 @@ namespace WinUp {
                             EnumWindows((window,value)=>{uint pid;GetWindowThreadProcessId(window,out pid);if(pid!=System.Diagnostics.Process.GetCurrentProcess().Id)return true;var name=new StringBuilder(100);GetClassName(window,name,100);if(name.ToString()!="#32770")return true;int accept=GetDlgItem(window,1)!=IntPtr.Zero?1:GetDlgItem(window,2)!=IntPtr.Zero?2:0;if(accept==0)return true;if(!errorSeen){Console.WriteLine("STEP record-save-error lock");errorSeen=true;typeof(MainForm).GetMethod("LockVault",flags).Invoke(form,null);}PostMessage(window,0x111,new IntPtr(accept),IntPtr.Zero);PostMessage(window,0x10,IntPtr.Zero,IntPtr.Zero);return true;},IntPtr.Zero);
                         }catch(Exception ex){error=ex;timer.Stop();foreach(var dialog in Application.OpenForms.Cast<Form>().Where(f=>f!=form).ToArray()){dialog.DialogResult=DialogResult.Cancel;dialog.Close();}}
                     };
-                    RecordCbtHook callback=(code,window,details)=>{
-                        if(code==5){var type=new StringBuilder(100);GetClassName(window,type,100);if(type.ToString()=="#32770"){
-                            Console.WriteLine("STEP record-save-error native activation");
+                    RecordCbtHook callback=(code,unused,details)=>{
+                        if(code==0){var message=(RecordWindowResult)System.Runtime.InteropServices.Marshal.PtrToStructure(details,typeof(RecordWindowResult));IntPtr window=message.window;var type=new StringBuilder(100);if(message.message==0x110)GetClassName(window,type,100);if(type.ToString()=="#32770"){
+                            Console.WriteLine("STEP record-save-error native initialization");
                             try{if(!errorSeen){errorSeen=true;typeof(MainForm).GetMethod("LockVault",flags).Invoke(form,null);}
                                 int accept=GetDlgItem(window,1)!=IntPtr.Zero?1:2;PostMessage(window,0x111,new IntPtr(accept),IntPtr.Zero);PostMessage(window,0x10,IntPtr.Zero,IntPtr.Zero);
                             }catch(Exception ex){error=ex;PostMessage(window,0x111,new IntPtr(2),IntPtr.Zero);}
-                        }}return CallNextHookEx(IntPtr.Zero,code,window,details);
+                        }}return CallNextHookEx(IntPtr.Zero,code,unused,details);
                     };
-                    IntPtr hook=SetWindowsHookEx(5,callback,IntPtr.Zero,GetCurrentThreadId());if(hook==IntPtr.Zero)throw new Exception("Cannot observe the owned save-error dialog");
+                    IntPtr hook=SetWindowsHookEx(12,callback,IntPtr.Zero,GetCurrentThreadId());if(hook==IntPtr.Zero)throw new Exception("Cannot observe the owned save-error dialog");
                     try{using(var lease=new FileStream(KdbxStore.KdbxFile,FileMode.Open,FileAccess.Read,FileShare.None)){Console.WriteLine("STEP record-save-error edit");timer.Start();typeof(MainForm).GetMethod(bulk?"BulkEditPasswords":"EditSelectedFields",flags).Invoke(form,null);timer.Stop();}if(error!=null)throw error;
                         Check(bulk?"bulk-save-error-lock-does-not-restore-secrets":"fields-save-error-lock-does-not-restore-secrets",edited&&errorSeen&&typeof(MainForm).GetField("vault",flags).GetValue(form)==null&&originals.All(entry=>entry.UsePassword(string.IsNullOrEmpty))&&store.Entries.Count==0&&before.SequenceEqual(File.ReadAllBytes(KdbxStore.KdbxFile)));
                     }finally{UnhookWindowsHookEx(hook);GC.KeepAlive(callback);form.Close();store.Lock();foreach(var entry in originals)entry.ClearSecrets();}
