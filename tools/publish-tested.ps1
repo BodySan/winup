@@ -73,7 +73,7 @@ try {
     & "$root\src\build.ps1" -Source $candidate -Output "$release\WinUp.exe"
     & "$root\src\updates\build-package.ps1" -Sequence $sequence -Source $candidate -Output $release -ProtectedKey $ProtectedKey
     & "$PSScriptRoot\archive-source.ps1" -Source $candidate -Output "$release\src.zip"
-    $appVersion=(Get-Item -LiteralPath "$release\WinUp.exe").VersionInfo.FileVersion
+    $appVersion=(Get-Item -LiteralPath "$release\WinUp.exe").VersionInfo.ProductVersion
     $notes=@'
 WinUp {{version}}. Комплект обновления №{{sequence}}.
 
