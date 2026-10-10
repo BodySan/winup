@@ -95,7 +95,9 @@ namespace WinUp {
             Ui(delegate {
                 using(var dialog=new ComponentUpdatesDialog(null,delegate {},delegate {})) {
                     dialog.Show(form); Application.DoEvents();
-                    Check("updates-real-dialog-lists-components",dialog.Controls.OfType<ListView>().Single().Items.Count==12,"all bundled modules and KeePass visible");
+                    var rows=dialog.Controls.OfType<ListView>().Single().Items.Cast<ListViewItem>().Select(item=>((ComponentVersionInfo)item.Tag).Id).ToArray();
+                    var expected=ComponentResources.Current.versions.Keys.Concat(new[]{"keepass"}).ToArray();
+                    Check("updates-real-dialog-lists-components",rows.Length==expected.Length&&new HashSet<string>(rows).SetEquals(expected),"exact bundled component identities plus KeePass; no obsolete fixed row count");
                     dialog.Close();
                 }
                 string cancelResult=null;

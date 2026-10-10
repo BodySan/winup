@@ -127,16 +127,21 @@ namespace WinUp
             string[] data = Directory.GetFiles(encrypted,"*",SearchOption.AllDirectories);
             Check("files-content-and-name-encrypted",!data.Any(x => Path.GetFileName(x).Contains("secret") ||
                 Encoding.UTF8.GetString(File.ReadAllBytes(x)).Contains(marker)),"original names and content absent on disk");
-            string victim = data.Where(x => x.EndsWith(".c9r") && new FileInfo(x).Length > 32).OrderByDescending(x => new FileInfo(x).Length).First();
+            // The UI lock can create history copies. Use a one-file vault so the
+            // modified ciphertext is certainly the file exported by this test.
+            string tamperVault=Path.Combine(root,"tamper-only-vault");
+            string tamperSource=Path.Combine(root,"tamper-source.bin");
+            File.WriteAllBytes(tamperSource,Enumerable.Range(0,180000).Select(x=>(byte)x).ToArray());
+            using(var client=new FileVaultClient(tamperVault,"Synthetic-Files-2026-!",true))client.Import(tamperSource,"binary.bin",false);
+            string victim = Directory.GetFiles(tamperVault,"*.c9r",SearchOption.AllDirectories).Single(x => new FileInfo(x).Length > 180000);
             byte[] bytes = File.ReadAllBytes(victim); bytes[bytes.Length-10] ^= 1; File.WriteAllBytes(victim,bytes);
-            using(var client = new FileVaultClient(encrypted,"Synthetic-Files-2026-!",false))
+            using(var client = new FileVaultClient(tamperVault,"Synthetic-Files-2026-!",false))
             {
                 bool rejected=false;
-                try { client.Call("export","copied/nested/binary.bin",Path.Combine(root,"tampered.bin")); }
+                string tamperedOutput=Path.Combine(root,"tampered.bin");
+                try { client.Call("export","binary.bin",tamperedOutput); }
                 catch(IOException) { rejected=true; }
-                // Which duplicate was selected can differ; try the other verified copy as well.
-                if (!rejected) try { client.Call("export","moved/nested/binary.bin",Path.Combine(root,"tampered2.bin")); } catch(IOException) { rejected=true; }
-                Check("files-tampered-data-rejected",rejected,"authenticated decryption");
+                Check("files-tampered-data-rejected",rejected&&!File.Exists(tamperedOutput),"authenticated decryption rejects the exact modified file before publication");
             }
             string cancelVault=Path.Combine(root,"cancel-vault"), big=Path.Combine(root,"cancel-source.bin");
             using(var file=new FileStream(big,FileMode.Create,FileAccess.Write)) file.SetLength(64L*1024*1024);

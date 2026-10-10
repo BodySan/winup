@@ -14,10 +14,12 @@ namespace WinUp
     //  • JSON-экспорты без шифрования: Aegis, 2FAS (.2fas), andOTP, Bitwarden.
     static class OtpImport
     {
+        internal const int MaxInput = 8 * 1024 * 1024;
         public static List<OtpEntry> Parse(string text, List<string> warnings)
         {
             var result = new List<OtpEntry>();
             text = text ?? "";
+            if (text.Length > MaxInput) { warnings.Add("Экспорт 2FA превышает допустимый размер 8 МБ. Разделите его на несколько файлов."); return result; }
 
             foreach (Match m in Regex.Matches(text, @"otpauth-migration://offline\?data=([^\s""'<>&]+)", RegexOptions.IgnoreCase))
             {
@@ -37,8 +39,7 @@ namespace WinUp
             {
                 try
                 {
-                    // 32 МБ с запасом на любой реальный экспорт; без ограничения гигантский файл съедал память.
-                    var root = new JavaScriptSerializer { MaxJsonLength = 32 * 1024 * 1024 }.DeserializeObject(t);
+                    var root = new JavaScriptSerializer { MaxJsonLength = MaxInput, RecursionLimit = 64 }.DeserializeObject(t);
                     if (IsEncryptedExport(root)) warnings.Add("Файл экспорта зашифрован паролем. Сделайте в приложении экспорт без шифрования " +
                                                               "(и удалите этот файл сразу после импорта).");
                     else Walk(root, null, result, warnings);
@@ -335,6 +336,15 @@ namespace WinUp
             return s.Length > 60 ? s.Substring(0, 60) + "..." : s;
         }
 
-        public static string ReadFile(string path) { return File.ReadAllText(path); }
+        public static string ReadFile(string path)
+        {
+            byte[] bytes = SafeStorage.ReadBounded(path, MaxInput);
+            try
+            {
+                using (var stream = new MemoryStream(bytes, false))
+                using (var reader = new StreamReader(stream, System.Text.Encoding.UTF8, true)) return reader.ReadToEnd();
+            }
+            finally { Array.Clear(bytes, 0, bytes.Length); }
+        }
     }
 }

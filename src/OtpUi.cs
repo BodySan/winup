@@ -165,7 +165,7 @@ namespace WinUp
                 using (var d = new OpenFileDialog { Filter = "Экспорт аутентификатора (*.json;*.2fas;*.txt;*.csv)|*.json;*.2fas;*.txt;*.csv|Все файлы|*.*" })
                     if (d.ShowDialog(this) == DialogResult.OK)
                     {
-                        try { input.Text = File.ReadAllText(d.FileName); Find(); }
+                        try { input.Text = OtpImport.ReadFile(d.FileName); Find(); }
                         catch (Exception ex) { warn.Text = ex.Message; }
                     }
             };

@@ -8,7 +8,7 @@ using System.Windows.Forms;
 
 namespace WinUp {
     static partial class SecurityHarness {
-        // Ordinary functional regressions only; no attack/audit suite is called.
+        // Release regressions on synthetic records; the full audit suite is separate.
         static void DeliveryFilesOnly() {
             try{DeliveryFileTests();}catch(Exception e){Check("delivery-files-unhandled",false,e.ToString());}
             finally{Ui(delegate {form.Close();});}
@@ -74,6 +74,7 @@ namespace WinUp {
                 Check("delivery-components-older-domain-list",domainList.Status.Contains("более новый список") && domainList.Status.Contains("не требуется"),"older official snapshot is not proposed as an update");
                 domainList.Pending="2026-10-08_07-09-37_UTC";ComponentInventory.Availability(domainList);
                 Check("delivery-components-pending-domain-list",domainList.Status.Contains("уже подготовлен"),"pending newer snapshot is retained");
+                OriginSecurityTests();ImportSecurityTests();
             }catch(Exception e){Check("delivery-unhandled",false,e.ToString());}
             finally{Ui(delegate {form.Close();});}
         }
