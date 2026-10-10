@@ -33,6 +33,12 @@ if($process.ExitCode -or $stdout.Result -notmatch 'TOTAL failures=0') { throw "T
 if($env:GITHUB_ACTIONS -eq 'true') {
     $fileLab='C:\WinUpAudit\fci-'+[Guid]::NewGuid().ToString('N').Substring(0,8)
     New-Item -ItemType Directory $fileLab|Out-Null
+    Copy-Item -LiteralPath "$Output\FollowupSecurityProbe.exe" -Destination $fileLab
+    $followup=Start-Process -FilePath "$fileLab\FollowupSecurityProbe.exe" -ArgumentList '--ci' -WindowStyle Hidden -PassThru -RedirectStandardOutput "$Output\followup-security.txt" -RedirectStandardError "$Output\followup-errors.txt"
+    [void]$followup.Handle
+    if(!$followup.WaitForExit(90000)){$followup.Kill();throw 'Follow-up security tests timed out'}
+    if($followup.ExitCode -ne 0 -or [IO.File]::ReadAllText("$Output\followup-security.txt") -notmatch 'RESULT passed=\d+ failed=0'){throw 'Follow-up security checks failed'}
+    & "$PSScriptRoot\SystemSetupFailureProbe.ps1" -Source $Source -Output "$Output\setup-failure.txt"
     Copy-Item -LiteralPath "$Output\SystemProviderProbe.exe" -Destination $fileLab
     $nativeProbe=Start-Process -FilePath "$fileLab\SystemProviderProbe.exe" -ArgumentList '--ci','--encoding-only' -WindowStyle Hidden -PassThru -RedirectStandardOutput "$Output\native-encoding.txt" -RedirectStandardError "$Output\native-errors.txt"
     [void]$nativeProbe.Handle

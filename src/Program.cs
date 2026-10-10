@@ -136,6 +136,11 @@ namespace WinUp
 
         static void Run(string[] args, int installIdx)
         {
+            if(installIdx>=0){
+                try{var permission=InstallAuthorization.Receive(args);Application.Run(new InstallForm(permission.items.ToList(),permission.silent));}
+                catch(Exception ex){MessageBox.Show(ex.Message,"WinUp — установка отменена",MessageBoxButtons.OK,MessageBoxIcon.Warning);}
+                return;
+            }
             // Новая копия: папки появляются сразу, чтобы было понятно, куда что класть.
             try { Directory.CreateDirectory(Paths.Apps); Directory.CreateDirectory(Paths.Data); CoreLoader.EnsureDir(); }
             catch (Exception ex)
@@ -145,44 +150,11 @@ namespace WinUp
                                 "WinUp", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return;
             }
-            // WinUp.exe --install id1,id2 [--manual] --apps-sha256 <хэш> — режим установки (с правами администратора).
-            // Хэш списка передаёт окно WinUp, в котором нажали «Установить»: список, прочитанный здесь, обязан
-            // совпасть с ним — иначе подменённый между нажатием и UAC apps.json запустился бы от администратора.
-            string expected = null;
-            if (installIdx >= 0)
-            {
-                int h = Array.IndexOf(args, "--apps-sha256");
-                expected = h >= 0 && h + 1 < args.Length ? args[h + 1] : null;
-                if (expected == null)
-                {
-                    MessageBox.Show("Установка с правами администратора запускается только кнопкой «Установить отмеченные» в окне WinUp.",
-                        "WinUp", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                    return;
-                }
-            }
             AppStore store;
-            string before = installIdx >= 0 ? Integrity.AppsHash() : null;
-            // В режиме установки база только читается: список правит основной экземпляр.
-            try { store = AppStore.Load(installIdx >= 0); }
+            try { store = AppStore.Load(false); }
             catch (Exception ex)
             {
                 MessageBox.Show("Не удалось прочитать " + Paths.AppsFile + ":\n" + ex.Message, "WinUp", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                return;
-            }
-            if (installIdx >= 0 && (!string.Equals(before, expected, StringComparison.OrdinalIgnoreCase) ||
-                                    !string.Equals(Integrity.AppsHash(), expected, StringComparison.OrdinalIgnoreCase)))
-            {
-                MessageBox.Show("Список программ (apps.json) изменился после нажатия «Установить» — не через WinUp.\n" +
-                    "Установка с правами администратора отменена.", "WinUp", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                return;
-            }
-
-            // Некорректный --install (без списка id) отсеян в Main — здесь список гарантированно есть.
-            if (installIdx >= 0)
-            {
-                var ids = args[installIdx + 1].Split(',');
-                var items = ids.Select(id => store.Apps.FirstOrDefault(a => a.Id == id)).Where(a => a != null).ToList();
-                Application.Run(new InstallForm(items, !args.Contains("--manual")));
                 return;
             }
             Application.Run(new MainForm(store));

@@ -93,7 +93,7 @@ namespace WinUp
                 try
                 {
                     var psi = path.EndsWith(".msi", StringComparison.OrdinalIgnoreCase)
-                        ? new ProcessStartInfo(SystemTool("msiexec.exe"), "/i \"" + path + "\"" + (quiet ? " " + a.Args : ""))
+                        ? new ProcessStartInfo(SystemTool("msiexec.exe"), "/i " + ProcessArguments.Quote(path) + (quiet ? " " + ProcessArguments.Join(ProcessArguments.Parse(a.Args)) : ""))
                         : new ProcessStartInfo(path, quiet ? a.Args : "");
                     psi.UseShellExecute = true;
                     psi.WorkingDirectory = Path.GetDirectoryName(path);

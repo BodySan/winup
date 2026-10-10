@@ -26,7 +26,8 @@ if($Mode -eq 'remove'){
  if(!$installed -or !$old -or $old.Root -ne $Root -or $old.PackageHash -ne $meta.packageHash){
   if($installed){$installed|Remove-AppxPackage}
   try{Add-AppxPackage -Path $package -ExternalLocation $Root}catch{
-   if($old -and (Test-Path -LiteralPath (Join-Path $old.Root 'system-passkeys\WinUp.Passkeys.msix'))){try{Add-AppxPackage -Path (Join-Path $old.Root 'system-passkeys\WinUp.Passkeys.msix') -ExternalLocation $old.Root}catch{}}
+   # An old registry path is not a source of trusted package bytes. Restore a
+   # previous connection explicitly from that copy of WinUp after a failed move.
    throw
   }
   New-Item -Path $registration -Force|Out-Null
