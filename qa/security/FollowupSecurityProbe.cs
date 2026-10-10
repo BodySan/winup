@@ -41,6 +41,9 @@ namespace WinUp {
             item.Args="\"hello world\"";var info=MainForm.LaunchInfo(item);info.UseShellExecute=false;info.CreateNoWindow=true;
             using(var process=Process.Start(info)){Check("batch-positive-exits",process.WaitForExit(5000)&&process.ExitCode==0);if(!process.HasExited)process.Kill();}
             Check("batch-positive-space-argument",File.ReadAllText(Path.Combine(Paths.Apps,"accepted.txt")).Trim()=="\"hello world\"");
+            var trailing=ProcessArguments.Script(batch,@"C:\sample\",false);trailing.UseShellExecute=false;trailing.CreateNoWindow=true;
+            using(var process=Process.Start(trailing)){if(!process.WaitForExit(5000))process.Kill();}
+            Check("batch-trailing-backslash-preserved",File.ReadAllText(Path.Combine(Paths.Apps,"accepted.txt")).Trim()=="\"C:\\sample\\\"");
             Check("batch-system-interpreter",Path.GetDirectoryName(info.FileName)==Environment.GetFolderPath(Environment.SpecialFolder.System));
             string named=Path.Combine(Paths.Apps,"folder (x86) & name");Directory.CreateDirectory(named);string namedBatch=Path.Combine(named,"fixture.cmd");File.Copy(batch,namedBatch);
             var namedInfo=ProcessArguments.Script(namedBatch,"safe");namedInfo.UseShellExecute=false;namedInfo.CreateNoWindow=true;

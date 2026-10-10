@@ -47,7 +47,9 @@ namespace WinUp {
             foreach(string value in values)
                 if(value.Any(c=>char.IsControl(c)||"\"&|<>^%!()".IndexOf(c)>=0))
                     throw new IOException("Параметры .cmd/.bat содержат управляющие символы командной строки. Поместите команды в сам сценарий, а здесь укажите только значения параметров.");
-            return new ProcessStartInfo(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System),"cmd.exe"),"/d /s "+(keepOpen?"/k":"/c")+" \""+Quote(path)+" "+Join(values)+"\"");
+            // cmd does not apply the C-runtime backslash/quote escaping rules.
+            // Quotes are already forbidden above; preserve trailing backslashes.
+            return new ProcessStartInfo(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System),"cmd.exe"),"/d /s "+(keepOpen?"/k":"/c")+" \"\""+path+"\" "+string.Join(" ",values.Select(value=>"\""+value+"\""))+"\"");
         }
     }
 }
