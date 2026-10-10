@@ -65,7 +65,10 @@ if($env:GITHUB_ACTIONS -eq 'true') {
     [void]$advanced.Handle
     if(!$advanced.WaitForExit(600000)){$advanced.Kill();throw 'Advanced workflows timeout'}
     if($advanced.ExitCode -ne 0 -or [IO.File]::ReadAllText("$Output\advanced-workflows.txt") -notmatch 'RESULT passed=\d+ failed=0'){throw 'Advanced workflows failed; nothing is ready for release'}
-    $layoutProbe=Start-Process -FilePath "$fileLab\FileWorkflowProbe.exe" -ArgumentList '--ci','--layout' -WindowStyle Hidden -PassThru -RedirectStandardOutput "$Output\layout.txt" -RedirectStandardError "$Output\layout-errors.txt"
+    $layoutLab='C:\WinUpAudit\lci-'+[Guid]::NewGuid().ToString('N').Substring(0,8)
+    New-Item -ItemType Directory $layoutLab|Out-Null
+    Copy-Item -LiteralPath "$Output\FileWorkflowProbe.exe" -Destination $layoutLab
+    $layoutProbe=Start-Process -FilePath "$layoutLab\FileWorkflowProbe.exe" -ArgumentList '--ci','--layout' -WindowStyle Hidden -PassThru -RedirectStandardOutput "$Output\layout.txt" -RedirectStandardError "$Output\layout-errors.txt"
     # Cache the process handle before waiting: Windows PowerShell may otherwise
     # leave ExitCode null even though the redirected checks finished successfully.
     [void]$layoutProbe.Handle
