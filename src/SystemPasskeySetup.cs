@@ -24,7 +24,7 @@ namespace WinUp {
         }
         internal static void UpdateCredentialCache(System.Collections.Generic.IEnumerable<SystemPasskeyCredential> credentials){
             if(!OwnsRegistration())return;
-            string helper=Path.Combine(Folder,"WinUp.PasskeyProvider.exe");if(!IsProviderFile(helper))throw new IOException("Подключение Windows использует другой выпуск WinUp. Нажмите «Подключить к Windows…» ещё раз.");
+            string helper=EnsureProviderFile();
             byte[] payload=Encoding.UTF8.GetBytes(new JavaScriptSerializer{MaxJsonLength=4*1024*1024}.Serialize(credentials));
             if(payload.Length>4*1024*1024)throw new IOException("Список ключей слишком большой.");
             var info=new ProcessStartInfo(helper,"--system-passkey-sync"){UseShellExecute=false,CreateNoWindow=true,RedirectStandardInput=true,RedirectStandardOutput=true,RedirectStandardError=true,StandardOutputEncoding=Encoding.UTF8,StandardErrorEncoding=Encoding.UTF8};
@@ -36,6 +36,13 @@ namespace WinUp {
             }
         }
         static byte[] Resource(string name){using(var input=ComponentResources.Open("system-passkeys/"+name)){if(input==null||input.Length>16*1024*1024)throw new IOException("Пакет подключения к Windows не найден.");using(var output=new MemoryStream()){input.CopyTo(output);return output.ToArray();}}}
+        internal static string EnsureProviderFile(){
+            string helper=Path.Combine(Folder,"WinUp.PasskeyProvider.exe");SafePaths.NoReparseParents(helper);
+            if(File.Exists(helper)&&IsProviderFile(helper))return helper;
+            using(var cert=Certificate()){}Directory.CreateDirectory(Folder);
+            byte[] data=Resource("WinUp.PasskeyProvider.exe");try{Paths.AtomicWrite(helper,data);}finally{Array.Clear(data,0,data.Length);}
+            if(!IsProviderFile(helper))throw new IOException("Не удалось обновить системный провайдер WinUp.");return helper;
+        }
         internal static X509Certificate2 Certificate(){var metadata=new JavaScriptSerializer().Deserialize<SystemProviderPackage>(Encoding.UTF8.GetString(Resource("package.json")));var cert=new X509Certificate2(Resource("WinUp.Passkeys.cer"));if(metadata==null||metadata.schema!=1||cert.Subject!="CN=WinUp"||!cert.Thumbprint.Equals(metadata.thumbprint,StringComparison.OrdinalIgnoreCase)||cert.HasPrivateKey||cert.NotAfter<DateTime.Now||cert.NotBefore>DateTime.Now)throw new IOException("Сертификат выпуска WinUp не прошёл проверку.");byte[] package=Resource("WinUp.Passkeys.msix");using(var input=new MemoryStream(package)){if(ComponentPackage.Hash(input)!=metadata.packageHash)throw new IOException("Пакет подключения к Windows изменён.");input.Position=0;using(var zip=new ZipArchive(input,ZipArchiveMode.Read,true)){var signature=zip.GetEntry("AppxSignature.p7x");if(signature==null||signature.Length>1024*1024)throw new IOException("В пакете нет подписи издателя.");using(var source=signature.Open())using(var memory=new MemoryStream()){source.CopyTo(memory);var value=memory.ToArray();if(value.Length<5||Encoding.ASCII.GetString(value,0,4)!="PKCX")throw new IOException("Неправильный формат подписи пакета.");var cms=new SignedCms();cms.Decode(value.Skip(4).ToArray());cms.CheckSignature(true);if(cms.SignerInfos.Count!=1||cms.SignerInfos[0].Certificate==null||cms.SignerInfos[0].Certificate.Thumbprint!=cert.Thumbprint)throw new IOException("Подпись пакета принадлежит другому издателю.");}}}return cert;}
         internal static void TrustCertificate(){using(var cert=Certificate())using(var store=new X509Store(StoreName.TrustedPeople,StoreLocation.LocalMachine)){store.Open(OpenFlags.ReadWrite);store.Add(cert);}}
         internal static bool IsTrusted(){using(var cert=Certificate())using(var store=new X509Store(StoreName.TrustedPeople,StoreLocation.LocalMachine)){store.Open(OpenFlags.ReadOnly);return store.Certificates.Find(X509FindType.FindByThumbprint,cert.Thumbprint,false).Count>0;}}

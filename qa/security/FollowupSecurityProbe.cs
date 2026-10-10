@@ -105,6 +105,10 @@ namespace WinUp {
             var maximum=(new string('x',4096)+"\0").ToCharArray();fixed(char* p=maximum)Check("platform-text-maximum",WinUpPluginAuthenticator.Text(p).Length==4096);
             var oversized=(new string('x',5000)+"\0").ToCharArray();fixed(char* p=oversized){bool rejected=false;try{WinUpPluginAuthenticator.Text(p);}catch(IOException){rejected=true;}Check("platform-text-bounded-before-allocation",rejected);}
             Check("platform-client-foreign-process",!SystemPasskeyProvider.IsClient(Process.GetCurrentProcess().Id));
+            Directory.CreateDirectory(SystemPasskeySetup.Folder);string helper=Path.Combine(SystemPasskeySetup.Folder,"WinUp.PasskeyProvider.exe");File.WriteAllText(helper,"previous version fixture");
+            Check("platform-provider-refreshes-old-helper",SystemPasskeySetup.EnsureProviderFile()==helper&&SystemPasskeySetup.IsProviderFile(helper));
+            DateTime written=File.GetLastWriteTimeUtc(helper);SystemPasskeySetup.EnsureProviderFile();Check("platform-provider-current-file-unchanged",File.GetLastWriteTimeUtc(helper)==written);
+            File.Delete(helper);Check("platform-provider-restores-missing-helper",SystemPasskeySetup.EnsureProviderFile()==helper&&SystemPasskeySetup.IsProviderFile(helper));
         }
     }
 }
