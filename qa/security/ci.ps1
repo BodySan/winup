@@ -37,11 +37,12 @@ if($env:GITHUB_ACTIONS -eq 'true') {
     $nativeProbe=Start-Process -FilePath "$fileLab\SystemProviderProbe.exe" -ArgumentList '--ci','--encoding-only' -WindowStyle Hidden -PassThru -RedirectStandardOutput "$Output\native-encoding.txt" -RedirectStandardError "$Output\native-errors.txt"
     [void]$nativeProbe.Handle
     if(!$nativeProbe.WaitForExit(30000)){$nativeProbe.Kill();throw 'Native response encoding timeout'}
+    if(Test-Path -LiteralPath "$fileLab\encoding-proof.txt"){Copy-Item -LiteralPath "$fileLab\encoding-proof.txt" -Destination "$Output\native-api.txt"}
     if($nativeProbe.ExitCode -eq 0){
         & node "$PSScriptRoot\..\tests\native-response-probe.cjs" $fileLab | Tee-Object -FilePath "$Output\native-response.txt"
         if($LASTEXITCODE){throw 'Windows native response verification failed'}
     }elseif($nativeProbe.ExitCode -eq 3 -and [IO.File]::ReadAllText("$Output\native-encoding.txt") -match '^SKIP native response encoding:'){
-        Write-Output 'Native response encoding requires a newer Windows API than this runner provides.'
+        Write-Output ([IO.File]::ReadAllText("$Output\native-encoding.txt").Trim())
     }else{throw 'Windows native response encoding failed'}
     Copy-Item -LiteralPath "$Output\FileWorkflowProbe.exe" -Destination $fileLab
     $fileProbe=Start-Process -FilePath "$fileLab\FileWorkflowProbe.exe" -ArgumentList '--ci' -WindowStyle Hidden -PassThru -RedirectStandardOutput "$Output\file-workflows.txt" -RedirectStandardError "$Output\file-errors.txt"
