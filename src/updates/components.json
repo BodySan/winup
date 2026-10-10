@@ -21,228 +21,228 @@
   },
   "files": {
     "file-engine.zip": {
-      "size": 42969973,
-      "sha256": "efb576861571d948fde959711b9b0204e8c8157b65419c3c22a997ad5c4a8f40"
+      "sha256": "efb576861571d948fde959711b9b0204e8c8157b65419c3c22a997ad5c4a8f40",
+      "size": 42969973
     },
     "file-engine.json": {
-      "size": 20224,
-      "sha256": "23d9c2771ec61a0be6ffc3e95e56fc70ff2fa2bc68052b1f4223caf222dc34b1"
+      "sha256": "23d9c2771ec61a0be6ffc3e95e56fc70ff2fa2bc68052b1f4223caf222dc34b1",
+      "size": 20224
     },
     "winfsp.msi": {
-      "size": 2191360,
-      "sha256": "073a70e00f77423e34bed98b86e600def93393ba5822204fac57a29324db9f7a"
+      "sha256": "073a70e00f77423e34bed98b86e600def93393ba5822204fac57a29324db9f7a",
+      "size": 2191360
     },
     "system-passkeys/WinUp.Passkeys.msix": {
-      "size": 3795,
-      "sha256": "99afd5f8748fb4f437055a82ff4555bbfbcff5500dadedf1e2587df43e656f9a"
+      "sha256": "c24d9f8e31a1c3b8be73a7ec4eb602fa691ec953786fd6a5da2ca215b0812693",
+      "size": 3789
     },
     "system-passkeys/WinUp.Passkeys.cer": {
-      "size": 1012,
-      "sha256": "a94d8f66a2d17ae2e5a8109505322573c62dfa8050ed42d766accb63e5973125"
+      "sha256": "a94d8f66a2d17ae2e5a8109505322573c62dfa8050ed42d766accb63e5973125",
+      "size": 1012
     },
     "system-passkeys/package.json": {
-      "size": 166,
-      "sha256": "2bb0dee8db01ba18ffb3f701def7c18c9033e1a8f5152ef93d4699aa674f52e8"
+      "sha256": "1afd4d83ef3afe3e46dbaa901b773435baeb21a5c4c7a5c4e3c9a82f0a4e007b",
+      "size": 175
     },
     "system-passkeys/Logo.png": {
-      "size": 2460,
-      "sha256": "d120c10a53ae054393af3b03b119d2a02490388d738f727d083691af3d645f21"
+      "sha256": "d120c10a53ae054393af3b03b119d2a02490388d738f727d083691af3d645f21",
+      "size": 2460
     },
     "system-passkeys/setup.ps1": {
-      "size": 3528,
-      "sha256": "80516ad3ca8cf8d9d4b1c50c569f143af7c67142aa0f86c26bf85a376d8f67ce"
+      "sha256": "80516ad3ca8cf8d9d4b1c50c569f143af7c67142aa0f86c26bf85a376d8f67ce",
+      "size": 3528
     },
     "system-passkeys/WinUp.PasskeyProvider.exe": {
-      "size": 45056,
-      "sha256": "83fcb81e31f512030f7835cb5cd3e084e4813bac708c75f81cc82dbcfc570571"
+      "sha256": "acd0ea465cdc2a8ac2a477e5cbe85d2bd5f635e7739c0d64ad14e02c0d5cdd08",
+      "size": 45568
     },
     "WinUp.PasskeyEngine.dll": {
-      "size": 14336,
-      "sha256": "c6e6ec42c178d965d465f9a0df339867434f4ba04326a20dd79c3eeff74023b0"
+      "sha256": "c6e6ec42c178d965d465f9a0df339867434f4ba04326a20dd79c3eeff74023b0",
+      "size": 14336
     },
     "BouncyCastle.Cryptography.dll": {
-      "size": 4885392,
-      "sha256": "4f96977e9c67334742c683410b3a361258219f0d3084a5e0bc10fba96cf23a0d"
+      "sha256": "4f96977e9c67334742c683410b3a361258219f0d3084a5e0bc10fba96cf23a0d",
+      "size": 4885392
     },
     "CBOR.dll": {
-      "size": 212992,
-      "sha256": "48901ba7abfc79cfe84e1da7c0e024cf967b9c902b451a9ed98e06cbf8490941"
+      "sha256": "48901ba7abfc79cfe84e1da7c0e024cf967b9c902b451a9ed98e06cbf8490941",
+      "size": 212992
     },
     "Numbers.dll": {
-      "size": 294912,
-      "sha256": "cf57674e763ad6f47f330ad21b2b663616af053d6c5072540dd99879261fc6d3"
+      "sha256": "cf57674e763ad6f47f330ad21b2b663616af053d6c5072540dd99879261fc6d3",
+      "size": 294912
     },
     "public-suffix-list.dat": {
-      "size": 334827,
-      "sha256": "737075296d578aabae00a5871219abc6af1153b0eb3182bad04e533942b44cce"
+      "sha256": "737075296d578aabae00a5871219abc6af1153b0eb3182bad04e533942b44cce",
+      "size": 334827
     },
     "THIRD-PARTY.md": {
-      "size": 12269,
-      "sha256": "43a7f01bc9b25aab04dc1fbf595fbbb3c1f76515304da1f7c6cf307ec8ee76d6"
+      "sha256": "43a7f01bc9b25aab04dc1fbf595fbbb3c1f76515304da1f7c6cf307ec8ee76d6",
+      "size": 12269
     },
     "browser/autologin.js": {
-      "size": 11889,
-      "sha256": "9a494e3d2b9dbce52b64d4a255387de9da7dd314e1ff8c8fcc06e81cbcccf513"
+      "sha256": "9a494e3d2b9dbce52b64d4a255387de9da7dd314e1ff8c8fcc06e81cbcccf513",
+      "size": 11889
     },
     "browser/background-v1.6.0.js": {
-      "size": 8261,
-      "sha256": "17c5dd894249d7850c02b9647a4a814c7c80c3e5c00af414e9bd80386897bb5c"
+      "sha256": "17c5dd894249d7850c02b9647a4a814c7c80c3e5c00af414e9bd80386897bb5c",
+      "size": 8261
     },
     "browser/background-v1.6.1.js": {
-      "size": 8261,
-      "sha256": "17c5dd894249d7850c02b9647a4a814c7c80c3e5c00af414e9bd80386897bb5c"
+      "sha256": "17c5dd894249d7850c02b9647a4a814c7c80c3e5c00af414e9bd80386897bb5c",
+      "size": 8261
     },
     "browser/background-v1.6.2.js": {
-      "size": 8261,
-      "sha256": "17c5dd894249d7850c02b9647a4a814c7c80c3e5c00af414e9bd80386897bb5c"
+      "sha256": "17c5dd894249d7850c02b9647a4a814c7c80c3e5c00af414e9bd80386897bb5c",
+      "size": 8261
     },
     "browser/background-v1.6.3.js": {
-      "size": 8341,
-      "sha256": "a5ec3dec94fcead95678babf93342655768064db408c8e8023a7d9823120f0fd"
+      "sha256": "a5ec3dec94fcead95678babf93342655768064db408c8e8023a7d9823120f0fd",
+      "size": 8341
     },
     "browser/background-v1.6.4.js": {
-      "size": 8341,
-      "sha256": "a5ec3dec94fcead95678babf93342655768064db408c8e8023a7d9823120f0fd"
+      "sha256": "a5ec3dec94fcead95678babf93342655768064db408c8e8023a7d9823120f0fd",
+      "size": 8341
     },
     "browser/background-v1.6.5.js": {
-      "size": 10998,
-      "sha256": "b25761c9e29b79a3597c1f79cc6c521a80cf52c44333d848d88d84cbc3ab6e74"
+      "sha256": "b25761c9e29b79a3597c1f79cc6c521a80cf52c44333d848d88d84cbc3ab6e74",
+      "size": 10998
     },
     "browser/background-v1.6.6.js": {
-      "size": 10998,
-      "sha256": "b25761c9e29b79a3597c1f79cc6c521a80cf52c44333d848d88d84cbc3ab6e74"
+      "sha256": "b25761c9e29b79a3597c1f79cc6c521a80cf52c44333d848d88d84cbc3ab6e74",
+      "size": 10998
     },
     "browser/background-v1.6.7.js": {
-      "size": 10998,
-      "sha256": "b25761c9e29b79a3597c1f79cc6c521a80cf52c44333d848d88d84cbc3ab6e74"
+      "sha256": "b25761c9e29b79a3597c1f79cc6c521a80cf52c44333d848d88d84cbc3ab6e74",
+      "size": 10998
     },
     "browser/background.js": {
-      "size": 10998,
-      "sha256": "b25761c9e29b79a3597c1f79cc6c521a80cf52c44333d848d88d84cbc3ab6e74"
+      "sha256": "b25761c9e29b79a3597c1f79cc6c521a80cf52c44333d848d88d84cbc3ab6e74",
+      "size": 10998
     },
     "browser/content.js": {
-      "size": 27256,
-      "sha256": "29058afd3549cc91cd76415284a8fc7772d08bd59e53aad6dc40ff0a420937a8"
+      "sha256": "29058afd3549cc91cd76415284a8fc7772d08bd59e53aad6dc40ff0a420937a8",
+      "size": 27256
     },
     "browser/firefox-manifest.json": {
-      "size": 2025,
-      "sha256": "0794765b6610bd73f5b9de1e82ea543e82b9447120f896556a44f14f2d811a7b"
+      "sha256": "6cdd939fee218d02c3246820f8922d099672cbaa967f19cc07186785e74971a6",
+      "size": 4951
     },
     "browser/icon128.png": {
-      "size": 2460,
-      "sha256": "d120c10a53ae054393af3b03b119d2a02490388d738f727d083691af3d645f21"
+      "sha256": "d120c10a53ae054393af3b03b119d2a02490388d738f727d083691af3d645f21",
+      "size": 2460
     },
     "browser/icon16.png": {
-      "size": 375,
-      "sha256": "71689788f7fb7a500a4d8c5e1fd7fec58017223cece5cf942b4123f05bf97bc8"
+      "sha256": "71689788f7fb7a500a4d8c5e1fd7fec58017223cece5cf942b4123f05bf97bc8",
+      "size": 375
     },
     "browser/icon32.png": {
-      "size": 657,
-      "sha256": "dd8d6b5c07cd04b3d76e8354647e75980aacb0a482877390608dcd89eb18e5b4"
+      "sha256": "dd8d6b5c07cd04b3d76e8354647e75980aacb0a482877390608dcd89eb18e5b4",
+      "size": 657
     },
     "browser/icon48.png": {
-      "size": 910,
-      "sha256": "5c1c5e5cb33e037e7187e751d671a8d664526945f807fcaaab64f6dff20b8b4f"
+      "sha256": "5c1c5e5cb33e037e7187e751d671a8d664526945f807fcaaab64f6dff20b8b4f",
+      "size": 910
     },
     "browser/login-profiles.json": {
-      "size": 184577,
-      "sha256": "4c77a2a5e120211b71ea3655b481935617ba2fcb3eb303b2cfec6f4a3492db3d"
+      "sha256": "4c77a2a5e120211b71ea3655b481935617ba2fcb3eb303b2cfec6f4a3492db3d",
+      "size": 184577
     },
     "browser/manifest.json": {
-      "size": 2177,
-      "sha256": "cdde0af97beaa8d5178bd73aba9ce47f98cd219226a5268f9f578432053c38bf"
+      "sha256": "8911b0d13158b72ac590ec94365412d92124b5ea976b43c49b8c0c7bca5ef14c",
+      "size": 4348
     },
     "browser/passkey-relay.js": {
-      "size": 1964,
-      "sha256": "d5484f98f8dd11783261a5c826646b91cac7e884e3039ae2aefbbba7afc54290"
+      "sha256": "d5484f98f8dd11783261a5c826646b91cac7e884e3039ae2aefbbba7afc54290",
+      "size": 1964
     },
     "browser/passkeys.js": {
-      "size": 17489,
-      "sha256": "bdbe50182a99deb171b9ed3b9d3a16953389db42eba8e3b72c5a0b19d249af0d"
+      "sha256": "bdbe50182a99deb171b9ed3b9d3a16953389db42eba8e3b72c5a0b19d249af0d",
+      "size": 17489
     },
     "browser/popup.html": {
-      "size": 2148,
-      "sha256": "3c49d34f806ea6d6d506d35607eb5cfd99960f4d197fc0644563e818408da93d"
+      "sha256": "3c49d34f806ea6d6d506d35607eb5cfd99960f4d197fc0644563e818408da93d",
+      "size": 2148
     },
     "browser/popup.js": {
-      "size": 12578,
-      "sha256": "69d3cd10db7ab5ab221de1a35177951ce3a6603709a5fcb71aa6f4209d1bfdf4"
+      "sha256": "69d3cd10db7ab5ab221de1a35177951ce3a6603709a5fcb71aa6f4209d1bfdf4",
+      "size": 12578
     },
     "browser/winup-firefox.xpi": {
-      "size": 57058,
-      "sha256": "81ef0de79d11345e55c714f9f8e5c9f2d1e8e5a1198bb97aa1a4705663f08281"
+      "sha256": "81ef0de79d11345e55c714f9f8e5c9f2d1e8e5a1198bb97aa1a4705663f08281",
+      "size": 57058
     },
     "licenses/age.txt": {
-      "size": 1516,
-      "sha256": "c5d65279d02955c0fc2294ae417c3add650d228f4f5c82bd6d531fc26c89cd96"
+      "sha256": "c5d65279d02955c0fc2294ae417c3add650d228f4f5c82bd6d531fc26c89cd96",
+      "size": 1516
     },
     "licenses/BouncyCastle.md": {
-      "size": 1133,
-      "sha256": "afc1653b666b64a2386b7b9b914406904f45c20b9571765d8c1121b513313179"
+      "sha256": "afc1653b666b64a2386b7b9b914406904f45c20b9571765d8c1121b513313179",
+      "size": 1133
     },
     "licenses/CC0.txt": {
-      "size": 7048,
-      "sha256": "a2010f343487d3f7618affe54f789f5487602331c0a8d03f49e9a7c547cf0499"
+      "sha256": "a2010f343487d3f7618affe54f789f5487602331c0a8d03f49e9a7c547cf0499",
+      "size": 7048
     },
     "licenses/cryptofs-2.8.0.txt": {
-      "size": 34519,
-      "sha256": "91b65277959ec273763d28ef002e83a6b3fba57c7a35436c9e5b66536333d720"
+      "sha256": "91b65277959ec273763d28ef002e83a6b3fba57c7a35436c9e5b66536333d720",
+      "size": 34519
     },
     "licenses/cryptolib-2.2.0.txt": {
-      "size": 34519,
-      "sha256": "91b65277959ec273763d28ef002e83a6b3fba57c7a35436c9e5b66536333d720"
+      "sha256": "91b65277959ec273763d28ef002e83a6b3fba57c7a35436c9e5b66536333d720",
+      "size": 34519
     },
     "licenses/Cryptomator-AGPL.txt": {
-      "size": 35179,
-      "sha256": "f24fa7d9333a3f40314c2f00dd28e0e706997819e66efe19619433dae285f3a3"
+      "sha256": "f24fa7d9333a3f40314c2f00dd28e0e706997819e66efe19619433dae285f3a3",
+      "size": 35179
     },
     "licenses/Cryptomator-Recovery-GPL.txt": {
-      "size": 35146,
-      "sha256": "c53a65c2fd561c87eaabf1072ef5dcab8653042bc15308465f52413585eb6271"
+      "sha256": "c53a65c2fd561c87eaabf1072ef5dcab8653042bc15308465f52413585eb6271",
+      "size": 35146
     },
     "licenses/fuse-nio-5.0.5.txt": {
-      "size": 34520,
-      "sha256": "76a97c878c9c7a8321bb395c2b44d3fe2f8d81314d219b20138ed0e2dddd5182"
+      "sha256": "76a97c878c9c7a8321bb395c2b44d3fe2f8d81314d219b20138ed0e2dddd5182",
+      "size": 34520
     },
     "licenses/Go.txt": {
-      "size": 1453,
-      "sha256": "911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad"
+      "sha256": "911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad",
+      "size": 1453
     },
     "licenses/golang-crypto.txt": {
-      "size": 1453,
-      "sha256": "911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad"
+      "sha256": "911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad",
+      "size": 1453
     },
     "licenses/golang-sys.txt": {
-      "size": 1453,
-      "sha256": "911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad"
+      "sha256": "911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad",
+      "size": 1453
     },
     "licenses/hpke.txt": {
-      "size": 1453,
-      "sha256": "911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad"
+      "sha256": "911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad",
+      "size": 1453
     },
     "licenses/jfuse-0.7.3.txt": {
-      "size": 7651,
-      "sha256": "a5681bf9b05db14d86776930017c647ad9e6e56ff6bbcfdf21e5848288dfaf1b"
+      "sha256": "a5681bf9b05db14d86776930017c647ad9e6e56ff6bbcfdf21e5848288dfaf1b",
+      "size": 7651
     },
     "licenses/KeePassPasskey-Native-GPL.txt": {
-      "size": 35149,
-      "sha256": "ba993a1852ddee70f327d3662e96da43b96c7d1638402a20fe2895f6254f6cb2"
+      "sha256": "ba993a1852ddee70f327d3662e96da43b96c7d1638402a20fe2895f6254f6cb2",
+      "size": 35149
     },
     "licenses/KeePassPasskey.txt": {
-      "size": 35149,
-      "sha256": "ba993a1852ddee70f327d3662e96da43b96c7d1638402a20fe2895f6254f6cb2"
+      "sha256": "ba993a1852ddee70f327d3662e96da43b96c7d1638402a20fe2895f6254f6cb2",
+      "size": 35149
     },
     "licenses/KeePassXC-Browser.txt": {
-      "size": 35141,
-      "sha256": "589ed823e9a84c56feb95ac58e7cf384626b9cbf4fda2a907bc36e103de1bad2"
+      "sha256": "589ed823e9a84c56feb95ac58e7cf384626b9cbf4fda2a907bc36e103de1bad2",
+      "size": 35141
     },
     "licenses/WinFsp.txt": {
-      "size": 36658,
-      "sha256": "68ae2fa9d8e6110ebdc9a236beecf118e279f8a26530daf09c9e682c231f7879"
+      "sha256": "68ae2fa9d8e6110ebdc9a236beecf118e279f8a26530daf09c9e682c231f7879",
+      "size": 36658
     },
     "licenses/WinUp-GPL.txt": {
-      "size": 35141,
-      "sha256": "589ed823e9a84c56feb95ac58e7cf384626b9cbf4fda2a907bc36e103de1bad2"
+      "sha256": "589ed823e9a84c56feb95ac58e7cf384626b9cbf4fda2a907bc36e103de1bad2",
+      "size": 35141
     }
   }
 }

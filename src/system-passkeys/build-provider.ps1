@@ -1,5 +1,6 @@
-param([string]$Source=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..')))
+param([string]$Source)
 $ErrorActionPreference='Stop'
+if(!$Source){$Source=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))}
 $Source=[IO.Path]::GetFullPath($Source)
 foreach($name in 'Numbers','CBOR','BouncyCastle.Cryptography','WinUp.PasskeyEngine'){[Reflection.Assembly]::LoadFrom((Join-Path $Source ('lib\'+$name+'.dll')))|Out-Null}
 [IO.File]::WriteAllBytes((Join-Path $Source 'system-passkeys\authenticator-info.cbor'),[WinUp.PasskeyEngine.Keys]::SystemAuthenticatorInfo())

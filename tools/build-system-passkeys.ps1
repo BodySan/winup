@@ -1,5 +1,6 @@
-param([Parameter(Mandatory=$true)][string]$SdkBin,[string]$Source=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\src')),[string]$Thumbprint,[string]$Output)
+param([Parameter(Mandatory=$true)][string]$SdkBin,[string]$Source,[string]$Thumbprint,[string]$Output)
 $ErrorActionPreference='Stop'
+if(!$Source){$Source=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\src'))}
 if(!$Output){$Output=Join-Path $Source 'system-passkeys'}
 New-Item -ItemType Directory -Force $Output|Out-Null
 foreach($tool in 'makeappx.exe','signtool.exe'){$sig=Get-AuthenticodeSignature -LiteralPath (Join-Path $SdkBin $tool);if($sig.Status -ne 'Valid' -or $sig.SignerCertificate.Subject -notmatch 'CN=Microsoft Corporation,'){throw 'Windows SDK tool signature is not valid.'}}

@@ -10,11 +10,22 @@ using System.Windows.Forms;
 namespace WinUp {
     internal static class ProviderProgram {
         [STAThread]static void Main(string[] args){try{if(args.Contains("--system-passkey-register-quiet"))Environment.ExitCode=SystemPasskeyProvider.Register();else if(args.Contains("--system-passkey-remove-quiet"))Environment.ExitCode=SystemPasskeyProvider.Remove();else if(args.Contains("--system-passkey-sync"))SyncCredentials();else if(args.Contains("--system-passkey-cache-list"))Output(new System.Web.Script.Serialization.JavaScriptSerializer().Serialize(SystemPasskeyCache.Read()),false);else if(args.Contains("--system-passkey"))SystemPasskeyProvider.Run();else Environment.ExitCode=2;}catch(Exception ex){Output("HRESULT=0x"+Marshal.GetHRForException(ex).ToString("X8")+" "+ex.Message,true);Environment.ExitCode=Marshal.GetHRForException(ex);}}
+        static void VerifyConnectedFolder(){
+            int packageLength=1024;var package=new StringBuilder(packageLength);
+            if(GetCurrentPackageFullName(ref packageLength,package)!=0||!package.ToString().StartsWith("WinUp.Passkeys_",StringComparison.Ordinal)||!package.ToString().EndsWith("__vgx8a7xnkd0yg",StringComparison.Ordinal))
+                throw new IOException("Помощник WinUp не подключён к Windows.");
+            // MSIX can expose a private HKCU view. The external location reported
+            // by Windows identifies the connected copy independently of that view.
+            int pathLength=32768;var external=new StringBuilder(pathLength);
+            int result=GetCurrentPackagePath2(5,ref pathLength,external);
+            if(result!=0||!string.Equals(Path.GetFullPath(external.ToString()).TrimEnd('\\'),Path.GetFullPath(Paths.Root).TrimEnd('\\'),StringComparison.OrdinalIgnoreCase))
+                throw new IOException("Подключение Windows относится к другой папке WinUp. Подключите эту копию заново. Код: "+result);
+        }
+        [DllImport("kernel32.dll",CharSet=CharSet.Unicode)]static extern int GetCurrentPackageFullName(ref int size,StringBuilder name);
+        [DllImport("api-ms-win-appmodel-runtime-l1-1-3.dll",CharSet=CharSet.Unicode)]static extern int GetCurrentPackagePath2(int type,ref int size,StringBuilder path);
         static void Output(string text,bool error){try{byte[] data=new UTF8Encoding(false).GetBytes(text+"\n");var stream=error?Console.OpenStandardError():Console.OpenStandardOutput();stream.Write(data,0,data.Length);stream.Flush();}catch{}}
         static void SyncCredentials(){
-            using(var registry=Microsoft.Win32.Registry.CurrentUser.OpenSubKey(@"Software\WinUp\SystemPasskeys")){
-                if(registry==null||!Proc.SameFile(registry.GetValue("Root") as string,Paths.Root))throw new IOException("Provider registration belongs to another WinUp folder");
-            }
+            VerifyConnectedFolder();
             using(var input=new MemoryStream()){
                 var buffer=new byte[4096];int count;
                 var stream=Console.OpenStandardInput();while((count=stream.Read(buffer,0,buffer.Length))!=0){if(input.Length+count>4*1024*1024)throw new IOException("Credential labels are too large");input.Write(buffer,0,count);}

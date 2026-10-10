@@ -48,6 +48,14 @@ namespace WinUp {
                 var cached=Cached();
                 CacheCheck("opening database publishes both passkeys to actual Windows cache",cached.Length==2&&cached.Any(x=>x.Id==first.Args)&&cached.Any(x=>x.Id==second.Args));
                 CacheCheck("cache contains Cyrillic labels and user identifiers",cached.Single(x=>x.Id==first.Args).Display==first.Name&&cached.Single(x=>x.Id==first.Args).UserId==first.Window);
+                var otherFolder=Path.Combine(Paths.Root,"other-copy","system-passkeys");Directory.CreateDirectory(otherFolder);
+                var otherHelper=Path.Combine(otherFolder,"WinUp.PasskeyProvider.exe");File.Copy(Path.Combine(SystemPasskeySetup.Folder,"WinUp.PasskeyProvider.exe"),otherHelper,true);
+                var otherInfo=new System.Diagnostics.ProcessStartInfo(otherHelper,"--system-passkey-sync"){UseShellExecute=false,CreateNoWindow=true,RedirectStandardInput=true,RedirectStandardOutput=true,RedirectStandardError=true};
+                using(var other=System.Diagnostics.Process.Start(otherInfo)){
+                    var otherOutput=other.StandardOutput.ReadToEndAsync();var otherError=other.StandardError.ReadToEndAsync();other.StandardInput.Write("[]");other.StandardInput.Close();
+                    if(!other.WaitForExit(15000)){other.Kill();throw new Exception("Unconnected helper did not finish");}
+                    CacheCheck("a helper outside the Windows external location cannot erase connected passkeys",other.ExitCode!=0&&Cached().Length==2);
+                }
                 using(var registration=Microsoft.Win32.Registry.CurrentUser.OpenSubKey(@"Software\WinUp\SystemPasskeys",true)){
                     registration.SetValue("Root",Paths.Root+"-other-copy");
                     try{form.RefreshSystemPasskeyCache();CacheCheck("a different WinUp folder cannot overwrite the connected provider cache",Cached().Length==2);}
