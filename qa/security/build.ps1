@@ -1,4 +1,4 @@
-param([string]$Output = 'C:\WinUp\test\audit\candidate',[string]$Source,[switch]$HostNativeReview,[switch]$HostNativeReviewOnly,[switch]$SystemProviderOnly,[switch]$SecurityReviewOnly)
+param([string]$Output = 'C:\WinUp\test\audit\candidate',[string]$Source,[switch]$HostNativeReview,[switch]$HostNativeReviewOnly,[switch]$SystemProviderOnly,[switch]$SecurityReviewOnly,[switch]$PackageSecurityOnly)
 $ErrorActionPreference = 'Stop'
 $src = if($Source) { [IO.Path]::GetFullPath($Source) } else { [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..\src')) }
 New-Item -ItemType Directory -Force $Output | Out-Null
@@ -33,6 +33,11 @@ function BuildSystemProviderProbe {
     if ($LASTEXITCODE) { throw 'System provider probe build failed' }
 }
 if($SystemProviderOnly){BuildSystemProviderProbe;return}
+function BuildPackageSecurityProbe {
+    & $csc @common '/target:exe' '/main:WinUp.PackageSecurityProbe' "/out:$Output\PackageSecurityProbe.exe" @sources "$PSScriptRoot\PackageSecurityProbe.cs"
+    if($LASTEXITCODE){throw 'Package security probe build failed'}
+}
+if($PackageSecurityOnly){BuildPackageSecurityProbe;return}
 if($SecurityReviewOnly){
     & $csc @common '/target:exe' '/main:WinUp.SecurityHarness' "/out:$Output\SecurityHarness.exe" @sources "$PSScriptRoot\SecurityHarness.cs" "$PSScriptRoot\HardeningTests.cs" "$PSScriptRoot\FeatureTests.cs" "$PSScriptRoot\CorrectionsTests.cs" "$PSScriptRoot\UpdateTests.cs" "$PSScriptRoot\DeepStorageTests.cs" "$PSScriptRoot\DeepBrowserTests.cs" "$PSScriptRoot\DeepFileTests.cs" "$PSScriptRoot\DeliveryTests.cs" "$PSScriptRoot\OriginSecurityTests.cs"
     if($LASTEXITCODE){throw 'Security review build failed'}
@@ -49,6 +54,7 @@ if ($LASTEXITCODE) { throw 'Browser lab build failed' }
 if ($LASTEXITCODE) { throw 'Component runtime probe build failed' }
 & $csc @common '/target:exe' '/main:WinUp.FileWorkflowProbe' "/out:$Output\FileWorkflowProbe.exe" @sources "$PSScriptRoot\FileWorkflowProbe.cs"
 if ($LASTEXITCODE) { throw 'File workflow probe build failed' }
+BuildPackageSecurityProbe
 & $csc @common '/target:winexe' '/main:WinUp.FileWorkflowProbe' "/out:$Output\FileUiProbe.exe" @sources "$PSScriptRoot\FileWorkflowProbe.cs"
 if ($LASTEXITCODE) { throw 'File UI probe build failed' }
 & $csc @common '/target:exe' '/main:WinUp.AdvancedWorkflowProbe' "/out:$Output\AdvancedWorkflowProbe.exe" @sources "$PSScriptRoot\AdvancedWorkflowProbe.cs"

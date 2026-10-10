@@ -49,6 +49,11 @@ if($env:GITHUB_ACTIONS -eq 'true') {
     if(!$fileProbe.WaitForExit(600000)){$fileProbe.Kill();throw 'File workflows timeout'}
     $fileResult=[IO.File]::ReadAllText("$Output\file-workflows.txt")
     if($fileResult -notmatch 'RESULT passed=\d+ failed=0'){throw 'File workflows failed; nothing is ready for release'}
+    Copy-Item -LiteralPath "$Output\PackageSecurityProbe.exe" -Destination $fileLab
+    $packages=Start-Process -FilePath "$fileLab\PackageSecurityProbe.exe" -ArgumentList '--ci' -WindowStyle Hidden -PassThru -RedirectStandardOutput "$Output\package-integrity.txt" -RedirectStandardError "$Output\package-errors.txt"
+    [void]$packages.Handle
+    if(!$packages.WaitForExit(180000)){$packages.Kill();throw 'Package integrity timeout'}
+    if($packages.ExitCode -ne 0 -or [IO.File]::ReadAllText("$Output\package-integrity.txt") -notmatch 'RESULT passed=\d+ failed=0'){throw 'Package integrity check failed; nothing is ready for release'}
     Copy-Item -LiteralPath "$Output\AdvancedWorkflowProbe.exe" -Destination $fileLab
     $advanced=Start-Process -FilePath "$fileLab\AdvancedWorkflowProbe.exe" -ArgumentList '--ci' -WindowStyle Hidden -PassThru -RedirectStandardOutput "$Output\advanced-workflows.txt" -RedirectStandardError "$Output\advanced-errors.txt"
     [void]$advanced.Handle
