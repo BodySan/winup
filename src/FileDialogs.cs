@@ -6,7 +6,7 @@ using System.Linq;
 using System.Windows.Forms;
 
 namespace WinUp {
-    sealed class FileImportModeDialog:Dlg {
+    sealed class FileImportModeDialog:Dlg,IFileSecretDialog {
         readonly RadioButton move=new RadioButton{Text="Перенести: удалить исходники после проверки",AutoSize=true};
         internal bool MoveOriginals{get{return move.Checked;}}
         public FileImportModeDialog():base("Добавить в хранилище"){
@@ -14,7 +14,7 @@ namespace WinUp {
             Row("",new Label{Text="Шифрование не удаляет старые резервные копии исходников.",AutoSize=true});Buttons();Ok.Text="Добавить";
         }
     }
-    sealed class FileExportModeDialog:Dlg {
+    sealed class FileExportModeDialog:Dlg,IFileSecretDialog {
         readonly RadioButton encrypted=new RadioButton{Text="Зашифрованный пакет с отдельным паролем",AutoSize=true,Checked=true};
         internal bool Encrypted{get{return encrypted.Checked;}}
         public FileExportModeDialog():base("Выгрузить выбранное"){
@@ -64,7 +64,7 @@ namespace WinUp {
             Ok.Click+=(s,e)=>{try{p.Drive=drive.SelectedIndex==0?"":(string)drive.SelectedItem;p.ReadOnly=read.Checked;p.History=history.Checked;p.HistoryMiB=(int)mib.Value;p.HistoryKeep=(int)count.Value;p.AutoBackup=backup.Checked;p.BackupFolder=parent.Text.Trim();p.Editor=editor.Text.Trim();p.ProjectMode=project.Checked;p.ProjectIdleMinutes=(int)idle.Value;p.Validate();if(p.AutoBackup&&p.BackupFolder=="")throw new IOException("Выберите папку резерва.");}catch(Exception ex){DialogResult=DialogResult.None;MessageBox.Show(this,ex.Message,"WinUp");}};
         }
     }
-    sealed class FileHistoryDialog:Dlg {
+    sealed class FileHistoryDialog:Dlg,IFileSecretDialog {
         readonly ComboBox snapshots=new ComboBox{Width=420,DropDownStyle=ComboBoxStyle.DropDownList};
         readonly ListBox files=new ListBox{Width=500,Height=210};
         readonly TextBox destination=new TextBox{Width=360};
@@ -73,14 +73,16 @@ namespace WinUp {
         internal string Relative{get{return (string)files.SelectedItem;}}
         internal string Destination{get{return destination.Text.Trim().Replace('\\','/');}}
         public FileHistoryDialog(FileVaultClient client,ArrayList items):base("История и восстановление файлов"){
+            Grid.ColumnStyles[1].Width=500;files.HorizontalScrollbar=true;
             foreach(Dictionary<string,object> item in items.Cast<Dictionary<string,object>>().Reverse()) {
                 string id=(string)item["id"];long ms=long.Parse(id.Substring(0,13));DateTime date=new DateTime(1970,1,1,0,0,0,DateTimeKind.Utc).AddMilliseconds(ms).ToLocalTime();
                 string label=date.ToString("yyyy-MM-dd HH:mm:ss")+" · "+Convert.ToInt64(item["size"]).ToString("N0")+" Б · "+id.Substring(14,8);ids[label]=id;snapshots.Items.Add(label);
             }
             Row("Версия:",snapshots);Row("Файл:",files);Row("Сохранить в хранилище:",destination);
             Row("",new Label{Text="Восстановление создаёт новую копию. Существующие файлы не заменяются.\nУдалённые через Проводник файлы доступны в предыдущем снимке.",AutoSize=true});Buttons();Ok.Text="Восстановить";
-            snapshots.SelectedIndexChanged+=(s,e)=>{try {files.Items.Clear();var result=client.Call("history-files",Id);foreach(Dictionary<string,object> item in (ArrayList)result["items"])files.Items.Add((string)item["name"]);}catch(Exception ex){MessageBox.Show(this,ex.Message,"WinUp");}};
-            files.SelectedIndexChanged+=(s,e)=>{if(files.SelectedItem!=null){string path=(string)files.SelectedItem;string name=Path.GetFileNameWithoutExtension(path)+" — восстановлено "+DateTime.Now.ToString("yyyyMMdd-HHmmss")+Path.GetExtension(path);destination.Text=name;}};
+            snapshots.SelectedIndexChanged+=(s,e)=>{Ok.Enabled=false;destination.Clear();try {files.Items.Clear();var result=client.Call("history-files",Id);foreach(Dictionary<string,object> item in (ArrayList)result["items"])files.Items.Add((string)item["name"]);}catch(Exception ex){MessageBox.Show(this,ex.Message,"WinUp");}};
+            files.SelectedIndexChanged+=(s,e)=>{Ok.Enabled=files.SelectedItem!=null;if(files.SelectedItem!=null){string path=(string)files.SelectedItem;string name=Path.GetFileNameWithoutExtension(path)+" — восстановлено "+DateTime.Now.ToString("yyyyMMdd-HHmmss")+Path.GetExtension(path);destination.Text=name;}};
+            Ok.Enabled=false;
             if(snapshots.Items.Count>0)snapshots.SelectedIndex=0;
             Ok.Click+=(s,e)=>{if(snapshots.SelectedItem==null||files.SelectedItem==null||Destination.Length==0||Destination.Contains(":")||Destination.Split('/').Any(x=>x==".."||x=="."||x==""||x.IndexOfAny(Path.GetInvalidFileNameChars())>=0)){DialogResult=DialogResult.None;MessageBox.Show(this,"Выберите версию, файл и допустимый путь новой копии.","WinUp");}};
         }

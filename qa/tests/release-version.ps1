@@ -14,6 +14,12 @@ $normalizedDisplay=([Version]($parts -join '.')).ToString()
 if($normalizedDisplay -ne $numeric.ToString()){throw 'Product and application versions disagree.'}
 $project=[xml][IO.File]::ReadAllText((Join-Path $Source 'WinUp.csproj'))
 if($project.Project.PropertyGroup.Version -ne $version){throw 'Project version disagrees with assembly version.'}
+foreach($taskManifest in 'app.manifest','system-passkeys\Provider.manifest') {
+ $taskXml=[xml][IO.File]::ReadAllText((Join-Path $Source $taskManifest))
+ if($taskXml.assembly.assemblyIdentity.version -ne $version){throw ('Native manifest disagrees with application version: '+$taskManifest)}
+}
+$taskDesktop=[IO.File]::ReadAllText((Join-Path $Source 'desktop\index.html'))
+if(!$taskDesktop.Contains('WinUp '+$display+'<') -or [regex]::IsMatch($taskDesktop,'WinUp (?!'+[regex]::Escape($display)+'[< ])\d')){throw 'Desktop interface version disagrees with application version.'}
 $package=[xml][IO.File]::ReadAllText((Join-Path $Source 'system-passkeys\Package.appxmanifest'))
 if($package.Package.Identity.Version -ne $version){throw 'Windows package version disagrees with application version.'}
 Add-Type -AssemblyName System.IO.Compression.FileSystem

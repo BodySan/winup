@@ -75,6 +75,11 @@ namespace WinUp
         readonly Button unlockBtn = new Button { AutoSize = true, Location = new Point(20, 90) };
         readonly System.Windows.Forms.Timer lockTimer = new System.Windows.Forms.Timer { Interval = 10000 };
         bool busyLogin;
+        int appOperations;
+        bool BeginAppOperation() {
+            if(desktopExecuting)return false;
+            appOperations++;return true;
+        }
         bool cloudNoted;                   // предупреждение «папка в облаке» — раз за запуск
         // Плашка «давно не проверяли обновления» над вкладками (см. Reminder).
         readonly Panel updBanner = new Panel { Dock = DockStyle.Top, Height = 36, Visible = false, BackColor = Color.FromArgb(255, 244, 206) };
@@ -207,6 +212,7 @@ namespace WinUp
                 if (pin != null) { pin.Clear(); pin = null; }
                 SecureClip.ClearNow();
             };
+            InitializeDesktopSurface();
         }
 
         static ListView NewList(bool checks)
@@ -294,7 +300,7 @@ namespace WinUp
             instList.Columns.Add("Программа", 200); instList.Columns.Add("Описание", 330); instList.Columns.Add("Ключи тихой установки", 200);
             instList.Columns.Add("Примечание", 160); instList.Columns.Add("Файл", 200);
             var bar = Bar();
-            Btn(bar, "Установить отмеченные", (s, e) => InstallChecked());
+            Btn(bar, "Установить отмеченные", async (s, e) => await InstallChecked());
             bar.Controls.Add(silentBox);
             Btn(bar, "Отметить все / снять", (s, e) =>
             {
@@ -414,6 +420,13 @@ namespace WinUp
         // ещё до вопроса «Скопировать всю папку?», и диалог от отключённого окна мог спрятаться
         // за ним — выглядело как зависание (при убийстве приложения список не сохранялся).
         async Task AddFiles(string[] files, string defaultKind)
+        {
+            bool counted=BeginAppOperation();
+            try {await AddFilesCore(files,defaultKind);}
+            finally {if(counted)appOperations--;}
+        }
+
+        async Task AddFilesCore(string[] files, string defaultKind)
         {
             var plan = new List<CopyItem>();
             try
@@ -738,7 +751,7 @@ namespace WinUp
         }
 
         bool installAuthorizing;
-        async void InstallChecked()
+        async Task InstallChecked()
         {
             if(installAuthorizing)return;
             var sel = instList.CheckedItems.Cast<ListViewItem>().Select(i => (AppItem)i.Tag).ToList();
@@ -817,9 +830,10 @@ namespace WinUp
         }
 
         // winget ещё нет на ПК (чистая Windows 10, LTSC) — предлагаем «Установщик приложений».
-        bool WgAvailable()
+        bool WgAvailable(bool checkVersion=true)
         {
-            if (Winget.Version() != null) return true;
+            if (checkVersion&&Winget.Version() != null) return true;
+            SetStatus("Каталог winget недоступен: установите или обновите «Установщик приложений» (App Installer).");
             if (MessageBox.Show(this, "Каталог winget недоступен: на этом ПК нет «Установщика приложений» (App Installer) или он устарел.\n\n" +
                     "Открыть официальную страницу загрузки?", "WinUp", MessageBoxButtons.YesNo, MessageBoxIcon.Information) == DialogResult.Yes)
                 try { Process.Start(new ProcessStartInfo(Winget.GetUrl) { UseShellExecute = true }); } catch { }
@@ -836,12 +850,24 @@ namespace WinUp
             SetStatus(what + "...");
             try
             {
-                if (!await Task.Run(() => Winget.Version() != null) && !WgAvailable()) return null;
+                if (!await Task.Run(() => Winget.Version() != null) && !WgAvailable(false)) return null;
                 var r = await Task.Run(() => Winget.Run(args, CancellationToken.None));
-                if (r.StartError != null) { SetStatus("winget не запустился: " + r.StartError); return null; }
+                if(!WgResultAvailable(r,what,args.StartsWith("upgrade ",StringComparison.Ordinal)))return null;
                 return r;
             }
             finally { wgBusy = false; foreach (var b in wgButtons) b.Enabled = true; UseWaitCursor = false; }
+        }
+
+        bool WgResultAvailable(Winget.Result result,string what,bool upgrades=false)
+        {
+            if(result==null)return false;
+            if(result.StartError!=null){SetStatus("winget не запустился: "+result.StartError);return false;}
+            if(result.Cancelled){SetStatus(what+": запрос отменён.");return false;}
+            uint code=unchecked((uint)result.ExitCode);
+            if(code==0||code==0x8A150014||upgrades&&code==0x8A15002B)return true;
+            string detail=string.Join(" ",(result.Output??"").Split('\n').Select(Winget.Clean).Where(line=>line.Length>0).ToArray());
+            string message=what+": ошибка winget 0x"+code.ToString("X8")+(detail.Length==0?"":" — "+detail);
+            SetStatus(message);PwLog(message);return false;
         }
 
         async Task WgSearch()
@@ -877,7 +903,13 @@ namespace WinUp
                 return;
             }
             var r = await WgQuery(Winget.ListArgs(), "Проверяю, что из набора уже установлено");
-            var installed = r == null ? new List<WingetRow>() : Winget.ParseTables(r.Output);
+            WgApplySetResult(r);
+        }
+
+        bool WgApplySetResult(Winget.Result r)
+        {
+            if(!WgResultAvailable(r,"Проверка установленного набора"))return false;
+            var installed = Winget.ParseTables(r.Output);
             var rows = store.Winget.Select(w =>
             {
                 var have = installed.FirstOrDefault(x => string.Equals(x.Id, w.Id, StringComparison.OrdinalIgnoreCase));
@@ -888,6 +920,7 @@ namespace WinUp
             int missing = rows.Count(x => string.IsNullOrEmpty(x.Version));
             SetStatus("Мой набор: " + rows.Count + ", не установлено: " + missing + "." +
                       (missing > 0 ? " Отмечены неустановленные — нажмите «Установить отмеченные»." : " Всё из набора уже установлено."));
+            return true;
         }
 
         void WgAddToSet()
@@ -1291,6 +1324,13 @@ namespace WinUp
         // Копирование найденных файлов в apps\ и добавление в список (оригиналы не трогаются).
         async Task<int> ImportFound(List<FoundFile> list)
         {
+            bool counted=BeginAppOperation();
+            try {return await ImportFoundCore(list);}
+            finally {if(counted)appOperations--;}
+        }
+
+        async Task<int> ImportFoundCore(List<FoundFile> list)
+        {
             int added = 0, i = 0;
             UseWaitCursor = true;
             try
@@ -1394,6 +1434,7 @@ namespace WinUp
                         var name = Path.GetFileName(f);
                         var ext = Path.GetExtension(f).ToLowerInvariant();
                         if (ext == ".tmp" || ext == ".bak" || name.StartsWith("export-", StringComparison.OrdinalIgnoreCase)) continue;
+                        if(f.StartsWith(Path.Combine(Paths.Data,"webview-profile")+"\\",StringComparison.OrdinalIgnoreCase))continue;
                         if (f.StartsWith(coreDir, StringComparison.OrdinalIgnoreCase) && name.StartsWith(CoreLoader.FileName, StringComparison.OrdinalIgnoreCase)) continue;
                         var rel = prefix + f.Substring(dir.Length).TrimStart('\\').Replace('\\', '/');
                         zip.CreateEntryFromFile(f, rel, System.IO.Compression.CompressionLevel.Fastest);
@@ -1516,6 +1557,13 @@ namespace WinUp
         static readonly string[] ScanExt = { ".exe", ".msi", ".ps1", ".cmd", ".bat" };
 
         async Task ScanNew(bool auto)
+        {
+            bool counted=BeginAppOperation();
+            try {await ScanNewCore(auto);}
+            finally {if(counted)appOperations--;}
+        }
+
+        async Task ScanNewCore(bool auto)
         {
             if (!Directory.Exists(Paths.Apps)) { if (!auto) MessageBox.Show(this, "Папки нет: " + Paths.Apps, "WinUp"); return; }
             List<AppItem> found;
@@ -1796,13 +1844,9 @@ namespace WinUp
         {LockVaultCore(false);}
         void LockVaultCore(bool keepProject)
         {
+            DesktopPost(new { type = "purge" });
             lockGen++;
             browserLogins.Clear();
-            if(!keepProject) {
-                CloseFileSecretDialogs();
-                if(fileBusy) {fileLockRequested=true;if(fileCancellation!=null)fileCancellation.Cancel();fileState.Text="База паролей заблокирована. Завершаю отмену операции с файлами.";}
-                else if(!TryCloseFileVault())fileState.Text="База паролей закрыта. Файловый диск остаётся открытым: завершите работу в редакторе и закройте хранилище.";
-            }
             passkeyList.Items.Clear();
             // Порядок важен (ревью R-3/R-4): сначала прекращается ввод и закрываются окна
             // с секретами (их обработчики ещё видят живые данные), только затем затирание.
@@ -1825,6 +1869,13 @@ namespace WinUp
             Secure.ScrubHeap();
             lockedAt = DateTime.UtcNow;
             ShowLocked();
+            // Closing a mounted disk can wait for files or show a progress window.
+            // Passwords must already be locked throughout that operation.
+            if(!keepProject) {
+                CloseFileSecretDialogs();
+                if(fileBusy) {fileLockRequested=true;if(fileCancellation!=null)fileCancellation.Cancel();fileState.Text="База паролей заблокирована. Завершаю отмену операции с файлами.";}
+                else if(!TryCloseFileVault())fileState.Text="База паролей закрыта. Файловый диск остаётся открытым: завершите работу в редакторе и закройте хранилище.";
+            }
         }
 
         void Unlock()
@@ -2620,10 +2671,10 @@ namespace WinUp
             var e = SelectedEntry();
             if (e == null || busyLogin) return;
             busyLogin = true;
-            loginCts = new CancellationTokenSource();
-            try { await Login(e, loginCts.Token); }
+            var cancellation = new CancellationTokenSource();loginCts=cancellation;
+            try { await Login(e, cancellation.Token); }
             catch (Exception ex) { PwLog(e.Name + ": ошибка — " + ex.Message); }
-            finally { busyLogin = false; loginCts = null; SetStatus(""); }
+            finally { busyLogin = false; loginCts = null; cancellation.Dispose();SetStatus(""); }
         }
 
         async Task LoginChecked()
@@ -2632,8 +2683,8 @@ namespace WinUp
             if (list.Count == 0) { PwLog("Отметьте галочками записи, в которые нужно войти."); return; }
             if (busyLogin) return;
             busyLogin = true;
-            loginCts = new CancellationTokenSource();
-            var ct = loginCts.Token;
+            var cancellation = new CancellationTokenSource();loginCts=cancellation;
+            var ct = cancellation.Token;int processed=0;
             try
             {
                 for (int i = 0; i < list.Count; i++)
@@ -2642,11 +2693,15 @@ namespace WinUp
                     PwLog("—— " + (i + 1) + " из " + list.Count + ": " + list[i].Name);
                     try { await Login(list[i], ct, false); }
                     catch (Exception ex) { PwLog(list[i].Name + ": ошибка — " + ex.Message); }
-                    if (i + 1 < list.Count) await Task.Delay(1500);
+                    processed++;
+                    if (i + 1 < list.Count) {
+                        try {await Task.Delay(1500,ct);}
+                        catch(OperationCanceledException){PwLog("Ввод остановлен: база заблокирована.");break;}
+                    }
                 }
-                PwLog("Готово: обработано записей — " + list.Count + ".");
+                PwLog((ct.IsCancellationRequested?"Остановлено: ":"Готово: ")+"обработано записей — " + processed + " из "+list.Count+".");
             }
-            finally { busyLogin = false; loginCts = null; SetStatus(""); }
+            finally { busyLogin = false; loginCts = null; cancellation.Dispose();SetStatus(""); }
         }
 
         bool StartTarget(LoginEntry e)

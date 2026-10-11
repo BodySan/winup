@@ -14,6 +14,13 @@ foreach ($file in Get-ChildItem "$src\browser" -File) {
   if ($file.Extension -in '.json','.js','.html','.png' -or $file.Name -eq 'winup-firefox.xpi') { $common += "/resource:$($file.FullName),browser/$($file.Name)" }
 }
 $sources = @((Get-ChildItem $src -Filter '*.cs').FullName) + "$src\Properties\AssemblyInfo.cs"
+$desktopRoot=Join-Path $PSScriptRoot '..\..\dependencies\webview2'
+foreach($name in 'Microsoft.Web.WebView2.Core.dll','Microsoft.Web.WebView2.WinForms.dll') {
+    $common += "/r:$desktopRoot\lib\net462\$name", "/resource:$desktopRoot\lib\net462\$name,desktop-deps/$name"
+}
+$common += "/resource:$desktopRoot\runtimes\win-x64\native\WebView2Loader.dll,desktop-deps/WebView2Loader.dll"
+foreach($file in Get-ChildItem "$src\desktop" -File){$common += "/resource:$($file.FullName),desktop/$($file.Name)"}
+$common += "/win32icon:$src\desktop\icon.ico"
 $common += "/resource:$src\file-engine\file-engine.zip,file-engine.zip", "/resource:$src\file-engine\file-engine.json,file-engine.json"
 $common += "/resource:$src\file-engine\winfsp.msi,winfsp.msi"
 foreach ($module in 'WinUp.PasskeyEngine','BouncyCastle.Cryptography','CBOR','Numbers') { $common += "/resource:$src\lib\$module.dll,$module.dll" }

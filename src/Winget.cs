@@ -198,6 +198,8 @@ namespace WinUp
     // (один UAC на пачку), «Прервать текущую», закрытие окна отменяет остаток очереди.
     class WingetForm : Form
     {
+        protected override void OnLoad(EventArgs e){Appearance.Apply(this);base.OnLoad(e);}
+
         readonly List<string> ids;
         readonly string action;   // "install" | "upgrade"
         readonly bool silent;

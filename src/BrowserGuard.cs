@@ -361,6 +361,8 @@ namespace WinUp
     // Если вставляли не вы — «Заблокировать базу». Повторные выдачи обновляют то же окно.
     class FillToast : Form
     {
+        protected override void OnLoad(EventArgs e){Appearance.Apply(this);base.OnLoad(e);}
+
         static FillToast current;
         readonly Label head = new Label { AutoSize = true, Font = new Font("Segoe UI", 9.5f, FontStyle.Bold) };
         readonly Label body = new Label { AutoSize = true, MaximumSize = new Size(330, 0), Margin = new Padding(0, 4, 0, 0) };

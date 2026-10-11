@@ -1,4 +1,4 @@
-param([string]$Output=(Join-Path $PSScriptRoot '..\WinUp.exe'),[string]$Source)
+param([string]$Output=(Join-Path $PSScriptRoot '..\WinUp.exe'),[string]$Source,[string]$ExtraSource,[string]$EntryPoint)
 $ErrorActionPreference='Stop'
 New-Item -ItemType Directory -Force ([IO.Path]::GetDirectoryName([IO.Path]::GetFullPath($Output))) | Out-Null
 $src=if($Source) { [IO.Path]::GetFullPath($Source) } else { $PSScriptRoot }
@@ -15,8 +15,17 @@ foreach($file in Get-ChildItem "$src\browser" -File | Where-Object { $_.Extensio
 foreach($name in 'file-engine.zip','file-engine.json','winfsp.msi') { $args += "/resource:$src\file-engine\$name,$name" }
 foreach($file in Get-ChildItem "$src\licenses" -File) { $args += "/resource:$($file.FullName),licenses/$($file.Name)" }
 foreach($name in 'WinUp.Passkeys.msix','WinUp.Passkeys.cer','package.json','Logo.png','setup.ps1','WinUp.PasskeyProvider.exe'){$args += "/resource:$src\system-passkeys\$name,system-passkeys/$name"}
+$desktopLib=Join-Path $PSScriptRoot '..\dependencies\webview2\lib\net462'
+$args += "/r:$desktopLib\Microsoft.Web.WebView2.Core.dll","/r:$desktopLib\Microsoft.Web.WebView2.WinForms.dll"
+foreach($name in 'Microsoft.Web.WebView2.Core.dll','Microsoft.Web.WebView2.WinForms.dll'){$args += "/resource:$desktopLib\$name,desktop-deps/$name"}
+$desktopNative=Join-Path $PSScriptRoot '..\dependencies\webview2\runtimes\win-x64\native\WebView2Loader.dll'
+$args += "/resource:$desktopNative,desktop-deps/WebView2Loader.dll"
+foreach($file in Get-ChildItem "$src\desktop" -File){$args += "/resource:$($file.FullName),desktop/$($file.Name)"}
+$args += "/win32icon:$src\desktop\icon.ico"
 $args += (Get-ChildItem $src -Filter '*.cs').FullName
 $args += "$src\Properties\AssemblyInfo.cs"
+if($ExtraSource){$args += [IO.Path]::GetFullPath($ExtraSource)}
+if($EntryPoint){$args += "/main:$EntryPoint"}
 & $csc @args
 if($LASTEXITCODE) { throw 'WinUp build failed' }
 Write-Output "Built: $Output"

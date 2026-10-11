@@ -40,6 +40,11 @@ namespace WinUp {
             }
             return fileVault!=null && fileVault.Open;
         }
+        bool CurrentFileVault(FileVaultClient client) {
+            if(client!=null&&client==fileVault&&client.Open)return true;
+            fileState.Text="Хранилище закрыто или изменилось. Откройте его и повторите действие.";
+            return false;
+        }
         void EncryptExistingFile() {
             if(fileBusy) return;
             using(var picker=new OpenFileDialog {Title="Выберите существующий файл для шифрования",Multiselect=true})
@@ -64,7 +69,7 @@ namespace WinUp {
             bar.Controls.Add(FeatureButton("Выгрузить…",ExportFileSelection));
             bar.Controls.Add(FeatureButton("История файлов…",ShowFileHistory));
             bar.Controls.Add(FeatureButton("Резерв / перенос…",BackupFileVault));
-            var more=FeatureButton("Ещё…",delegate{});var menu=new ContextMenuStrip();
+            var more=FeatureButton("Ещё…",delegate{});var menu=new ContextMenuStrip();more.ContextMenuStrip=menu;
             AddFileMenu(menu,"Снять версию сейчас",SaveFileCheckpoint);
             AddFileMenu(menu,"Удалить выбранное",DeleteFileSelection);
             AddFileMenu(menu,"Проверить резерв",VerifyFileBackup);
@@ -80,12 +85,12 @@ namespace WinUp {
             AddFileMenu(menu,"Обновить список",RefreshFileItems);
             more.Click+=(s,e)=>menu.Show(more,new Point(0,more.Height));bar.Controls.Add(more);
             bar.Controls.Add(FeatureButton("Новая папка",MakeFileDirectory));
-            bar.Controls.Add(FeatureButton("Назад",delegate { int i=fileDirectory.LastIndexOf('/'); fileDirectory=i<0 ? "" : fileDirectory.Substring(0,i); RefreshFileItems(); }));
+            bar.Controls.Add(FeatureButton("Назад",delegate { int i=fileDirectory.LastIndexOf('/'); RefreshFileItems(i<0 ? "" : fileDirectory.Substring(0,i)); }));
             bar.Controls.Add(FeatureButton("Отмена операции",delegate { if(fileCancellation!=null)fileCancellation.Cancel(); }));
             fileItems.DoubleClick+=(s,e)=>OpenFileItem();
             fileItems.AllowDrop=true;
-            fileItems.DragEnter+=(s,e)=> { if(!fileBusy && fileVault!=null && e.Data.GetDataPresent(DataFormats.FileDrop)) e.Effect=DragDropEffects.Copy; };
-            fileItems.DragDrop+=(s,e)=> { if(!fileBusy && fileVault!=null) ImportPaths((string[])e.Data.GetData(DataFormats.FileDrop)); };
+            fileItems.DragEnter+=(s,e)=> { if(!fileBusy && fileVault!=null && fileVault.Open && !fileVault.ReadOnly && e.Data.GetDataPresent(DataFormats.FileDrop)) e.Effect=DragDropEffects.Copy; };
+            fileItems.DragDrop+=(s,e)=> { if(!fileBusy && fileVault!=null && fileVault.Open && !fileVault.ReadOnly && e.Data.GetDataPresent(DataFormats.FileDrop)) ImportPaths((string[])e.Data.GetData(DataFormats.FileDrop)); };
             fileCatalog.SelectedIndexChanged+=(s,e)=> {
                 if(!fileCatalogReset&&fileVault!=null) {
                     string previous=fileVault.Folder;
@@ -191,31 +196,37 @@ namespace WinUp {
                 return true;
             }
             catch(Exception ex) { MessageBox.Show(this,ex is OperationCanceledException ? "Операция отменена. Уже завершённые действия сохраняются. Проверьте выбранные файлы и результат." : ex.Message,"WinUp — файлы",MessageBoxButtons.OK,MessageBoxIcon.Warning);return false; }
-            finally { fileCancellation.Dispose(); fileCancellation=null; fileBusy=false; fileState.Text=fileVault!=null && fileVault.Open ? "Открыто: /"+fileDirectory+(fileVault.MountPoint==null ? "" : " · "+fileVault.MountPoint) : "Хранилище закрыто";
+            finally { fileCancellation.Dispose(); fileCancellation=null; fileBusy=false;
+                if(fileVault!=null&&!fileVault.Open)CloseFileVault();
+                fileState.Text=fileVault!=null && fileVault.Open ? "Открыто: /"+fileDirectory+(fileVault.MountPoint==null ? "" : " · "+fileVault.MountPoint) : "Хранилище закрыто";
                 if(fileLockRequested){fileLockRequested=false;if(!IsDisposed&&IsHandleCreated)BeginInvoke((Action)CloseFileVaultSafely);}
             }
         }
-        void RefreshFileItems() {
-            var client=fileVault; if(client==null || fileBusy) return;
+        void RefreshFileItems() {RefreshFileItems(fileDirectory);}
+        bool RefreshFileItems(string directory) {
+            var client=fileVault; if(client==null || fileBusy) return false;
             Dictionary<string,object> result=null;
-            FileOperation(delegate { result=client.Call("list",fileDirectory); });
-            if(result==null || client!=fileVault) return;
-            fileItems.Items.Clear();
+            if(!FileOperation(delegate { result=client.Call("list",directory); })||result==null || client!=fileVault) return false;
+            var rows=new List<ListViewItem>();
             foreach(Dictionary<string,object> item in (ArrayList)result["items"]) {
-                bool directory=(bool)item["directory"];
-                var row=new ListViewItem(new[] { (string)item["name"],directory ? "" : Convert.ToInt64(item["size"]).ToString("N0")+" Б",directory ? "папка" : "файл" }) { Tag=directory };
-                fileItems.Items.Add(row);
+                bool isDirectory=(bool)item["directory"];
+                var row=new ListViewItem(new[] { (string)item["name"],isDirectory ? "" : Convert.ToInt64(item["size"]).ToString("N0")+" Б",isDirectory ? "папка" : "файл" }) { Tag=isDirectory };
+                rows.Add(row);
             }
+            fileItems.BeginUpdate();try{fileItems.Items.Clear();fileItems.Items.AddRange(rows.ToArray());fileDirectory=directory;}finally{fileItems.EndUpdate();}
             fileState.Text="Открыто: /"+fileDirectory+(client.MountPoint==null ? "" : " · "+client.MountPoint);
             if(client.ReadOnly)fileState.Text+=" · только чтение";
             UpdateLockUi();
+            return true;
         }
         void MakeFileDirectory() {
             if(!EnsureFileVault()) return;
             if(!BeforeFileChange())return;
+            var client=fileVault;string directory=fileDirectory;
             using(var d=new FeatureNameDialog("Новая папка","Название папки:")) {
-                if(d.ShowDialog(this)!=DialogResult.OK) return;
-                var client=fileVault; FileOperation(delegate { client.Call("mkdir",FileNameInVault(d.Value)); }); RefreshFileItems();
+                if(d.ShowDialog(this)!=DialogResult.OK||!CurrentFileVault(client)) return;
+                string path=directory.Length==0?d.Value:directory+"/"+d.Value;
+                FileOperation(delegate { client.Call("mkdir",path); }); RefreshFileItems();
             }
         }
         string FileNameInVault(string name) { return fileDirectory.Length==0 ? name : fileDirectory+"/"+name; }
@@ -229,10 +240,11 @@ namespace WinUp {
         }
         void ImportPaths(string[] sources) {
             if(fileVault==null || fileBusy || sources==null || sources.Length==0) return;
+            var client=fileVault; string directory=fileDirectory;
             bool move;
             using(var mode=new FileImportModeDialog()) {if(mode.ShowDialog(this)!=DialogResult.OK)return;move=mode.MoveOriginals;}
+            if(!CurrentFileVault(client))return;
             if(!BeforeFileChange())return;
-            var client=fileVault; string directory=fileDirectory;
             FileOperation(delegate {
                 foreach(string source in sources) {
                     if(client!=fileVault || !client.Open) throw new IOException("Операция отменена. Не перенесённые исходники сохранены.");
@@ -244,12 +256,12 @@ namespace WinUp {
         }
         void OpenFileItem() {
             if(fileVault==null || fileBusy || fileItems.SelectedItems.Count==0) return;
+            var client=fileVault;
             var item=fileItems.SelectedItems[0]; string path=FileNameInVault(item.Text);
-            if((bool)item.Tag) { fileDirectory=path; RefreshFileItems(); return; }
+            if((bool)item.Tag) { RefreshFileItems(path); return; }
             using(var d=new SaveFileDialog { FileName=item.Text,Title="Сохранить расшифрованную копию",OverwritePrompt=true }) {
-                if(d.ShowDialog(this)!=DialogResult.OK) return;
+                if(d.ShowDialog(this)!=DialogResult.OK||!CurrentFileVault(client)) return;
                 if(File.Exists(d.FileName)) { MessageBox.Show(this,"Выберите новое имя: существующие файлы не заменяются.","WinUp"); return; }
-                var client=fileVault;
                 FileOperation(delegate { SafePaths.NoReparseParents(d.FileName); client.Call("export",path,d.FileName); });
             }
         }

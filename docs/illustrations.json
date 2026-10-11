@@ -1,0 +1,215 @@
+{
+  "images": 35,
+  "files": [
+    {
+      "name": "passwords",
+      "width": 1304,
+      "height": 841,
+      "sha256": "9d8ded9d9ff280818e377cc999aaea7c3c2e8e50af81ffe5321bd7e628941da9"
+    },
+    {
+      "name": "sticky-account",
+      "width": 1304,
+      "height": 841,
+      "sha256": "d8f0ae7abb88ef9082eee3c3293f0f4df6249ff93f6e74e615f2d4a3f34bbcdf"
+    },
+    {
+      "name": "settings",
+      "width": 1304,
+      "height": 841,
+      "sha256": "23e08e4599502d1cf52bc30c1a184766cd932f19768834600290d3411023200a"
+    },
+    {
+      "name": "passwords-light",
+      "width": 1304,
+      "height": 841,
+      "sha256": "6fd2a8610de391e1d6cfa803dcfd843772310c1f8052aa9e3f358e0969b51463"
+    },
+    {
+      "name": "create-database",
+      "width": 611,
+      "height": 462,
+      "sha256": "cb95c82c1ff11df1f6064653c9da206349ac17a927675d078e776d4781e3d90e"
+    },
+    {
+      "name": "entry-template",
+      "width": 666,
+      "height": 799,
+      "sha256": "78e4c20941db78c368440d1b4d88ad54adfb71ec2aca45421b43890d4e0a6ca0"
+    },
+    {
+      "name": "entry",
+      "width": 666,
+      "height": 799,
+      "sha256": "8a4f337d14883654f7bc06d996abaa4250a0a6e62d6034bf3a8402d8170309ea"
+    },
+    {
+      "name": "entry-options",
+      "width": 666,
+      "height": 799,
+      "sha256": "5996e4b3a60369fcc849c54565fa8629b90f3bd2c82be21775b087cfe3f8b801"
+    },
+    {
+      "name": "addresses",
+      "width": 1120,
+      "height": 720,
+      "sha256": "7f3630bcf8712632d1c42346870829c3d1a6a19907d99ef52557034d1339654f"
+    },
+    {
+      "name": "import",
+      "width": 672,
+      "height": 457,
+      "sha256": "cb0898971b488c88d15777abad1af9835734da9f27e9ba6dfaf71f17d8b90de8"
+    },
+    {
+      "name": "groups",
+      "width": 740,
+      "height": 510,
+      "sha256": "03fd300d3e7dd686fea43c2a9cb9b2dac35d4db9130115a01d4b31900db2eaa8"
+    },
+    {
+      "name": "attachments",
+      "width": 740,
+      "height": 510,
+      "sha256": "00507502ba8750126d483ff26d968bc19042e02dfe713304419d7baa62ca5753"
+    },
+    {
+      "name": "generator",
+      "width": 610,
+      "height": 435,
+      "sha256": "19c60e310e9d06da294ff42f3bd8285401b786f1d8d83bc82d80a78cfc3195ff"
+    },
+    {
+      "name": "protected-fields",
+      "width": 608,
+      "height": 387,
+      "sha256": "b0ecb4078476c0d9342aa7dd57e2ad9b3e5fd9dc1ace3809b3c72724021389a0"
+    },
+    {
+      "name": "record-history",
+      "width": 690,
+      "height": 480,
+      "sha256": "ce9010b47c9f1034358b3254e01ed99806d3fa99a8bc35f42f147f511c7e8b0d"
+    },
+    {
+      "name": "password-actions",
+      "width": 1304,
+      "height": 841,
+      "sha256": "a63ecfaadd458c9b73318df02dd67b4d6c00dbb5fe26307bcddeada43f4ac7d3"
+    },
+    {
+      "name": "browser-setup",
+      "width": 766,
+      "height": 819,
+      "sha256": "677d9732cea8ee0b6ac6ff4edc3c2dffe9991cb05d5e90dc2507d8fe4c9347c5"
+    },
+    {
+      "name": "otp",
+      "width": 1304,
+      "height": 841,
+      "sha256": "6fe050c57f6ae6a286951575ba4731302efcce45e1af7f157209d65d87a7d37e"
+    },
+    {
+      "name": "otp-editor",
+      "width": 603,
+      "height": 361,
+      "sha256": "18d79391410e3f05f3795e2f784bad683a49384ef86df2def5585467dc6e514d"
+    },
+    {
+      "name": "passkeys",
+      "width": 1304,
+      "height": 841,
+      "sha256": "7ca97dc84d82ab52fa75b97ad7dc72fbb0b4daf94f5bdbc7050e4a958a2f0807"
+    },
+    {
+      "name": "passkey-create",
+      "width": 586,
+      "height": 165,
+      "sha256": "2c229cc4cfe7bcaae60fd8ad5717e943aed24a25ca0dc5783aa371f51d3a10e8"
+    },
+    {
+      "name": "files",
+      "width": 1304,
+      "height": 841,
+      "sha256": "097e1c9e8ab906958a3a5bd86334e8fa441a4477ddecde985490d26568347c3f"
+    },
+    {
+      "name": "file-import",
+      "width": 502,
+      "height": 171,
+      "sha256": "a3399afaeaed4d056c78e8056eb27b6c879654828c395380200e12cd657f2c0f"
+    },
+    {
+      "name": "files-locked",
+      "width": 1304,
+      "height": 841,
+      "sha256": "523742ca6359cd1dcdda27f83da7bc32438e406cd5b07e442ef6bb9cc8903481"
+    },
+    {
+      "name": "package-password",
+      "width": 506,
+      "height": 209,
+      "sha256": "cc2186f95c08bd681d32c26a5878c4b17ed0909f944bc205bdc20093a5cca806"
+    },
+    {
+      "name": "file-export",
+      "width": 490,
+      "height": 146,
+      "sha256": "bd46fb812123d139d578eae0788fc83e348cb6917465e90942e2393028d6850e"
+    },
+    {
+      "name": "file-settings",
+      "width": 711,
+      "height": 502,
+      "sha256": "0fe64adbd581994343b882b73ef33709ca837faa926bfea04ff28120c92388c4"
+    },
+    {
+      "name": "database-locked",
+      "width": 1304,
+      "height": 841,
+      "sha256": "60fbb299e6c1411e9c8a07fb726f3bcb6a0df9e6773bbb1d31c394ef0c4ec653"
+    },
+    {
+      "name": "run",
+      "width": 1304,
+      "height": 841,
+      "sha256": "d61ef7106387ec7db83f23fee8fff84376cef849983fed52602425d3fdd27d4d"
+    },
+    {
+      "name": "winget",
+      "width": 1304,
+      "height": 841,
+      "sha256": "c11c83e43cb1a6645b77d1d5702e1689c643830376b4623e20484c2423ee4275"
+    },
+    {
+      "name": "install",
+      "width": 1304,
+      "height": 841,
+      "sha256": "ef6e9eb309c38336786ecadb0fcb5daae3ed17315c2dd8b42175422942202cb2"
+    },
+    {
+      "name": "download",
+      "width": 1304,
+      "height": 841,
+      "sha256": "106946a42f19fd8a65df2b6342b9ea29fe7c2c0d2f7555211d2f21d9397ec84c"
+    },
+    {
+      "name": "components",
+      "width": 1160,
+      "height": 650,
+      "sha256": "d82203a124342538f40833d5ddcddd86b71a886c07f3e35adb6e6f6af43273ed"
+    },
+    {
+      "name": "export",
+      "width": 588,
+      "height": 317,
+      "sha256": "84d2f47cbc383d6f4c97e8852aa0d85963f73160b01ec4f5095855b72442786f"
+    },
+    {
+      "name": "application-actions",
+      "width": 1304,
+      "height": 841,
+      "sha256": "f456923603def026599712552cc99f5eef15e26d1cbd4a8c63bbea5ff5751b18"
+    }
+  ]
+}

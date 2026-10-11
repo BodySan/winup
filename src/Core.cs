@@ -42,11 +42,12 @@ namespace WinUp
 
         // Файлы, вшитые в exe (WinUp можно передать одним файлом): Инструкция.html и лицензия ядра THIRD-PARTY.md.
         // Файл рядом с exe главнее — его могли обновить отдельно.
-        public static readonly string[] Bundled = { "Инструкция.html", "THIRD-PARTY.md" };
+        public static readonly string[] Bundled = { "Инструкция.html", "THIRD-PARTY.md", "Microsoft.Web.WebView2.Core.dll", "Microsoft.Web.WebView2.WinForms.dll", "WebView2Loader.dll" };
         static string ResourceOf(string file) { return file == "Инструкция.html" ? "help.html" : file; }
 
         public static Stream OpenBundled(string file)
         {
+            if(DesktopDependencies.Names.Contains(file))return DesktopDependencies.Open(file);
             var p = Path.Combine(Root, file);
             if (System.IO.File.Exists(p)) return System.IO.File.OpenRead(p);
             return typeof(Paths).Assembly.GetManifestResourceStream(ResourceOf(file));

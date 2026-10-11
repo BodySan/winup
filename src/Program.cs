@@ -23,6 +23,7 @@ namespace WinUp
                 return;
             }
 
+            try{DesktopDependencies.Ensure();}catch(Exception ex){MessageBox.Show(ex.Message,"WinUp — компоненты интерфейса",MessageBoxButtons.OK,MessageBoxIcon.Error);return;}
             ComponentResources.Initialize();
 
             // Версия KeePassLib меняется между сборками WinUp (крипто-ядро обновляется
@@ -157,7 +158,7 @@ namespace WinUp
                 MessageBox.Show("Не удалось прочитать " + Paths.AppsFile + ":\n" + ex.Message, "WinUp", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return;
             }
-            Application.Run(new MainForm(store));
+            Application.Run(new MainForm(store,DesktopDependencies.OwnBrowserConnection()));
         }
 
         // Идентификатор мьютекса зависит от папки: WinUp из разных папок — это разные базы, они могут работать параллельно.

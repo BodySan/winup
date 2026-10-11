@@ -7,15 +7,20 @@
     <AssemblyName>WinUp</AssemblyName>
     <RootNamespace>WinUp</RootNamespace>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>desktop\icon.ico</ApplicationIcon>
     <PlatformTarget>AnyCPU</PlatformTarget>
     <Prefer32Bit>false</Prefer32Bit>
-    <Version>1.0.0.0</Version>
+    <Version>2.0.0.0</Version>
     <Product>WinUp</Product>
     <!-- Версия задаётся в Properties\AssemblyInfo.cs (иначе атрибуты дублируются и сборка падает). -->
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
     <GenerateTargetFrameworkAttribute>false</GenerateTargetFrameworkAttribute>
   </PropertyGroup>
   <ItemGroup>
+    <Reference Include="Microsoft.Web.WebView2.Core" HintPath="..\dependencies\webview2\lib\net462\Microsoft.Web.WebView2.Core.dll" Private="false" />
+    <Reference Include="Microsoft.Web.WebView2.WinForms" HintPath="..\dependencies\webview2\lib\net462\Microsoft.Web.WebView2.WinForms.dll" Private="false" />
+    <EmbeddedResource Include="desktop\*" LogicalName="desktop/%(Filename)%(Extension)" />
+    <EmbeddedResource Include="..\dependencies\webview2\lib\net462\Microsoft.Web.WebView2.Core.dll;..\dependencies\webview2\lib\net462\Microsoft.Web.WebView2.WinForms.dll;..\dependencies\webview2\runtimes\win-x64\native\WebView2Loader.dll" LogicalName="desktop-deps/%(Filename)%(Extension)" />
     <Compile Remove="vendor\**\*.cs;system-passkeys\*.cs" />
     <EmbeddedResource Include="updates\components.json" LogicalName="components.json" />
     <EmbeddedResource Include="updates\publisher.xml" LogicalName="component-publisher.xml" />

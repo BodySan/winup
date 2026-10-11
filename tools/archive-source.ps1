@@ -4,6 +4,15 @@ $taskRoot=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $taskSource=[IO.Path]::GetFullPath($Source)
 Add-Type -AssemblyName System.IO.Compression
 $taskItems=@()
+foreach($taskName in 'dependencies','design','docs','qa\desktop') {
+ $taskBase=Join-Path $taskRoot $taskName
+ foreach($taskFile in Get-ChildItem -LiteralPath $taskBase -File -Recurse) {
+  $taskRelative=$taskFile.FullName.Substring($taskBase.Length+1)
+  if($taskRelative -match '(^|\\)(bin|obj|\.git|node_modules)\\' -or $taskFile.Extension -in '.dpapi','.pfx','.p12','.kdbx','.keyx'){continue}
+  $taskItems+=@{path=$taskFile.FullName;name=($taskName.Replace('\','/')+'/'+$taskRelative.Replace('\','/'))}
+ }
+}
+foreach($taskName in 'build-ui.cjs','prepare-docs.cjs') {$taskItems+=@{path=(Join-Path $taskRoot $taskName);name=$taskName}}
 foreach($taskTree in @(@{root=$taskSource;prefix='src'},@{root=(Join-Path $taskRoot 'tools');prefix='tools'},@{root=(Join-Path $taskRoot 'qa\security');prefix='qa/security'},@{root=(Join-Path $taskRoot 'qa\tests');prefix='qa/tests'},@{root=(Join-Path $taskRoot 'qa\fixtures');prefix='qa/fixtures'},@{root=(Join-Path $taskRoot 'doc\shots-1.15');prefix='doc/shots-1.15'},@{root=(Join-Path $taskRoot '.github');prefix='.github'})) {
  foreach($taskFile in Get-ChildItem -LiteralPath $taskTree.root -File -Recurse) {
   $taskRelative=$taskFile.FullName.Substring($taskTree.root.Length+1)

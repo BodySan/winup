@@ -29,9 +29,12 @@ namespace WinUp
             digits.Items.AddRange(new object[] { "6", "8" });
             period.Items.AddRange(new object[] { "30", "60" });
             var adv = new FlowLayoutPanel { AutoSize = true, Margin = Padding.Empty };
+            adv.MinimumSize=new Size(0,adv.Font.Height+20);adv.FontChanged+=(s,e)=>adv.MinimumSize=new Size(0,adv.Font.Height+20);
             adv.Controls.Add(algo); adv.Controls.Add(new Label { Text = "цифр:", AutoSize = true, Margin = new Padding(6, 7, 0, 0) }); adv.Controls.Add(digits);
             adv.Controls.Add(new Label { Text = "период, с:", AutoSize = true, Margin = new Padding(6, 7, 0, 0) }); adv.Controls.Add(period);
             algo.Width = digits.Width = period.Width = 70;
+            Action fitAlgorithm=()=>algo.Width=Math.Max(70,TextRenderer.MeasureText("SHA512",algo.Font).Width+30);
+            algo.FontChanged+=(s,e)=>fitAlgorithm();fitAlgorithm();
             Row("Параметры:", adv);
             Note("Параметры почти всегда SHA1 / 6 / 30 — меняйте, только если сайт указал другие.", SystemColors.GrayText);
             Row("Код сейчас:", preview);
@@ -112,6 +115,8 @@ namespace WinUp
     // ILockableDialog: поле ввода содержит секреты из экспорта — при блокировке базы окно закрывается.
     class OtpImportDialog : Form, ILockableDialog
     {
+        protected override void OnLoad(EventArgs e){Appearance.Apply(this);base.OnLoad(e);}
+
         readonly TextBox input = new TextBox { Multiline = true, ScrollBars = ScrollBars.Vertical, Dock = DockStyle.Fill, Font = new Font("Consolas", 9f) };
         readonly ListView lv = new ListView { View = View.Details, CheckBoxes = true, FullRowSelect = true, Dock = DockStyle.Fill };
         readonly Label warn = new Label { Dock = DockStyle.Bottom, Height = 44, ForeColor = Color.DarkOrange, AutoEllipsis = true, UseMnemonic = false }; // «&» в ссылках не съедается
@@ -132,11 +137,12 @@ namespace WinUp
             Text = "Импорт кодов 2FA из другого приложения";
             Font = new Font("Segoe UI", 9f);
             Size = new Size(900, 680);
+            MinimumSize=new Size(680,500);
             StartPosition = FormStartPosition.CenterParent;
 
-            var help = new Label
+            var help = new TextBox
             {
-                Dock = DockStyle.Top, Height = 190, Padding = new Padding(6),
+                Dock = DockStyle.Top, Height = 190,Multiline=true,ReadOnly=true,ScrollBars=ScrollBars.Vertical,
                 Text =
                 "Google Authenticator: меню → «Перенос аккаунтов» → «Экспорт» → выберите аккаунты → появится QR-код.\n" +
                 "    Считайте QR офлайн на своём устройстве: нужна ссылка otpauth-migration://...\n" +
@@ -147,6 +153,7 @@ namespace WinUp
                 "Если ваше приложение не экспортирует секреты, заново подключите 2FA для нужных аккаунтов на самих сайтах.\n\n" +
                 "Файлы экспорта содержат секреты открытым текстом — удалите их с телефона и компьютера после импорта."
             };
+            help.Text=help.Text.Replace("\n","\r\n");
             var top = new Panel { Dock = DockStyle.Top, Height = 130, Padding = new Padding(6) };
             var inBar = new FlowLayoutPanel { Dock = DockStyle.Right, Width = 170, FlowDirection = FlowDirection.TopDown };
             var open = new Button { Text = "Открыть файл...", AutoSize = true };
