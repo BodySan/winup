@@ -338,13 +338,14 @@ namespace WinUp {
             var preferences=new FileVaultPreferences{Drive="R:\\",HistoryMiB=16,HistoryKeep=3};preferences.Save(folder);
             // Opening a vault is a user action after the form has been shown.
             // Exercise that lifecycle with a running Windows message loop.
-            form.Shown+=(s,e)=>{
+            form.Shown+=async(s,e)=>{
                 Console.WriteLine("UI shown");
+                if(layout)typeof(MainForm).GetMethod("DesktopFallback",flags).Invoke(form,new object[]{"Учебная проверка обычного интерфейса"});
                 typeof(MainForm).GetField("vault",flags).SetValue(form,vault);typeof(MainForm).GetMethod("ShowOpen",flags).Invoke(form,null);
                 Console.WriteLine("UI credentials opened");
                 typeof(MainForm).GetMethod("RememberFileVault",flags).Invoke(form,new object[]{folder});typeof(MainForm).GetField("fileVault",flags).SetValue(form,client);
                 typeof(MainForm).GetField("filePreferences",flags).SetValue(form,preferences);
-                typeof(MainForm).GetMethod("RefreshFileItems",flags).Invoke(form,null);
+                await (System.Threading.Tasks.Task)typeof(MainForm).GetMethod("RefreshFileItems",flags,null,Type.EmptyTypes,null).Invoke(form,null);
                 Console.WriteLine("UI files listed");
                 if(layout){var timer=new System.Windows.Forms.Timer{Interval=200};timer.Tick+=(a,b)=>{timer.Stop();try{CheckActionLayout(form);form.Close();}catch(Exception error){Console.WriteLine("FAIL layout "+error);Environment.Exit(1);}finally{timer.Dispose();}};timer.Start();}
             };
