@@ -269,6 +269,17 @@ namespace WinUp {
                 if(Environment.GetCommandLineArgs().Contains("--otp-only")){await QaRepeatedOtp();return;}
                 string snap=desktopJson.Serialize(DesktopSnapshot());File.WriteAllText(Path.Combine(Paths.Root,"snapshot.json"),snap);
                 QaCheck("Snapshot excludes secret material",!snap.Contains("QA-secret")&&!snap.Contains("JBSWY3D")&&!snap.Contains("WinUp-QA-Only"));
+                var referenceEntry=vault.Entries.First(e=>e.Kind!="passkey");string oldLogin=referenceEntry.Login,oldLogin2=referenceEntry.Login2;
+                try {
+                    referenceEntry.Login="{REF:U@I:ffffffffffffffffffffffffffffffff}";referenceEntry.Login2="valid-secondary@example.invalid";
+                    var referenceSnapshot=desktopJson.Deserialize<Dictionary<string,object>>(desktopJson.Serialize(DesktopSnapshot()));
+                    var referenceRow=((System.Collections.IEnumerable)referenceSnapshot["accounts"]).Cast<Dictionary<string,object>>().First(a=>(string)a["id"]==referenceEntry.Id);
+                    QaCheck("Missing primary reference does not break snapshot or valid secondary login",((string)referenceRow["login"]).Contains("недоступен")&&(string)referenceRow["extraLogin"]==referenceEntry.Login2);
+                    referenceEntry.Login=oldLogin;referenceEntry.Login2="{REF:U@I:ffffffffffffffffffffffffffffffff}";
+                    referenceSnapshot=desktopJson.Deserialize<Dictionary<string,object>>(desktopJson.Serialize(DesktopSnapshot()));
+                    referenceRow=((System.Collections.IEnumerable)referenceSnapshot["accounts"]).Cast<Dictionary<string,object>>().First(a=>(string)a["id"]==referenceEntry.Id);
+                    QaCheck("Missing secondary reference does not break snapshot or valid primary login",(string)referenceRow["login"]==oldLogin&&((string)referenceRow["extraLogin"]).Contains("недоступен"));
+                } finally {referenceEntry.Login=oldLogin;referenceEntry.Login2=oldLogin2;}
                 QaCheck("Native commands are complete",desktopActions.Values.Count(a=>a.Section=="Файлы")>=28&&desktopActions.Values.Count(a=>a.Section=="Пароли")>=25);
                 var mapping=(object[])await QaScript("Object.entries(direct).filter(([key,[title,section]])=>!nativeActions(section).some(a=>normal(a.title)===normal(title))).map(([key,[title,section]])=>({key,title,section}))");File.WriteAllText(Path.Combine(Paths.Root,"missing-commands.json"),desktopJson.Serialize(mapping));QaCheck("All primary commands resolve",mapping.Length==0);
                 var actionMissing=(object[])await QaScript("(()=>{let bad=[];for(const s of Object.keys(sections)){navigate(s);for(const e of document.querySelectorAll('[data-action]'))if(!A[e.dataset.action])bad.push({section:s,action:e.dataset.action});}navigate('passwords');return bad;})()");File.WriteAllText(Path.Combine(Paths.Root,"missing-actions.json"),desktopJson.Serialize(actionMissing));QaCheck("All rendered buttons have handlers",actionMissing.Length==0);
