@@ -29,7 +29,7 @@ namespace WinUp {
                 client.UnmountSafely();client.Call("snapshot",((long)filePreferences.HistoryMiB*1024*1024).ToString(),filePreferences.HistoryKeep.ToString());
             });if(result)fileHistoryAt=DateTime.UtcNow;return result;
         }
-        bool BeforeFileChange(){if(fileVault.ReadOnly){MessageBox.Show(this,"Хранилище открыто только для чтения. Измените настройку и откройте его заново.","WinUp");return false;}return Checkpoint(false);}
+        bool BeforeFileChange(){if(!CurrentFileVault(fileVault)||fileBusy)return false;if(fileVault.ReadOnly){MessageBox.Show(this,"Хранилище открыто только для чтения. Измените настройку и откройте его заново.","WinUp");return false;}return Checkpoint(false);}
         void SaveFileCheckpoint(){if(EnsureFileVault()&&Checkpoint(true)){RefreshFileItems();MessageBox.Show(this,"Версия сохранена. Диск отключён; для продолжения работы нажмите «В Проводнике».","WinUp");}}
         void PackExternal(bool folder) {
             if(fileBusy)return;string[] sources;
@@ -72,25 +72,26 @@ namespace WinUp {
         }
         void ExportFileSelection() {
             if(!EnsureFileVault()||fileItems.SelectedItems.Count==0){MessageBox.Show(this,"Выберите файлы или папки в списке.","WinUp");return;}
-            if(fileVault.MountPoint==null){MountFileVault();if(fileVault.MountPoint==null)return;}
-            var sources=fileItems.SelectedItems.Cast<ListViewItem>().Select(x=>SafePaths.Child(fileVault.MountPoint,FileNameInVault(x.Text))).ToArray();
-            var client=fileVault;var zones=new Dictionary<string,string>(StringComparer.OrdinalIgnoreCase);
+            var client=fileVault;
+            if(client.MountPoint==null){MountFileVault();if(!CurrentFileVault(client)||client.MountPoint==null)return;}
+            var sources=fileItems.SelectedItems.Cast<ListViewItem>().Select(x=>SafePaths.Child(client.MountPoint,FileNameInVault(x.Text))).ToArray();
+            var zones=new Dictionary<string,string>(StringComparer.OrdinalIgnoreCase);
             string[] selectedPaths=fileItems.SelectedItems.Cast<ListViewItem>().Select(x=>FileNameInVault(x.Text)).ToArray();
-            if(!FileOperation(delegate{foreach(string selected in selectedPaths){var reply=client.Call("zones",selected);foreach(var pair in (Dictionary<string,object>)reply["zones"])zones[SafePaths.Child(client.MountPoint,pair.Key)]=(string)pair.Value;}}))return;
+            if(!FileOperation(delegate{foreach(string selected in selectedPaths){var reply=client.Call("zones",selected);foreach(var pair in (Dictionary<string,object>)reply["zones"])zones[SafePaths.Child(client.MountPoint,pair.Key)]=(string)pair.Value;}})||!CurrentFileVault(client))return;
             Func<string,string> zoneLookup=delegate(string path){string value;return zones.TryGetValue(path,out value)?value:null;};
             using(var mode=new FileExportModeDialog()) {
-                if(mode.ShowDialog(this)!=DialogResult.OK)return;
+                if(mode.ShowDialog(this)!=DialogResult.OK||!CurrentFileVault(client))return;
                 if(mode.Encrypted) {
                     using(var output=new SaveFileDialog{Filter="Зашифрованный пакет tar.age|*.age",DefaultExt="age",FileName="Пакет.tar.age"}) {
-                        if(output.ShowDialog(this)!=DialogResult.OK)return;
+                        if(output.ShowDialog(this)!=DialogResult.OK||!CurrentFileVault(client))return;
                         using(var password=new FilePackagePasswordDialog(true,false)) {
-                            if(password.ShowDialog(this)!=DialogResult.OK)return;string pw=password.Password;
+                            if(password.ShowDialog(this)!=DialogResult.OK||!CurrentFileVault(client))return;string pw=password.Password;
                             string package=FilePackages.PackageOutputName(output.FileName);
                             try{if(FileOperation(delegate{FilePackages.Pack(sources,package,pw,false,fileCancellation.Token,zoneLookup);},false))MessageBox.Show(this,"Выбранные данные выгружены в отдельный проверенный пакет. Остальное хранилище в него не попало."+FileInteroperability.WritePackageMemo(package),"WinUp");}finally{Secure.Wipe(pw);}
                         }
                     }
                 }else using(var folder=new FolderBrowserDialog{Description="Куда выгрузить обычные незашифрованные копии"}){
-                    if(folder.ShowDialog(this)!=DialogResult.OK)return;
+                    if(folder.ShowDialog(this)!=DialogResult.OK||!CurrentFileVault(client))return;
                     if(FileOperation(delegate{foreach(string src in sources)PlainFileCopy.Copy(src,Path.Combine(folder.SelectedPath,Path.GetFileName(src)),fileCancellation.Token,zoneLookup);},false))MessageBox.Show(this,"Обычные копии сохранены. В выбранной папке они доступны без пароля.","WinUp");
                 }
             }
@@ -114,23 +115,25 @@ namespace WinUp {
         }
         void DeleteFileSelection() {
             if(!EnsureFileVault()||fileItems.SelectedItems.Count==0)return;
+            var client=fileVault;
             if(MessageBox.Show(this,"Удалить выбранные данные? При включённой истории перед удалением будет сохранена версия.","WinUp",MessageBoxButtons.YesNo)!=DialogResult.Yes)return;
+            if(!CurrentFileVault(client))return;
             string[] paths=fileItems.SelectedItems.Cast<ListViewItem>().Select(x=>FileNameInVault(x.Text)).ToArray();if(!BeforeFileChange())return;
-            var client=fileVault;FileOperation(delegate{foreach(string path in paths)client.Call("delete",path);});RefreshFileItems();
+            FileOperation(delegate{foreach(string path in paths)client.Call("delete",path);});RefreshFileItems();
         }
         void ShowFileHistory() {
             if(!EnsureFileVault())return;var client=fileVault;Dictionary<string,object> history=null;
-            if(!FileOperation(delegate{history=client.Call("history");}))return;
+            if(!FileOperation(delegate{history=client.Call("history");})||!CurrentFileVault(client))return;
             using(var dialog=new FileHistoryDialog(client,(ArrayList)history["items"])) {
-                if(dialog.ShowDialog(this)!=DialogResult.OK)return;
+                if(dialog.ShowDialog(this)!=DialogResult.OK||!CurrentFileVault(client))return;
                 if(!BeforeFileChange())return;
                 FileOperation(delegate{client.Call("history-restore",dialog.Id,dialog.Relative,dialog.Destination);});RefreshFileItems();
             }
         }
         void ConfigureFileVault(){if(fileBusy||fileCatalog.SelectedItem==null){MessageBox.Show(this,"Сначала выберите хранилище.","WinUp");return;}string folder=(string)fileCatalog.SelectedItem;
             using(var dialog=new FilePreferencesDialog(FileVaultPreferences.Load(folder))){if(dialog.ShowDialog(this)!=DialogResult.OK)return;if(!TryCloseFileVault())return;dialog.Value.Save(folder);filePreferences=dialog.Value;MessageBox.Show(this,"Настройки сохранены. Откройте хранилище заново, чтобы применить режим чтения и букву диска.","WinUp");}}
-        void CopyProjectPath(){if(!EnsureFileVault())return;if(fileVault.MountPoint==null)MountFileVault();if(fileVault.MountPoint!=null)Clipboard.SetText(fileVault.MountPoint);}
-        void OpenProjectEditor(){if(!EnsureFileVault())return;if(filePreferences.Editor==""){ConfigureFileVault();return;}if(fileVault.MountPoint==null)MountFileVault();if(fileVault.MountPoint!=null)Process.Start(new ProcessStartInfo(filePreferences.Editor,"\""+fileVault.MountPoint+"\""){UseShellExecute=false});}
+        void CopyProjectPath(){if(!EnsureFileVault())return;var client=fileVault;if(client.MountPoint==null)MountFileVault();if(CurrentFileVault(client)&&client.MountPoint!=null)Clipboard.SetText(client.MountPoint);}
+        void OpenProjectEditor(){if(!EnsureFileVault())return;if(filePreferences.Editor==""){ConfigureFileVault();return;}var client=fileVault;if(client.MountPoint==null)MountFileVault();if(CurrentFileVault(client)&&client.MountPoint!=null)Process.Start(new ProcessStartInfo(filePreferences.Editor,"\""+client.MountPoint+"\""){UseShellExecute=false});}
     }
     internal static class PlainFileCopy {
         internal static void Copy(string source,string output,CancellationToken cancel,Func<string,string> zoneLookup=null){

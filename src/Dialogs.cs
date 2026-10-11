@@ -20,6 +20,7 @@ namespace WinUp
     {
         protected readonly TableLayoutPanel Grid;
         protected readonly Button Ok, Cancel;
+        FlowLayoutPanel actionButtons;
         protected override void Dispose(bool disposing)
         {
             if (disposing && (this is ILockableDialog || this is IFileSecretDialog)) ClearInput(Controls);
@@ -55,12 +56,34 @@ namespace WinUp
         {
             Appearance.Apply(this);
             base.OnLoad(e);
+            FitToScreen();
+        }
+
+        // An enlarged Windows font/DPI must not put OK and Cancel below the screen.
+        void FitToScreen()
+        {
+            PerformLayout();
+            var area=Screen.FromControl(Owner ?? this).WorkingArea;
+            int width=Math.Max(260,area.Width-40),height=Math.Max(200,area.Height-40);
+            if(Width<=width&&Height<=height)return;
+            if(AutoSize&&Grid.Parent==this){
+                var contentSize=Grid.Size;
+                AutoSize=false;Controls.Remove(Grid);
+                if(actionButtons!=null&&actionButtons.Parent==Grid){Grid.Controls.Remove(actionButtons);actionButtons.Dock=DockStyle.Bottom;Controls.Add(actionButtons);}
+                var scroll=new Panel{Dock=DockStyle.Fill,AutoScroll=true};
+                Grid.Dock=DockStyle.Top;Grid.MinimumSize=new Size(contentSize.Width,0);
+                scroll.Controls.Add(Grid);Controls.Add(scroll);scroll.BringToFront();
+            }
+            Size=new Size(Math.Min(Width,width),Math.Min(Height,height));
+            FormBorderStyle=FormBorderStyle.Sizable;MaximizeBox=true;
+            MinimumSize=new Size(Math.Min(Width,Math.Max(MinimumSize.Width,420)),Math.Min(Height,Math.Max(MinimumSize.Height,240)));
         }
 
         public Dlg(string title)
         {
             Text = title;
             Font = new Font("Segoe UI", 9f);
+            AutoScaleDimensions = new SizeF(96f,96f); AutoScaleMode = AutoScaleMode.Dpi;
             Icon = AppIcons.Open;
             FormBorderStyle = FormBorderStyle.FixedDialog;
             MaximizeBox = MinimizeBox = false;
@@ -110,6 +133,7 @@ namespace WinUp
             p.Controls.Add(Cancel); p.Controls.Add(Ok);
             foreach (var c in extraLeft) p.Controls.Add(c);
             FullRow(p);
+            actionButtons=p;
             return p;
         }
 
@@ -400,7 +424,7 @@ namespace WinUp
             Row("", new KeyboardHint());
             Row("", show);
             show.CheckedChanged += (s, e) => { p2.UseSystemPasswordChar = p2b.UseSystemPasswordChar = !show.Checked; };
-            p2.TextChanged += (s, e) => { Color c; strength.Text = Strength.Describe(p2.Text, out c); strength.ForeColor = c; };
+            p2.TextChanged += (s, e) => { Color c; strength.Text = Strength.Describe(p2.Text, out c); strength.ForeColor = Appearance.Semantic(c); };
             strength.Text = "Надёжность: —";
             var kfCreate = new Button { Text = "Создать..." };
             kfCreate.Click += (s, e) =>
@@ -496,6 +520,8 @@ namespace WinUp
     // Окно ввода кода 2FA из телефона во время входа.
     class CodeDialog : Form, ILockableDialog
     {
+        protected override void OnLoad(EventArgs e){Appearance.Apply(this);base.OnLoad(e);}
+
         readonly TextBox box = new TextBox { Font = new Font("Consolas", 18f), TextAlign = HorizontalAlignment.Center, Width = 220 };
         readonly Label timerLabel = new Label { AutoSize = true, ForeColor = SystemColors.GrayText };
         readonly System.Windows.Forms.Timer timer = new System.Windows.Forms.Timer { Interval = 1000 };
@@ -637,7 +663,7 @@ namespace WinUp
                 }
                 Color c;
                 strength.Text = "Стойкость: " + Strength.Verdict(bits, out c) + " (≈ " + Math.Round(bits) + " бит)";
-                strength.ForeColor = c;
+                strength.ForeColor = Appearance.Semantic(c);
                 if (error != null) error.Visible = false;
             }
             catch (ArgumentException ex)
@@ -655,7 +681,7 @@ namespace WinUp
     // Галочка удаления не предлагается для папок-контейнеров (Загрузки, Рабочий стол и т.п.).
     class FolderCopyDialog : Dlg
     {
-        readonly CheckBox del = new CheckBox { AutoSize = true };
+        readonly CheckBox del = new CheckBox { AutoSize = true,MaximumSize=new Size(580,0) };
         public bool DeleteFolder { get { return del.Checked; } }
 
         public FolderCopyDialog(string exe, string folder, int others, bool allowDelete) : base("Портативная программа")
@@ -664,7 +690,7 @@ namespace WinUp
                  "Портативным программам обычно нужны свои файлы рядом — скопировать всю папку «" + folder + "» в WinUp?");
             if (allowDelete)
             {
-                del.Text = "После копирования удалить папку «" + folder + "» из исходного места (в Корзину)";
+                del.Text = "После копирования удалить эту исходную папку (в Корзину)";
                 FullRow(del);
             }
             Buttons();
@@ -693,6 +719,8 @@ namespace WinUp
     // на всё время копирования — без прогресса и отмены это выглядело как зависание).
     class CopyProgressDialog : Form
     {
+        protected override void OnLoad(EventArgs e){Appearance.Apply(this);base.OnLoad(e);}
+
         readonly Label what = new Label { Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft, Padding = new Padding(10, 0, 10, 0) };
         readonly ProgressBar bar = new ProgressBar { Dock = DockStyle.Bottom, Height = 22 };
         readonly Button cancel = new Button { Text = "Отмена", AutoSize = true };
@@ -831,6 +859,8 @@ namespace WinUp
     // Новые файлы в apps\, которых нет в списке.
     class ScanDialog : Form
     {
+        protected override void OnLoad(EventArgs e){Appearance.Apply(this);base.OnLoad(e);}
+
         readonly ListView lv = new ListView { View = View.Details, CheckBoxes = true, FullRowSelect = true, Dock = DockStyle.Fill };
         public readonly List<AppItem> ToAdd = new List<AppItem>();
         public readonly List<string> ToIgnore = new List<string>();
@@ -853,6 +883,7 @@ namespace WinUp
             var later = new Button { Text = "Позже", AutoSize = true, DialogResult = DialogResult.Cancel };
             bar.Controls.AddRange(new Control[] { add, toggle, ignore, later });
             Controls.Add(lv); Controls.Add(top); Controls.Add(bar);
+            Appearance.WrapLabel(top,48);
             CancelButton = later;
 
             add.Click += (s, e) => { ToAdd.AddRange(Checked()); DialogResult = DialogResult.OK; Close(); };
@@ -911,7 +942,7 @@ namespace WinUp
         List<LoginTemplate> templateSource;
         readonly TextBox name = new TextBox(), target = new TextBox(), args = new TextBox(), window = new TextBox(),
                          login = new TextBox(), login2 = new TextBox(), appTarget = new TextBox(), loginUrl = new TextBox(), pass = new TextBox { UseSystemPasswordChar = true },
-                         notes = new TextBox();
+                         notes = new TextBox { Multiline=true,ScrollBars=ScrollBars.Vertical,Height=72 };
         string loginProfile;
         List<LocalApplication> localApps = new List<LocalApplication>();
         readonly Label appState = new Label { AutoSize = true, MaximumSize = new Size(580, 0), ForeColor = SystemColors.GrayText };
@@ -929,7 +960,7 @@ namespace WinUp
         }
         bool committed;
         protected override void Dispose(bool disposing) { if(disposing) {recovery.Clear();if(!committed)foreach(var o in NewOtp)o.ClearSecret();} base.Dispose(disposing); }
-        readonly CheckBox enter = new CheckBox { Text = "Нажимать Enter (вход) после пароля", AutoSize = true },
+        readonly CheckBox enter = new CheckBox { Text = "Нажимать Enter после пароля", AutoSize = true },
                           show = new CheckBox { Text = "Показать", AutoSize = true };
         readonly List<OtpEntry> otps;
         // Аккаунты 2FA, созданные кнопкой «Новый...»: попадают в базу только по ОК записи (MainForm добавляет их
@@ -954,6 +985,8 @@ namespace WinUp
             e = entry; this.store = store; this.otps = otps;
             savedEntries=(passkeys??new LoginEntry[0]).Where(x=>x.Id!=entry.Id).ToList();
             AutoSize = false; ClientSize = new Size(650, Math.Min(760, Screen.FromControl(this).WorkingArea.Height - 100));
+            FormBorderStyle=FormBorderStyle.Sizable;MaximizeBox=true;MinimumSize=new Size(580,420);
+            Grid.ColumnStyles[1].SizeType=SizeType.Percent;Grid.ColumnStyles[1].Width=100;
             Controls.Remove(Grid); Grid.Dock = DockStyle.Top;
             var scroll = new Panel { AutoScroll = true, Dock = DockStyle.Fill }; scroll.Controls.Add(Grid); Controls.Add(scroll);
 
@@ -1014,7 +1047,7 @@ namespace WinUp
             Row("Ключ доступа:", passkeyBox);
             var editCodes = new Button { Text = "Изменить / показать..." };
             Row("Резервные коды:", WithButton(recoveryInfo, editCodes));
-            var extraFields=new Button{Text="Добавить / изменить защищённые поля…",AutoSize=true};
+            var extraFields=new Button{Text="Добавить / изменить…",AutoSize=true};
             extraFields.Click+=(s,a)=>{using(var fields=new SecretFieldsDialog(entry.CustomFields))fields.ShowDialog(this);};
             Row("Дополнительные поля:",extraFields);
             Row("Заметка:", notes);
@@ -1128,7 +1161,7 @@ namespace WinUp
             bool account=matches.Any(x=>new[]{x.Login,x.Login2}.Any(value=>!string.IsNullOrEmpty(value)&&(value==login.Text||value==login2.Text)));
             string accounts=string.Join("; ",matches.Take(4).Select(x=>x.Name+" · "+(string.IsNullOrEmpty(x.Login)?"без логина":x.Login)+(x.Kind=="passkey"?" (ключ доступа)":"")));
             savedHint.Text=(account?"Этот аккаунт уже сохранён. ":"Для этого сервиса уже есть записи. ")+accounts+(matches.Count>4?"; ещё "+(matches.Count-4):"")+". Существующие записи не заменяются.";
-            savedHint.ForeColor=account?Color.Firebrick:Color.DarkGoldenrod;
+            savedHint.ForeColor=Appearance.Semantic(account?Color.Firebrick:Color.DarkGoldenrod);
         }
 
         void UpdateKind()
@@ -1160,7 +1193,7 @@ namespace WinUp
             bool exists=LocalApplications.Exists(value,localApps);
             appState.Text=exists ? "Приложение найдено на этом ПК."+(LocalApplications.IsShell(value) ? " Windows запускает его по постоянному идентификатору; параметры запуска не используются." : "") :
                 (both.Checked ? "Приложение пока не найдено. Запись можно сохранить и входить на сайт. После установки WinUp повторит поиск; другой путь задайте через «Выбрать установленное…» или «Обзор…»." : "Выберите установленное приложение или файл .exe / .lnk. Запись можно сохранить до установки.");
-            appState.ForeColor=exists ? SystemColors.GrayText : Color.DarkGoldenrod;
+            appState.ForeColor=Appearance.Semantic(exists ? SystemColors.GrayText : Color.DarkGoldenrod);
         }
         void UpdateCodesInfo() { recoveryInfo.Text = recovery.Use(c => string.IsNullOrWhiteSpace(c) ? "Не добавлены" : "Сохранены в защищённом поле"); }
 

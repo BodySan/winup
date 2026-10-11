@@ -19,8 +19,9 @@ namespace WinUp
         {
             try
             {
-                using (var s = Assembly.GetExecutingAssembly().GetManifestResourceStream("browser/icon32.png"))
-                using (var src = new Bitmap(s))
+                using (var s = Assembly.GetExecutingAssembly().GetManifestResourceStream("desktop/icon.ico"))
+                using (var sourceIcon = new Icon(s, 32, 32))
+                using (var src = sourceIcon.ToBitmap())
                 using (var bmp = new Bitmap(32, 32, PixelFormat.Format32bppArgb))
                 {
                     using (var g = Graphics.FromImage(bmp))

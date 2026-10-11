@@ -177,6 +177,8 @@ namespace WinUp
 
     class InstallerSearchDialog : Form
     {
+        protected override void OnLoad(EventArgs e){Appearance.Apply(this);base.OnLoad(e);}
+
         readonly CheckedListBox places = new CheckedListBox { Dock = DockStyle.Fill, CheckOnClick = true, IntegralHeight = false };
         readonly CheckBox portable = new CheckBox { Text = "Показывать и портативные программы", AutoSize = true };
         readonly ListView lv = new ListView { View = View.Details, CheckBoxes = true, FullRowSelect = true, Dock = DockStyle.Fill };

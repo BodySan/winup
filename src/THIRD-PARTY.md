@@ -131,3 +131,11 @@
 - .NET Framework 4.x — системный компонент Windows.
 - Основной интерфейс, автоввод, буфер и импорт 2FA — код WinUp.
 - Лицензии доступны также в приложении: «О программе» → «Компоненты и лицензии».
+
+## Microsoft Edge WebView2
+
+- Компонент отображения интерфейса: Microsoft.Web.WebView2 1.0.4258.31.
+- Разработчик: Microsoft Corporation.
+- Источник: https://www.nuget.org/packages/Microsoft.Web.WebView2/1.0.4258.31
+- Условия использования SDK: файл licenses/WebView2.txt, включённый в программу.
+- Microsoft Edge WebView2 Runtime устанавливается и обновляется средствами Microsoft.

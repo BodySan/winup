@@ -294,7 +294,7 @@ namespace WinUp {
                     var operation=(System.Threading.Tasks.Task)typeof(AccountAddressDialog).GetMethod("Web",BindingFlags.NonPublic|BindingFlags.Instance).Invoke(dialog,null);
                     Check("address-web-pending-blocks-edit-and-apply",Descendants(dialog).OfType<Button>().Where(b=>b.Text=="Изменить запись…"||b.Text=="Применить отмеченные исправления").All(b=>!b.Enabled));
                     timeout=DateTime.UtcNow.AddSeconds(12);while(!operation.IsCompleted&&DateTime.UtcNow<timeout){Application.DoEvents();Thread.Sleep(20);}if(!operation.IsCompleted)throw new Exception("Address Web status timeout");operation.GetAwaiter().GetResult();
-                    Check("address-web-rejected-result-and-actions-restored",list.Items[0].SubItems[1].Text.Contains("HTTPS")&&!response.IsCompleted&&Descendants(dialog).OfType<Button>().Where(b=>b.Text=="Изменить запись…"||b.Text=="Применить отмеченные исправления").All(b=>b.Enabled));
+                    Check("address-web-rejected-result-and-actions-restored",list.Items[0].SubItems[2].Text.Contains("HTTPS")&&list.Items[0].SubItems[3].Text.Contains("HTTPS")&&!response.IsCompleted&&Descendants(dialog).OfType<Button>().Where(b=>b.Text=="Изменить запись…"||b.Text=="Применить отмеченные исправления").All(b=>b.Enabled));
                     dialog.Close();
                 }
             }finally{listener.Stop();listener.Close();}
@@ -340,11 +340,12 @@ namespace WinUp {
             // Exercise that lifecycle with a running Windows message loop.
             form.Shown+=(s,e)=>{
                 Console.WriteLine("UI shown");
+                if(layout)typeof(MainForm).GetMethod("DesktopFallback",flags).Invoke(form,new object[]{"Учебная проверка обычного интерфейса"});
                 typeof(MainForm).GetField("vault",flags).SetValue(form,vault);typeof(MainForm).GetMethod("ShowOpen",flags).Invoke(form,null);
                 Console.WriteLine("UI credentials opened");
                 typeof(MainForm).GetMethod("RememberFileVault",flags).Invoke(form,new object[]{folder});typeof(MainForm).GetField("fileVault",flags).SetValue(form,client);
                 typeof(MainForm).GetField("filePreferences",flags).SetValue(form,preferences);
-                typeof(MainForm).GetMethod("RefreshFileItems",flags).Invoke(form,null);
+                typeof(MainForm).GetMethod("RefreshFileItems",flags,null,Type.EmptyTypes,null).Invoke(form,null);
                 Console.WriteLine("UI files listed");
                 if(layout){var timer=new System.Windows.Forms.Timer{Interval=200};timer.Tick+=(a,b)=>{timer.Stop();try{CheckActionLayout(form);form.Close();}catch(Exception error){Console.WriteLine("FAIL layout "+error);Environment.Exit(1);}finally{timer.Dispose();}};timer.Start();}
             };

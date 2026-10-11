@@ -8,6 +8,7 @@ New-Item -ItemType Directory -Force $lab,$Output | Out-Null
 & "$Output\CsvExportProbe.exe" | Out-File "$Output\csv-export.txt" -Encoding UTF8
 if ($LASTEXITCODE -or [IO.File]::ReadAllText("$Output\csv-export.txt") -notmatch 'RESULT passed=\d+ failed=0') { throw 'CSV transfer export failed' }
 Copy-Item "$Output\WinUp.exe","$Output\SecurityHarness.exe","$Output\MemoryProbe.exe","$Output\SyntheticInstaller.exe" $lab
+Copy-Item -LiteralPath "$Output\Microsoft.Web.WebView2.Core.dll","$Output\Microsoft.Web.WebView2.WinForms.dll","$Output\WebView2Loader.dll" -Destination $lab
 $fixture=Join-Path $PSScriptRoot '..\fixtures\KeePass-2.61.1.zip'
 if((Get-FileHash -LiteralPath $fixture).Hash -ne '3952354DB9B117E906F7CD4F9F5591065B95186472370DA47F46F3E246FEA864') { throw 'Official KeePass test fixture digest mismatch.' }
 Copy-Item -LiteralPath $fixture -Destination "$lab\official-KeePass.zip"
@@ -34,6 +35,7 @@ if($process.ExitCode -or [IO.File]::ReadAllText("$Output\runtime.txt") -notmatch
 if($env:GITHUB_ACTIONS -eq 'true') {
     $fileLab='C:\WinUpAudit\fci-'+[Guid]::NewGuid().ToString('N').Substring(0,8)
     New-Item -ItemType Directory $fileLab|Out-Null
+    Copy-Item -LiteralPath "$Output\Microsoft.Web.WebView2.Core.dll","$Output\Microsoft.Web.WebView2.WinForms.dll","$Output\WebView2Loader.dll" -Destination $fileLab
     Copy-Item -LiteralPath "$Output\FollowupSecurityProbe.exe" -Destination $fileLab
     $followup=Start-Process -FilePath "$fileLab\FollowupSecurityProbe.exe" -ArgumentList '--ci' -WindowStyle Hidden -PassThru -RedirectStandardOutput "$Output\followup-security.txt" -RedirectStandardError "$Output\followup-errors.txt"
     [void]$followup.Handle
@@ -68,6 +70,7 @@ if($env:GITHUB_ACTIONS -eq 'true') {
     if($advanced.ExitCode -ne 0 -or [IO.File]::ReadAllText("$Output\advanced-workflows.txt") -notmatch 'RESULT passed=\d+ failed=0'){throw 'Advanced workflows failed; nothing is ready for release'}
     $layoutLab='C:\WinUpAudit\lci-'+[Guid]::NewGuid().ToString('N').Substring(0,8)
     New-Item -ItemType Directory $layoutLab|Out-Null
+    Copy-Item -LiteralPath "$Output\Microsoft.Web.WebView2.Core.dll","$Output\Microsoft.Web.WebView2.WinForms.dll","$Output\WebView2Loader.dll" -Destination $layoutLab
     Copy-Item -LiteralPath "$Output\FileWorkflowProbe.exe" -Destination $layoutLab
     $layoutProbe=Start-Process -FilePath "$layoutLab\FileWorkflowProbe.exe" -ArgumentList '--ci','--layout' -WindowStyle Hidden -PassThru -RedirectStandardOutput "$Output\layout.txt" -RedirectStandardError "$Output\layout-errors.txt"
     # Cache the process handle before waiting: Windows PowerShell may otherwise

@@ -8,7 +8,7 @@ New-Item -ItemType Directory -Force ([IO.Path]::GetDirectoryName($taskOutput))|O
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 $taskArchive=[IO.Compression.ZipFile]::OpenRead($taskOutput)
 try{
- foreach($taskName in @('src/build.ps1','src/Properties/AssemblyInfo.cs','doc/Инструкция.html','tools/verify-app.ps1')){
+ foreach($taskName in @('src/build.ps1','src/Properties/AssemblyInfo.cs','src/desktop/index.html','doc/Инструкция.html','tools/verify-app.ps1','build-ui.cjs','design/index.html','docs/manual-template.html','dependencies/webview2/lib/net462/Microsoft.Web.WebView2.Core.dll','dependencies/webview2/runtimes/win-x64/native/WebView2Loader.dll')){
   if(!$taskArchive.GetEntry($taskName)){throw "Required source archive entry missing: $taskName"}
  }
  $taskGuide=[IO.StreamReader]::new($taskArchive.GetEntry('doc/Инструкция.html').Open())

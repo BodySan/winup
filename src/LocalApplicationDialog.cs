@@ -9,12 +9,12 @@ namespace WinUp
     sealed class LocalApplicationDialog : Dlg, ILockableDialog
     {
         readonly TextBox search=new TextBox();
-        readonly ListView list=new ListView {View=View.Details,FullRowSelect=true,MultiSelect=false,HideSelection=false,Dock=DockStyle.Fill};
+        readonly ListView list=new ListView {View=View.Details,FullRowSelect=true,MultiSelect=false,HideSelection=false,ShowItemToolTips=true,Dock=DockStyle.Fill};
         readonly Label info=new Label {AutoSize=true};
         List<LocalApplication> apps=new List<LocalApplication>();
         public LocalApplication Selected {get;private set;}
         public LocalApplicationDialog(string service) : base("Выбрать установленное приложение") {
-            AutoSize=false;ClientSize=new Size(710,480);
+            AutoSize=false;ClientSize=new Size(710,480);FormBorderStyle=FormBorderStyle.Sizable;MaximizeBox=true;MinimumSize=new Size(520,340);
             Grid.Dock=DockStyle.Top;Grid.RowCount=2;
             Grid.ColumnStyles.Clear();Grid.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute,80));Grid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,100));
             Grid.Controls.Add(new Label {Text="Поиск:",AutoSize=true,Anchor=AnchorStyles.Left,Margin=new Padding(3,7,8,3)},0,0);

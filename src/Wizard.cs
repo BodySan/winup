@@ -111,6 +111,8 @@ namespace WinUp
     // Мастер первого запуска: приветствие → найти установщики → база паролей → где что находится.
     class WizardForm : Form
     {
+        protected override void OnLoad(EventArgs e){Appearance.Apply(this);base.OnLoad(e);}
+
         readonly Label title = new Label { Dock = DockStyle.Top, Height = 40, Font = new Font("Segoe UI", 14f, FontStyle.Bold), Padding = new Padding(4, 6, 0, 0) };
         readonly Label body = new Label { Dock = DockStyle.Top, Height = 230, Font = new Font("Segoe UI", 10f), Padding = new Padding(6) };
         readonly Button action = new Button { AutoSize = true, Font = new Font("Segoe UI", 10f), Padding = new Padding(8, 4, 8, 4) };

@@ -218,8 +218,18 @@ namespace WinUp
     static class SecureClip
     {
         static readonly SecretText last = new SecretText();
+        static uint copiedSequence;
         static System.Windows.Forms.Timer timer;  // автоочистка через N секунд после Copy
         static System.Windows.Forms.Timer retry;  // повтор очистки, если буфер занят другой программой
+        [DllImport("user32.dll")] static extern bool OpenClipboard(IntPtr window);
+        [DllImport("user32.dll")] static extern bool CloseClipboard();
+        [DllImport("user32.dll")] static extern bool EmptyClipboard();
+        [DllImport("user32.dll")] static extern bool IsClipboardFormatAvailable(uint format);
+        [DllImport("user32.dll")] static extern IntPtr GetClipboardData(uint format);
+        [DllImport("user32.dll")] static extern uint GetClipboardSequenceNumber();
+        [DllImport("kernel32.dll")] static extern UIntPtr GlobalSize(IntPtr handle);
+        [DllImport("kernel32.dll")] static extern IntPtr GlobalLock(IntPtr handle);
+        [DllImport("kernel32.dll")] static extern bool GlobalUnlock(IntPtr handle);
 
         public static void Copy(string text, int seconds = 30)
         {
@@ -230,6 +240,7 @@ namespace WinUp
             d.SetData("CanUploadToCloudClipboard", new MemoryStream(BitConverter.GetBytes(0)));
             d.SetData("x-kde-passwordManagerHint", new MemoryStream(Encoding.ASCII.GetBytes("secret")));
             System.Windows.Forms.Clipboard.SetDataObject(d, true);
+            copiedSequence = GetClipboardSequenceNumber();
             // Независимая копия: строку-источник (поле записи) могут затереть при блокировке базы,
             // а сравнение для очистки буфера должно работать с настоящим содержимым.
             last.Set(text ?? "");
@@ -251,13 +262,36 @@ namespace WinUp
         {
             try
             {
-                if (last.HasValue && System.Windows.Forms.Clipboard.ContainsText())
+                if (!last.HasValue) return true;
+                if (!OpenClipboard(IntPtr.Zero)) return false;
+                try
                 {
-                    var current = System.Windows.Forms.Clipboard.GetText();
-                    try { if (last.Use(text => current == text)) System.Windows.Forms.Clipboard.Clear(); }
-                    finally { Secure.Wipe(current); }
+                    // Compare and clear under the same clipboard lock. A later copy,
+                    // even with the same text, belongs to its new writer.
+                    if (copiedSequence == 0) return false;
+                    if (GetClipboardSequenceNumber() != copiedSequence) return true;
+                    const uint unicodeText = 13;
+                    if (!IsClipboardFormatAvailable(unicodeText)) return true;
+                    IntPtr handle = GetClipboardData(unicodeText);
+                    if (handle == IntPtr.Zero) return false;
+                    ulong length = GlobalSize(handle).ToUInt64();
+                    IntPtr data = GlobalLock(handle);
+                    if (data == IntPtr.Zero) return false;
+                    bool matches;
+                    try
+                    {
+                        matches = last.Use(text =>
+                        {
+                            if (length < ((ulong)text.Length + 1) * 2) return false;
+                            for (int i = 0; i < text.Length; i++)
+                                if ((char)Marshal.ReadInt16(data, i * 2) != text[i]) return false;
+                            return Marshal.ReadInt16(data, text.Length * 2) == 0;
+                        });
+                    }
+                    finally { GlobalUnlock(handle); }
+                    return !matches || EmptyClipboard();
                 }
-                return true;
+                finally { CloseClipboard(); }
             }
             catch { return false; }
         }
@@ -266,6 +300,7 @@ namespace WinUp
         static void Done()
         {
             last.Clear();
+            copiedSequence = 0;
             if (timer != null) { timer.Stop(); timer.Dispose(); timer = null; }
             if (retry != null) { retry.Stop(); retry.Dispose(); retry = null; }
         }
@@ -301,28 +336,32 @@ namespace WinUp
         public static List<BrowserInfo> Installed()
         {
             var list = new List<BrowserInfo>();
-            var roots = new[]
-            {
-                Registry.CurrentUser.OpenSubKey(@"SOFTWARE\Clients\StartMenuInternet"),
-                Registry.LocalMachine.OpenSubKey(@"SOFTWARE\Clients\StartMenuInternet"),
-                Registry.LocalMachine.OpenSubKey(@"SOFTWARE\WOW6432Node\Clients\StartMenuInternet"),
-            };
-            foreach (var root in roots)
-            {
-                if (root == null) continue;
-                using (root)
-                    foreach (var sub in root.GetSubKeyNames())
-                        using (var k = root.OpenSubKey(sub))
-                        using (var cmd = k == null ? null : k.OpenSubKey(@"shell\open\command"))
-                        {
-                            var name = (k == null ? null : k.GetValue("") as string) ?? sub;
-                            var exe = ExeFromCommand(cmd == null ? null : cmd.GetValue("") as string);
-                            if (exe == null || !File.Exists(exe)) continue;
-                            if (list.Any(b => string.Equals(b.Exe, exe, StringComparison.OrdinalIgnoreCase) || b.Name == name)) continue;
-                            list.Add(new BrowserInfo { Name = name, Exe = exe });
-                        }
-            }
+            ReadInstalled(Registry.CurrentUser,@"SOFTWARE\Clients\StartMenuInternet",list);
+            ReadInstalled(Registry.LocalMachine,@"SOFTWARE\Clients\StartMenuInternet",list);
+            ReadInstalled(Registry.LocalMachine,@"SOFTWARE\WOW6432Node\Clients\StartMenuInternet",list);
             return list.OrderBy(b => b.Name).ToList();
+        }
+
+        // An inaccessible registration must not prevent opening the account editor.
+        static void ReadInstalled(RegistryKey hive,string location,List<BrowserInfo> list)
+        {
+            try {
+                using(var root=hive.OpenSubKey(location)) {
+                    if(root==null)return;
+                    foreach(var sub in root.GetSubKeyNames()) {
+                        try {
+                            using(var key=root.OpenSubKey(sub))
+                            using(var command=key==null?null:key.OpenSubKey(@"shell\open\command")) {
+                                var name=(key==null?null:key.GetValue("") as string)??sub;
+                                var exe=ExeFromCommand(command==null?null:command.GetValue("") as string);
+                                if(exe==null||!File.Exists(exe))continue;
+                                if(list.Any(b=>string.Equals(b.Exe,exe,StringComparison.OrdinalIgnoreCase)||b.Name==name))continue;
+                                list.Add(new BrowserInfo{Name=name,Exe=exe});
+                            }
+                        }catch(System.Security.SecurityException){}catch(UnauthorizedAccessException){}catch(IOException){}
+                    }
+                }
+            }catch(System.Security.SecurityException){}catch(UnauthorizedAccessException){}catch(IOException){}
         }
 
         public static BrowserInfo Find(string name)
