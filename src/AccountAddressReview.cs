@@ -109,11 +109,11 @@ namespace WinUp {
         async Task LoadRows(Func<IEnumerable<LoginEntry>> entries){
             if(busy||!current()||IsDisposed)return;SetBusy(true);
             try{var apps=await LocalApplications.Available(true);if(IsDisposed||!current())return;loading=true;
-                var old=list.Items.Cast<ListViewItem>().Select(x=>(AddressReviewRow)x.Tag).ToDictionary(x=>x.Entry.Id);
+                var old=list.Items.Cast<ListViewItem>().Select(x=>(AddressReviewRow)x.Tag).Where(x=>!string.IsNullOrEmpty(x.Entry.Id)).ToDictionary(x=>x.Entry.Id);
                 var marked=new HashSet<string>(list.CheckedItems.Cast<ListViewItem>().Select(x=>((AddressReviewRow)x.Tag).Entry.Id));var chosen=new HashSet<string>(list.SelectedItems.Cast<ListViewItem>().Select(x=>((AddressReviewRow)x.Tag).Entry.Id));
                 list.BeginUpdate();try{list.Items.Clear();foreach(var entry in entries().Where(x=>x.Kind!="passkey")){
                     var row=AccountAddressReview.Inspect(entry,apps);AddressReviewRow previous;
-                    if(old.TryGetValue(entry.Id,out previous)){if(previous.SiteCheckedAddress==row.SiteAddress){row.SiteResult=previous.SiteResult;row.SiteCheckedAddress=previous.SiteCheckedAddress;}if(previous.LoginCheckedAddress==row.LoginAddress){row.LoginResult=previous.LoginResult;row.LoginCheckedAddress=previous.LoginCheckedAddress;}if(row.SiteResult!=null||row.LoginResult!=null)row.CheckedAt=previous.CheckedAt;}
+                    if(!string.IsNullOrEmpty(entry.Id)&&old.TryGetValue(entry.Id,out previous)){if(previous.SiteCheckedAddress==row.SiteAddress){row.SiteResult=previous.SiteResult;row.SiteCheckedAddress=previous.SiteCheckedAddress;}if(previous.LoginCheckedAddress==row.LoginAddress){row.LoginResult=previous.LoginResult;row.LoginCheckedAddress=previous.LoginCheckedAddress;}if(row.SiteResult!=null||row.LoginResult!=null)row.CheckedAt=previous.CheckedAt;}
                     var item=new ListViewItem(new[]{entry.Name,"","","",""}){Tag=row,Checked=marked.Contains(entry.Id)};PaintRow(item);list.Items.Add(item);item.Selected=chosen.Contains(entry.Id);
                 }}finally{list.EndUpdate();}
                 if(list.SelectedItems.Count==0&&list.Items.Count>0)list.Items[0].Selected=true;

@@ -294,7 +294,7 @@ namespace WinUp {
                     var operation=(System.Threading.Tasks.Task)typeof(AccountAddressDialog).GetMethod("Web",BindingFlags.NonPublic|BindingFlags.Instance).Invoke(dialog,null);
                     Check("address-web-pending-blocks-edit-and-apply",Descendants(dialog).OfType<Button>().Where(b=>b.Text=="Изменить запись…"||b.Text=="Применить отмеченные исправления").All(b=>!b.Enabled));
                     timeout=DateTime.UtcNow.AddSeconds(12);while(!operation.IsCompleted&&DateTime.UtcNow<timeout){Application.DoEvents();Thread.Sleep(20);}if(!operation.IsCompleted)throw new Exception("Address Web status timeout");operation.GetAwaiter().GetResult();
-                    Check("address-web-rejected-result-and-actions-restored",list.Items[0].SubItems[1].Text.Contains("HTTPS")&&!response.IsCompleted&&Descendants(dialog).OfType<Button>().Where(b=>b.Text=="Изменить запись…"||b.Text=="Применить отмеченные исправления").All(b=>b.Enabled));
+                    Check("address-web-rejected-result-and-actions-restored",list.Items[0].SubItems[2].Text.Contains("HTTPS")&&list.Items[0].SubItems[3].Text.Contains("HTTPS")&&!response.IsCompleted&&Descendants(dialog).OfType<Button>().Where(b=>b.Text=="Изменить запись…"||b.Text=="Применить отмеченные исправления").All(b=>b.Enabled));
                     dialog.Close();
                 }
             }finally{listener.Stop();listener.Close();}
