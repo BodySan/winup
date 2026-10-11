@@ -244,8 +244,11 @@ namespace WinUp {
         static IEnumerable<Control> ControlsIn(Control root) { foreach(Control child in root.Controls) { yield return child;foreach(var nested in ControlsIn(child))yield return nested; } }
         static void CorrectionUiButtons() {
             Ui(delegate {
+                // This sweep operates the native fallback. The HTML interface has its own desktop harness.
+                typeof(MainForm).GetMethod("DesktopFallback",Private).Invoke(form,new object[]{"Учебная проверка обычного интерфейса"});
                 NewVault(false); typeof(MainForm).GetMethod("ShowOpen",Private).Invoke(form,null);
                 var tabs=(TabControl)typeof(MainForm).GetField("tabs",Private).GetValue(form);
+                Check("native-button-sweep-uses-visible-native-interface",tabs.Visible,"native controls must be visible for PerformClick");
                 var seen=new HashSet<Form>();int managed=0,native=0; Timer cancel=new Timer { Interval=80 };
                 cancel.Tick+=delegate {
                     foreach(var dialog in Application.OpenForms.Cast<Form>().ToArray()) {

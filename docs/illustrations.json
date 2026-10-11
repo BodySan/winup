@@ -11,7 +11,7 @@
       "name": "sticky-account",
       "width": 1304,
       "height": 841,
-      "sha256": "d8f0ae7abb88ef9082eee3c3293f0f4df6249ff93f6e74e615f2d4a3f34bbcdf"
+      "sha256": "e630e633cb43841b1ccce89309ec218298795512c8672b7a3b97ca853e6338ae"
     },
     {
       "name": "settings",
@@ -77,7 +77,7 @@
       "name": "generator",
       "width": 610,
       "height": 435,
-      "sha256": "19c60e310e9d06da294ff42f3bd8285401b786f1d8d83bc82d80a78cfc3195ff"
+      "sha256": "82941aca0788b97821f983933b9229d1778c265c9761274c5a639eff077349ef"
     },
     {
       "name": "protected-fields",
@@ -107,19 +107,19 @@
       "name": "otp",
       "width": 1304,
       "height": 841,
-      "sha256": "6fe050c57f6ae6a286951575ba4731302efcce45e1af7f157209d65d87a7d37e"
+      "sha256": "cbcaf88f343ec5103009f265b3c1099cea3f9e9e4acad94d8832c7e3be0e0b05"
     },
     {
       "name": "otp-editor",
       "width": 603,
       "height": 361,
-      "sha256": "18d79391410e3f05f3795e2f784bad683a49384ef86df2def5585467dc6e514d"
+      "sha256": "aac99e318ae05bcb9a6d407962634241d7af8ddb0d6e32ee88b372050d538749"
     },
     {
       "name": "passkeys",
       "width": 1304,
       "height": 841,
-      "sha256": "7ca97dc84d82ab52fa75b97ad7dc72fbb0b4daf94f5bdbc7050e4a958a2f0807"
+      "sha256": "0560a069456598aa721de125235b825d3b5b87af92b7df95c0f1ee0a755c697a"
     },
     {
       "name": "passkey-create",
@@ -167,13 +167,13 @@
       "name": "database-locked",
       "width": 1304,
       "height": 841,
-      "sha256": "60fbb299e6c1411e9c8a07fb726f3bcb6a0df9e6773bbb1d31c394ef0c4ec653"
+      "sha256": "c8e75e7eecdc44f9a5e21f541bd26040611bf93551801a5ba3b2b697033572ee"
     },
     {
       "name": "run",
       "width": 1304,
       "height": 841,
-      "sha256": "d61ef7106387ec7db83f23fee8fff84376cef849983fed52602425d3fdd27d4d"
+      "sha256": "b79e4efb3a997ae3f65a5b4642d289d260825bdbd2ab001d9ce60ee8953da6e7"
     },
     {
       "name": "winget",
@@ -185,7 +185,7 @@
       "name": "install",
       "width": 1304,
       "height": 841,
-      "sha256": "ef6e9eb309c38336786ecadb0fcb5daae3ed17315c2dd8b42175422942202cb2"
+      "sha256": "174c9a89bc7de1e4087082a3a4af13307b70ef9a3a3adee97c05636d199672f6"
     },
     {
       "name": "download",
