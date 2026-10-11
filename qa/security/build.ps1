@@ -15,6 +15,7 @@ foreach ($file in Get-ChildItem "$src\browser" -File) {
 }
 $sources = @((Get-ChildItem $src -Filter '*.cs').FullName) + "$src\Properties\AssemblyInfo.cs"
 $desktopRoot=Join-Path $PSScriptRoot '..\..\dependencies\webview2'
+Copy-Item -LiteralPath "$desktopRoot\lib\net462\Microsoft.Web.WebView2.Core.dll","$desktopRoot\lib\net462\Microsoft.Web.WebView2.WinForms.dll","$desktopRoot\runtimes\win-x64\native\WebView2Loader.dll" -Destination $Output -Force
 foreach($name in 'Microsoft.Web.WebView2.Core.dll','Microsoft.Web.WebView2.WinForms.dll') {
     $common += "/r:$desktopRoot\lib\net462\$name", "/resource:$desktopRoot\lib\net462\$name,desktop-deps/$name"
 }
@@ -70,6 +71,7 @@ if ($LASTEXITCODE) { throw 'Production build failed' }
 & $csc @common '/target:exe' '/main:WinUp.SecurityHarness' "/out:$Output\SecurityHarness.exe" @sources "$PSScriptRoot\SecurityHarness.cs" "$PSScriptRoot\HardeningTests.cs" "$PSScriptRoot\FeatureTests.cs" "$PSScriptRoot\CorrectionsTests.cs" "$PSScriptRoot\UpdateTests.cs" "$PSScriptRoot\DeepStorageTests.cs" "$PSScriptRoot\DeepBrowserTests.cs" "$PSScriptRoot\DeepFileTests.cs" "$PSScriptRoot\DeliveryTests.cs" "$PSScriptRoot\OriginSecurityTests.cs"
 if ($LASTEXITCODE) { throw 'Harness build failed' }
 New-Item -ItemType Directory -Force "$Output\browser-lab" | Out-Null
+Copy-Item -LiteralPath "$Output\Microsoft.Web.WebView2.Core.dll","$Output\Microsoft.Web.WebView2.WinForms.dll","$Output\WebView2Loader.dll" -Destination "$Output\browser-lab" -Force
 & $csc @common '/target:winexe' '/main:WinUp.FeatureUiHarness' "/out:$Output\browser-lab\WinUp.exe" @sources "$PSScriptRoot\FeatureUiHarness.cs"
 if ($LASTEXITCODE) { throw 'Browser lab build failed' }
 & $csc @common '/target:exe' '/main:WinUp.ComponentRuntimeProbe' "/out:$Output\ComponentRuntimeProbe.exe" @sources "$PSScriptRoot\ComponentRuntimeProbe.cs"
