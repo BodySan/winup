@@ -4,7 +4,7 @@ const version=fs.readFileSync(path.join(__dirname,'src/Properties/AssemblyInfo.c
 if(!version)throw Error('Application version missing');
 fs.mkdirSync(out,{recursive:true});
 let html=fs.readFileSync(path.join(design,'index.html'),'utf8');
-html=html.replace('WinUp — интерактивный макет','WinUp').replace('Открыта · учебная копия','База закрыта').replace('Демо-профиль','На этом компьютере').replace('Макет · тестовые данные','Отдельная копия').replace('Учебные данные. Ваши базы и файлы не используются.','Данные сохраняются рядом с этой копией WinUp.').replace('WinUp 1 · дизайн-предпросмотр','WinUp 1');
+html=html.replace('WinUp — интерактивный макет','WinUp').replace('Открыта · учебная копия','База закрыта').replace('Демо-профиль','На этом компьютере').replace('Макет · тестовые данные','Отдельная копия').replace('Учебные данные. Ваши базы и файлы не используются.','Данные сохраняются рядом с этой копией WinUp.');
 html=html.replace(/<script src="(?:catalog|app|parity)\.js"><\/script>\s*/g,'');
 html=html.replace(/WinUp [0-9.]+(?: · дизайн-предпросмотр)?/g,'WinUp '+version);
 html=html.replace('</body>','<script src="app.js"></script><script src="desktop.js"></script></body>');
