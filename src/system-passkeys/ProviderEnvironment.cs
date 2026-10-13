@@ -35,7 +35,15 @@ namespace WinUp {
             }
         }
     }
-    internal static class Paths {internal static readonly string Root=Path.GetDirectoryName(AppDomain.CurrentDomain.BaseDirectory.TrimEnd('\\'));}
+    internal static class Paths {
+        internal static readonly string Root=FindRoot();
+        static string FindRoot(){
+            var folder=new DirectoryInfo(AppDomain.CurrentDomain.BaseDirectory);
+            var runtime=folder.Parent;
+            if(folder.Name.Equals("system-passkeys",StringComparison.OrdinalIgnoreCase)&&runtime!=null&&runtime.Name.Equals("runtime",StringComparison.OrdinalIgnoreCase)&&runtime.Parent!=null&&runtime.Parent.Name.Equals("data",StringComparison.OrdinalIgnoreCase)&&runtime.Parent.Parent!=null)return runtime.Parent.Parent.FullName;
+            return folder.Parent.FullName;
+        }
+    }
     internal static class BrowserPipe {internal static string Name{get{using(var sha=SHA256.Create())return "WinUp-browser-"+Convert.ToBase64String(sha.ComputeHash(Encoding.UTF8.GetBytes(Paths.Root.ToUpperInvariant()))).Replace("/","_").Replace("+","-").TrimEnd('=');}}}
     internal static class Proc {
         [DllImport("kernel32.dll")]static extern bool GetNamedPipeServerProcessId(Microsoft.Win32.SafeHandles.SafePipeHandle pipe,out uint pid);
