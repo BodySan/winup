@@ -15,7 +15,7 @@ namespace WinUp {
     internal static class SystemPasskeySetup {
         internal static readonly string[] Files={"WinUp.Passkeys.msix","WinUp.Passkeys.cer","package.json","Logo.png","setup.ps1","WinUp.PasskeyProvider.exe"};
         internal static bool IsProviderFile(string path){string expected=Path.Combine(Folder,"WinUp.PasskeyProvider.exe");if(!Proc.SameFile(path,expected))return false;using(var actual=File.OpenRead(expected))using(var bundled=ComponentResources.Open("system-passkeys/WinUp.PasskeyProvider.exe"))return ComponentPackage.Hash(actual)==ComponentPackage.Hash(bundled);}
-        internal static string Folder{get{return Path.Combine(Paths.Root,"system-passkeys");}}
+        internal static string Folder{get{return Path.Combine(Paths.Data,"runtime","system-passkeys");}}
         internal static bool OwnsRegistration(){
             try{using(var key=Microsoft.Win32.Registry.CurrentUser.OpenSubKey(@"Software\WinUp\SystemPasskeys")){
                 string root=key==null?null:key.GetValue("Root") as string;

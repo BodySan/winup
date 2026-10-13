@@ -58,6 +58,7 @@ namespace WinUp
             using (var s = OpenBundled(file))
             {
                 if (s == null) return false;
+                Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(dst)));
                 using (var f = new FileStream(dst, FileMode.Create, FileAccess.Write)) s.CopyTo(f);
                 return true;
             }
@@ -595,7 +596,7 @@ namespace WinUp
             System.IO.File.Copy(exePath, Path.Combine(target, "WinUp.exe"));
             // Ядро шифрования вшито в WinUp.exe — отдельный KeePassLib.dll получателю не нужен;
             // THIRD-PARTY.md — лицензия GPL ядра, она обязана ехать вместе с библиотекой (берётся из exe, если рядом нет).
-            foreach (var name in Paths.Bundled) Paths.CopyBundled(name, Path.Combine(target, name));
+            foreach (var name in Paths.Bundled) Paths.CopyBundled(name, DesktopDependencies.BundledPath(target,name));
             // Шаблоны группы «Мои» — личные (пути, заметки владельца): в копию для другого человека не идут.
             var copy = new AppStore { Links = store.Links, Templates = store.Templates.Where(t => t.Group != "Мои").ToList() };
             copy.Settings.DefaultsVersion = store.Settings.DefaultsVersion;

@@ -84,6 +84,9 @@ namespace WinUp {
                 throw Bad("Неверное описание компонента.");
             foreach(var v in m.versions) if(string.IsNullOrEmpty(v.Value) || v.Value.Length>160 || v.Value.Any(char.IsControl))
                 throw Bad("Неверная версия компонента.");
+            string minimumProvider,providedProvider;Version minimumVersion,providedVersion;
+            if(baseline.versions.TryGetValue("passkeys",out minimumProvider)&&m.versions.TryGetValue("passkeys",out providedProvider)&&Version.TryParse(minimumProvider,out minimumVersion)&&(!Version.TryParse(providedProvider,out providedVersion)||providedVersion<minimumVersion))
+                throw Bad("Комплект содержит устаревший адаптер ключей доступа. Требуется версия "+minimumProvider+" или новее.");
         }
         internal static bool AllowedName(string s) {
             return !string.IsNullOrEmpty(s) && s.Length<180 && !s.StartsWith("/") &&

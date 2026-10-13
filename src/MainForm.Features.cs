@@ -394,7 +394,7 @@ namespace WinUp {
         public string Folder { get { return folder.Text.Trim(); } }
         public string Password { get { return password.Text; } }
         public FileVaultDialog(bool create,string path=null) : base(create ? "Создать файловое хранилище" : "Открыть файловое хранилище") {
-            folder.Text=path ?? Path.Combine(Paths.Root,"files","Хранилище"); folder.ReadOnly=!create;
+            folder.Text=path ?? Path.Combine(Paths.Data,"files","Хранилище"); folder.ReadOnly=!create;
             Row("Папка хранилища:",folder);
             if(create) {
                 var choose=new Button { Text="Выбрать папку…",AutoSize=true };

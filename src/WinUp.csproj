@@ -10,7 +10,7 @@
     <ApplicationIcon>desktop\icon.ico</ApplicationIcon>
     <PlatformTarget>AnyCPU</PlatformTarget>
     <Prefer32Bit>false</Prefer32Bit>
-    <Version>2.0.0.0</Version>
+    <Version>2.0.1.0</Version>
     <Product>WinUp</Product>
     <!-- Версия задаётся в Properties\AssemblyInfo.cs (иначе атрибуты дублируются и сборка падает). -->
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>

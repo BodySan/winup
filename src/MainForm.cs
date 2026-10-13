@@ -1268,9 +1268,8 @@ namespace WinUp
 
         void OpenHelp()
         {
-            var p = Path.Combine(Paths.Root, "Инструкция.html");
-            // Инструкция вложена в exe (ресурс help.html): если файла нет рядом
-            // (WinUp передали одним файлом), извлекаем встроенную копию и открываем её.
+            var p = DesktopDependencies.BundledPath(Paths.Root,"Инструкция.html");
+            // Инструкция извлекается из exe в служебную папку данных.
             if (!File.Exists(p))
             {
                 try { Paths.CopyBundled("Инструкция.html", p); }
@@ -1418,11 +1417,14 @@ namespace WinUp
                 zip.CreateEntryFromFile(Application.ExecutablePath, "WinUp.exe", System.IO.Compression.CompressionLevel.Fastest);
                 total += new FileInfo(Application.ExecutablePath).Length;
                 // Лицензия ядра и инструкция — из папки или из exe (если WinUp пришёл одним файлом).
+                var bundled=new HashSet<string>(StringComparer.OrdinalIgnoreCase);
                 foreach (var name in Paths.Bundled)
                     using (var s = Paths.OpenBundled(name))
                     {
                         if (s == null) continue;
-                        using (var e = zip.CreateEntry(name, System.IO.Compression.CompressionLevel.Fastest).Open()) s.CopyTo(e);
+                        var entryName=DesktopDependencies.BundledPath(Paths.Root,name).Substring(Paths.RootPrefix.Length).Replace('\\','/');
+                        bundled.Add(entryName);
+                        using (var e = zip.CreateEntry(entryName, System.IO.Compression.CompressionLevel.Fastest).Open()) s.CopyTo(e);
                         total += s.Length;
                     }
                 var coreDir = CoreLoader.CoreDir + "\\";
@@ -1437,6 +1439,7 @@ namespace WinUp
                         if(f.StartsWith(Path.Combine(Paths.Data,"webview-profile")+"\\",StringComparison.OrdinalIgnoreCase))continue;
                         if (f.StartsWith(coreDir, StringComparison.OrdinalIgnoreCase) && name.StartsWith(CoreLoader.FileName, StringComparison.OrdinalIgnoreCase)) continue;
                         var rel = prefix + f.Substring(dir.Length).TrimStart('\\').Replace('\\', '/');
+                        if(bundled.Contains(rel))continue;
                         zip.CreateEntryFromFile(f, rel, System.IO.Compression.CompressionLevel.Fastest);
                         total += new FileInfo(f).Length;
                     }

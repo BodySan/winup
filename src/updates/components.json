@@ -2,7 +2,7 @@
   "schema": 1,
   "api": 6,
   "sequence": 0,
-  "minApp": "2.0.0.0",
+  "minApp": "2.0.1.0",
   "maxApp": "2.0.999.999",
   "versions": {
     "cryptofs": "2.8.0",
@@ -10,7 +10,7 @@
     "java": "24",
     "cli": "0.6.2",
     "winfsp": "2.1",
-    "passkeys": "1.2",
+    "passkeys": "1.3",
     "bouncycastle": "2.7.0",
     "cbor": "4.5.5",
     "numbers": "1.8.2",
@@ -33,15 +33,15 @@
       "size": 2191360
     },
     "system-passkeys/WinUp.Passkeys.msix": {
-      "sha256": "ffcebaed4019c4c6016b0786f201bfa5c1f036fad11199d7703b8e1a6f12e321",
-      "size": 3789
+      "sha256": "197d43283989fdd6943fd4b86fa60cd24e1fb948fffc41332e334f0af2137200",
+      "size": 3801
     },
     "system-passkeys/WinUp.Passkeys.cer": {
       "sha256": "a94d8f66a2d17ae2e5a8109505322573c62dfa8050ed42d766accb63e5973125",
       "size": 1012
     },
     "system-passkeys/package.json": {
-      "sha256": "3a6c2039c159e228b505316e94eae0800d5bfe9dc107a163dc5c011156e28ceb",
+      "sha256": "ba26735e80a99cec3d46baaa09e5b60ae3c088c4d7d4de645ef4a198d6fc71ad",
       "size": 166
     },
     "system-passkeys/Logo.png": {
@@ -49,12 +49,12 @@
       "size": 2460
     },
     "system-passkeys/setup.ps1": {
-      "sha256": "95538367799067138f975e8e29a100d6b20771d82aebf4e465677f97e32bc890",
-      "size": 3462
+      "sha256": "2aedc44cca5779d27c3fffa5e78d9636e9dd3b79e785544ddc8478b203cae9ab",
+      "size": 3960
     },
     "system-passkeys/WinUp.PasskeyProvider.exe": {
-      "sha256": "f0fb14febc228f771fa599f9561040f4a7a0ae20f725cb7493c451b9e71aadb5",
-      "size": 46592
+      "sha256": "97b4fb81e51fac387cfc453fab59d9b66d613de3435ecc652037b897ee3dfc47",
+      "size": 47104
     },
     "WinUp.PasskeyEngine.dll": {
       "sha256": "c6e6ec42c178d965d465f9a0df339867434f4ba04326a20dd79c3eeff74023b0",
