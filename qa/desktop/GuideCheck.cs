@@ -44,7 +44,7 @@ static class GuideCheck {
         Check("Guide opens from its final location",await loaded.Task);
         await web.CoreWebView2.ExecuteScriptAsync("document.querySelectorAll('figure img').forEach(i=>i.loading='eager')");
         for(int n=0;n<100;n++){if(await Bool(web,"[...document.querySelectorAll('figure img')].every(i=>i.complete&&i.naturalWidth>0)"))break;await Task.Delay(100);}
-        Check("All 35 embedded screenshots load offline",await Bool(web,"document.querySelectorAll('figure img').length===35&&[...document.querySelectorAll('figure img')].every(i=>i.complete&&i.naturalWidth>0)"));
+        Check("All 37 embedded screenshots load offline",await Bool(web,"document.querySelectorAll('figure img').length===37&&[...document.querySelectorAll('figure img')].every(i=>i.complete&&i.naturalWidth>0)"));
         Check("Contents links lead to existing chapters",await Bool(web,"[...document.querySelectorAll('a[href^=\"#\"]')].every(a=>document.getElementById(a.hash.slice(1)))"));
         Check("Each figure has a descriptive caption",await Bool(web,"[...document.querySelectorAll('figure')].every(f=>f.querySelector('img').alt&&f.querySelector('figcaption').textContent)"));
         await web.CoreWebView2.ExecuteScriptAsync("var q=document.getElementById('toc-filter');q.value='2FA';q.dispatchEvent(new Event('input'))");

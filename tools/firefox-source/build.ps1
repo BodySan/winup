@@ -11,8 +11,10 @@ $archive=[IO.Compression.ZipFile]::Open($Output,[IO.Compression.ZipArchiveMode]:
 try {
  foreach($name in $names|Select-Object -Unique){
   if($name -notmatch '^[a-zA-Z0-9._-]+$'){throw 'Unexpected package path'}
-  $sourceName=if($name -eq $worker){'background.js'}else{$name}
-  [void][IO.Compression.ZipFileExtensions]::CreateEntryFromFile($archive,(Join-Path $PSScriptRoot $sourceName),$name)
+  if($name -eq $worker){
+   $entry=$archive.CreateEntry($name);$writer=[IO.StreamWriter]::new($entry.Open(),[Text.UTF8Encoding]::new($false))
+   try{$writer.Write([IO.File]::ReadAllText((Join-Path $PSScriptRoot 'cards-background.js'))+"`n"+[IO.File]::ReadAllText((Join-Path $PSScriptRoot 'background.js')))}finally{$writer.Dispose()}
+  }else{[void][IO.Compression.ZipFileExtensions]::CreateEntryFromFile($archive,(Join-Path $PSScriptRoot $name),$name)}
  }
  $entry=$archive.CreateEntry('manifest.json');$writer=[IO.StreamWriter]::new($entry.Open(),[Text.UTF8Encoding]::new($false))
  try{$writer.Write(($manifest|ConvertTo-Json -Depth 20))}finally{$writer.Dispose()}

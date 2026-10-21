@@ -754,6 +754,7 @@ namespace WinUp
 
         void LoadFromDb()
         {
+            LoadCards();
             Entries.Clear();
             Otp.Clear();
             var otpGroup = FindOtpGroup(false);
@@ -770,6 +771,7 @@ namespace WinUp
 
         void SyncToDb()
         {
+            SyncCards();
             var otpGroup = FindOtpGroup(true);
 
             // 1) аккаунты 2FA: новые UUID + карта «старый Id → новый UUID» для ссылок записей
@@ -1145,6 +1147,7 @@ namespace WinUp
 
         public void Lock()
         {
+            ClearCards();
             if (db != null)
             {
                 // KeePass password/OTP fields use protected UTF-8 buffers; WinUp

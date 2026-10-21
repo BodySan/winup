@@ -28,16 +28,16 @@ namespace WinUp {
     public sealed partial class KdbxStore {
         IEnumerable<PwEntry> AccountRecords(){
             var trash=Trash(false);var otp=FindOtpGroup(false);
-            return WalkGroups(db.RootGroup).Where(g=>!Under(g,trash)&&!Under(g,otp)).SelectMany(g=>g.Entries);
+            return WalkGroups(db.RootGroup).Where(g=>!Under(g,trash)&&!Under(g,otp)).SelectMany(g=>g.Entries).Where(e=>GetStr(e,"WinUp.Kind")!="card");
         }
         static IEnumerable<PwGroup> WalkGroups(PwGroup root){yield return root;foreach(var group in root.Groups)foreach(var child in WalkGroups(group))yield return child;}
         static bool Under(PwGroup group,PwGroup parent){if(parent==null)return false;for(var g=group;g!=null;g=g.ParentGroup)if(g==parent)return true;return false;}
-        PwGroup FindAccountGroup(string id){return WalkGroups(db.RootGroup).FirstOrDefault(g=>g.Uuid.ToHexString()==id&&!Under(g,Trash(false))&&!Under(g,FindOtpGroup(false)));}
+        PwGroup FindAccountGroup(string id){return WalkGroups(db.RootGroup).FirstOrDefault(g=>g.Uuid.ToHexString()==id&&!Under(g,Trash(false))&&!Under(g,FindOtpGroup(false))&&!Under(g,CardGroup(false)));}
         PwGroup AccountGroup(string id){if(string.IsNullOrEmpty(id))return db.RootGroup;var group=FindAccountGroup(id);if(group==null)throw new IOException("Группа записи больше не существует. Выберите другую группу.");return group;}
         void Ready(){if(db==null||!db.IsOpen||saveFailed)throw new IOException("Базу нужно открыть заново.");}
         internal bool IsLocked{get{return db==null||!db.IsOpen||saveFailed;}}
         internal long RecordRevision;
-        internal List<AccountGroupInfo> AccountGroups(){Ready();return WalkGroups(db.RootGroup).Where(g=>!Under(g,Trash(false))&&!Under(g,FindOtpGroup(false))).Select(g=>new AccountGroupInfo{Id=g.Uuid.ToHexString(),ParentId=g.ParentGroup==null?null:g.ParentGroup.Uuid.ToHexString(),Name=g.Name,Path=GroupPath(g)}).ToList();}
+        internal List<AccountGroupInfo> AccountGroups(){Ready();return WalkGroups(db.RootGroup).Where(g=>!Under(g,Trash(false))&&!Under(g,FindOtpGroup(false))&&!Under(g,CardGroup(false))).Select(g=>new AccountGroupInfo{Id=g.Uuid.ToHexString(),ParentId=g.ParentGroup==null?null:g.ParentGroup.Uuid.ToHexString(),Name=g.Name,Path=GroupPath(g)}).ToList();}
         string GroupPath(PwGroup group){var parts=new List<string>();for(var g=group;g!=null&&g!=db.RootGroup;g=g.ParentGroup)parts.Add(g.Name);parts.Reverse();return parts.Count==0?"Без группы":string.Join(" / ",parts);}
         internal string CreateAccountGroup(string parent,string name){Ready();ValidateGroupName(name);var target=AccountGroup(parent);if(target.Groups.Any(g=>g.Name.Equals(name.Trim(),StringComparison.CurrentCultureIgnoreCase)))throw new IOException("Группа с таким названием уже есть.");var group=new PwGroup(true,true,name.Trim(),PwIcon.Folder);target.AddGroup(group,true);return group.Uuid.ToHexString();}
         internal void ChangeAccountGroup(string id,string parent,string name){Ready();ValidateGroupName(name);var group=AccountGroup(id);if(group==db.RootGroup)throw new IOException("Корневую группу менять нельзя.");var target=AccountGroup(parent);if(Under(target,group))throw new IOException("Нельзя переместить группу внутрь неё самой.");if(target.Groups.Any(g=>g!=group&&g.Name.Equals(name.Trim(),StringComparison.CurrentCultureIgnoreCase)))throw new IOException("Группа с таким названием уже есть.");if(group.ParentGroup!=target){group.ParentGroup.Groups.Remove(group);target.AddGroup(group,true);group.LocationChanged=DateTime.UtcNow;}group.Name=name.Trim();group.Touch(true,false);}

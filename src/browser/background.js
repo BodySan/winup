@@ -106,6 +106,12 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
   if (!msg || typeof msg !== "object" || typeof msg.type !== "string" || sender.id !== chrome.runtime.id) { reply({ ok: false, error: "bad_request" }); return; }
   // Listing/revealing codes is available only to our popup, never to a website's content script.
   const fromPopup = sender.url === chrome.runtime.getURL("popup.html");
+  if(msg.type==='card-list'||msg.type==='card-insert') {
+    if(!fromPopup||sender.tab){reply({ok:false,error:'bad_request'});return;}
+    const operation=chrome.permissions.contains(cardPermissions()).then(granted=>!granted?{ok:false,error:'consent_required'}:msg.type==='card-list'?token().then(t=>native({type:'card-list',token:t})):cardInsert(msg));
+    operation.then(reply,()=>reply({ok:false,error:'host_error'}));return true;
+  }
+  if(msg.type==='card-fill'){reply({ok:false,error:'bad_request'});return;}
   if(msg.type.startsWith('save-')) {
     if(fromPopup || !sender.tab || sender.frameId!==0 || !sender.url || !/^https:\/\//.test(sender.url) && !/^http:\/\/localhost(?::\d+)?\//.test(sender.url)) {reply({ok:false,error:'bad_request'});return;}
     saveMessage(msg,sender).then(reply,()=>reply({ok:false,error:'host_error'}));return true;

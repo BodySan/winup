@@ -107,6 +107,7 @@ namespace WinUp
             BuildPasswordTab();
             BuildCodesTab();
             BuildPasskeyTab();
+            BuildCardsTab();
             BuildFileVaultTab();
             BuildPortableTab();
             BuildWingetTab();
@@ -1773,6 +1774,7 @@ namespace WinUp
 
         void ShowLocked()
         {
+            RefreshCards();
             openPanel.Visible = false; lockedPanel.Visible = true;
             otpOpen.Visible = false; otpLocked.Visible = true; otpList.Items.Clear();
             if (!BaseExists())
@@ -1795,6 +1797,7 @@ namespace WinUp
 
         void ShowOpen()
         {
+            RefreshCards();
             lockedPanel.Visible = false; openPanel.Visible = true;
             otpLocked.Visible = false; otpOpen.Visible = true;
             RefreshEntries();

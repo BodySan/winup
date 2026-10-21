@@ -227,13 +227,14 @@ namespace WinUp {
   async Task DocForm(Form form,string name){using(form){form.Show(this);await Task.Delay(160);Appearance.Apply(form);QaPalette(form);DocBitmap(form,name);form.Close();}}
   internal async Task DocumentCapture(){
    try {
-    for(int n=0;n<250&&(!desktopReady||desktopView.CoreWebView2==null);n++)await Task.Delay(80);QaCheck("Interface starts",desktopReady);
+    for(int n=0;n<250&&(!desktopReady||desktopView.CoreWebView2==null);n++)await Task.Delay(80);QaCheck("Interface starts",desktopReady);Size=new System.Drawing.Size(1320,960);
     await desktopView.CoreWebView2.AddScriptToExecuteOnDocumentCreatedAsync("window.qaErrors=[];addEventListener('error',e=>qaErrors.push(e.message));addEventListener('unhandledrejection',e=>qaErrors.push(String(e.reason)));");desktopView.CoreWebView2.Reload();await QaWait("typeof desktop!=='undefined'&&desktop.ready");
                     vault=await Task.Run(()=>KdbxStore.Create("WinUp-QA-Only!2026-4zL8wR",null));
                 vault.Entries.Add(new LoginEntry{Id="11111111111111111111111111111111",Name="Учебный аккаунт",Login="qa@example.invalid",Login2="backup@example.invalid",Password="QA-secret-only-74#",Target="https://example.invalid",LoginUrl="https://example.invalid/login",Category="Работа",Tags=new List<string>{"Учебное"},TwoFa="link",OtpId="44444444444444444444444444444444",Notes="Только проверка интерфейса"});
                 vault.Entries.Add(new LoginEntry{Id="22222222222222222222222222222222",Name="Второй аккаунт",Login="other@example.invalid",Password="QA-secret-second-79#",Target="https://example.invalid",Category="Игры"});
                 vault.Entries.Add(new LoginEntry{Id="33333333333333333333333333333333",Name="Учебный ключ",Kind="passkey",Target="example.invalid",Login="qa@example.invalid"});
                 vault.Otp.Add(new OtpEntry{Id="44444444444444444444444444444444",Issuer="Учебный 2FA",Account="qa@example.invalid",Secret="JBSWY3DPEHPK3PXP",Digits=6,Period=30,Algorithm="SHA1"});
+                vault.Cards.Add(new BankCard{Name="Учебная карта",Holder="TEST OWNER",Number="4111111111111111",Cvv="923",Month=12,Year=2098});
                 vault.Save();vault.Entries.Single(e=>e.Name=="Учебный аккаунт").OtpId=vault.Otp[0].Id;vault.Save();qaIds["11111111111111111111111111111111"]=vault.Entries.Single(e=>e.Name=="Учебный аккаунт").Id;qaIds["22222222222222222222222222222222"]=vault.Entries.Single(e=>e.Name=="Второй аккаунт").Id;qaIds["33333333333333333333333333333333"]=vault.Entries.Single(e=>e.Kind=="passkey").Id;qaIds["44444444444444444444444444444444"]=vault.Otp[0].Id;ShowOpen();RefreshPasskeys();DesktopReply("fixture",null);await QaWait("state.accounts.length===2");
 
     await QaScript("navigate('passwords');state.selected='11111111111111111111111111111111';render();window.scrollTo(0,0)");await QaCapture("passwords");
@@ -244,9 +245,10 @@ namespace WinUp {
     await DocDialog("A['extension-configure']()","BrowserDialog","browser-setup");await DocDialog("A.updates()","ComponentUpdatesDialog","components");await DocDialog("A.export()","ExportDialog","export");
     using(var result=PasswordImport.Parse("name,url,username,password\r\nУчебный аккаунт,https://example.invalid/login,qa@example.invalid,QA-secret-only-74#\r\nНовый аккаунт,https://new.example.invalid/login,new@example.invalid,QA-new-only-79#",vault.Entries))await DocForm(new PasswordImportDialog(result),"import");
     var original=vault;using(var dialog=new AccountAddressDialog(()=>vault==original,e=>false,e=>{},()=>original.Entries)){dialog.Show(this);var list=QaField<ListView>(dialog,"list");for(int n=0;n<100&&(list.Items.Count<2||!QaField<Button>(dialog,"web").Enabled);n++)await Task.Delay(50);DocBitmap(dialog,"addresses");dialog.Close();}
-    foreach(string section in new[]{"otp","passkeys","download"}){await QaScript("navigate('"+section+"');window.scrollTo(0,0)");await QaCapture(section);}
+    foreach(string section in new[]{"otp","passkeys","cards","download"}){await QaScript("navigate('"+section+"');window.scrollTo(0,0)");await QaCapture(section);}
+    await DocForm(new BankCardDialog(vault.Cards[0]),"card-editor");
     await QaFixtureLaunch();foreach(string section in new[]{"run","install"}){await QaScript("navigate('"+section+"');window.scrollTo(0,0)");await QaCapture(section);}
-    await QaScript("navigate('winget');host('winget-search',{query:'PowerToys'})");for(int n=0;n<160&&Convert.ToBoolean(await QaScript("desktop.pending.size>0"));n++)await Task.Delay(150);await QaCapture("winget");
+    await QaScript("navigate('winget');window.scrollTo(0,0)");await QaCapture("winget");
     await QaScript("navigate('passkeys')");await DocDialog("A['passkey-add']()","AddPasskeyDialog","passkey-create");
     await DocForm(new SetupDialog("Новая база паролей",Path.Combine(Paths.Root,"backups")),"create-database");
     string folder=Path.Combine(Paths.Root,"Документы"),source=Path.Combine(Paths.Root,"Заметки.txt");File.WriteAllText(source,"Пример документа для инструкции WinUp");fileCatalog.Items.Add(folder);fileCatalog.SelectedItem=folder;fileVault=await Task.Run(()=>new FileVaultClient(folder,"QA-file-password-2026#",true));await Task.Run(()=>{fileVault.Import(source,"Заметки.txt",false);fileVault.Call("mkdir","Проект");});RefreshFileItems();DesktopReply("doc-file",null);await QaWait("state.files.length===2");await QaScript("navigate('files');render();window.scrollTo(0,0)");await QaCapture("files");

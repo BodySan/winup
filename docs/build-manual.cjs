@@ -21,6 +21,8 @@ const captions = {
   'browser-setup': 'Подключение расширения: выбранный браузер, адрес его страницы и кнопки открытия и копирования.',
   otp: '2FA: текущие коды, оставшееся время и действия с выбранным аккаунтом.',
   'otp-editor': 'Добавление 2FA: название, секрет и параметры кода.',
+  'card-editor': 'Данные карты: номер и CVV/CVC скрыты; срок действия, держатель и заметка редактируются в этом окне.',
+  cards: 'Карты: выбранная запись, скрытый номер, срок действия и команды копирования.',
   passkeys: 'Ключи доступа: список, создание через сайт и подключение к Windows.',
   'passkey-create': 'Добавление ключа: выбор сервиса и переход на сайт для создания.',
   files: 'Файлы: выбор хранилища, папки, документы и команды отдельного шифрования.',
@@ -51,7 +53,9 @@ if (input >= 0) {
 }
 const escape = text => text.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const used = new Set(), images = [];
-let html = fs.readFileSync(path.join(__dirname, 'manual-template.html'), 'utf8');
+const version = fs.readFileSync(path.join(uiRoot,'src/Properties/AssemblyInfo.cs'),'utf8').match(/AssemblyInformationalVersion\("([^"]+)"\)/)?.[1];
+if (!version) throw Error('Application version missing.');
+let html = fs.readFileSync(path.join(__dirname, 'manual-template.html'), 'utf8').replaceAll('{{version}}', version);
 html = html.replace(/\{\{shot:([\w-]+)\}\}/g, (_, name) => {
   if (!captions[name]) throw Error('Unknown image: ' + name);
   if (used.has(name)) throw Error('Repeated image: ' + name);

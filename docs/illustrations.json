@@ -1,29 +1,29 @@
 {
-  "images": 35,
+  "images": 37,
   "files": [
     {
       "name": "passwords",
       "width": 1304,
-      "height": 841,
-      "sha256": "9d8ded9d9ff280818e377cc999aaea7c3c2e8e50af81ffe5321bd7e628941da9"
+      "height": 768,
+      "sha256": "7cdc1caecc9a65e3bb387b6a45b5def2237818146603c63665a3b2b6190a7e21"
     },
     {
       "name": "sticky-account",
       "width": 1304,
-      "height": 841,
-      "sha256": "e630e633cb43841b1ccce89309ec218298795512c8672b7a3b97ca853e6338ae"
+      "height": 660,
+      "sha256": "f462c33f5ac36a6376332daae4f06586d999ddfd5bb8e95020c7e34b5ef82991"
     },
     {
       "name": "settings",
       "width": 1304,
-      "height": 841,
-      "sha256": "23e08e4599502d1cf52bc30c1a184766cd932f19768834600290d3411023200a"
+      "height": 768,
+      "sha256": "2541e2c7338e81e45135e75c245d2840694124794ec57abe3ec4535d9c915b58"
     },
     {
       "name": "passwords-light",
       "width": 1304,
-      "height": 841,
-      "sha256": "6fd2a8610de391e1d6cfa803dcfd843772310c1f8052aa9e3f358e0969b51463"
+      "height": 768,
+      "sha256": "05a92054d5bb64961d7ec3b6c3c8c07b2b35f19485ac0f85af9e6b7713040774"
     },
     {
       "name": "create-database",
@@ -34,26 +34,26 @@
     {
       "name": "entry-template",
       "width": 666,
-      "height": 799,
-      "sha256": "78e4c20941db78c368440d1b4d88ad54adfb71ec2aca45421b43890d4e0a6ca0"
+      "height": 714,
+      "sha256": "31a9a0a95581e4a78d2de4acf7166f5f6debcfa6a153b87ef5473938586a3186"
     },
     {
       "name": "entry",
       "width": 666,
-      "height": 799,
-      "sha256": "8a4f337d14883654f7bc06d996abaa4250a0a6e62d6034bf3a8402d8170309ea"
+      "height": 714,
+      "sha256": "7adfcd8a2d75ffbfef757b3e9fc219a8b4e7c43b9129bcabda27bc38869989a8"
     },
     {
       "name": "entry-options",
       "width": 666,
-      "height": 799,
-      "sha256": "5996e4b3a60369fcc849c54565fa8629b90f3bd2c82be21775b087cfe3f8b801"
+      "height": 714,
+      "sha256": "80f54b94a409fdfa894ee805e8db1b474852e6bcca8268552b29838968db3e17"
     },
     {
       "name": "addresses",
       "width": 1120,
       "height": 720,
-      "sha256": "7f3630bcf8712632d1c42346870829c3d1a6a19907d99ef52557034d1339654f"
+      "sha256": "0922646c2f6f52558e54aceb5363836afb1b2f9494de91cfd89079c62288ceb0"
     },
     {
       "name": "import",
@@ -77,7 +77,7 @@
       "name": "generator",
       "width": 610,
       "height": 435,
-      "sha256": "82941aca0788b97821f983933b9229d1778c265c9761274c5a639eff077349ef"
+      "sha256": "d44bc9f758f47d5283a91f61adb22da740de0d9bcd42a983dfc821269dec53d8"
     },
     {
       "name": "protected-fields",
@@ -94,20 +94,20 @@
     {
       "name": "password-actions",
       "width": 1304,
-      "height": 841,
-      "sha256": "a63ecfaadd458c9b73318df02dd67b4d6c00dbb5fe26307bcddeada43f4ac7d3"
+      "height": 768,
+      "sha256": "0b985ed5de2f2bafbd76a0803e66013c53d9d3402a0eca752c218a901a518bd5"
     },
     {
       "name": "browser-setup",
       "width": 766,
-      "height": 819,
-      "sha256": "677d9732cea8ee0b6ac6ff4edc3c2dffe9991cb05d5e90dc2507d8fe4c9347c5"
+      "height": 704,
+      "sha256": "27bd80dcd8eb5a1f9541cf4a4781ef24a867277bd60b36f41c4b08ea0afc4e86"
     },
     {
       "name": "otp",
       "width": 1304,
-      "height": 841,
-      "sha256": "cbcaf88f343ec5103009f265b3c1099cea3f9e9e4acad94d8832c7e3be0e0b05"
+      "height": 768,
+      "sha256": "02df880f37325ed7ec09574c4eb6a98a6b1eff37cbba5ba161bda678874ef5ce"
     },
     {
       "name": "otp-editor",
@@ -118,20 +118,32 @@
     {
       "name": "passkeys",
       "width": 1304,
-      "height": 841,
-      "sha256": "0560a069456598aa721de125235b825d3b5b87af92b7df95c0f1ee0a755c697a"
+      "height": 768,
+      "sha256": "c04ae0f5b23f881c670316680b0f0270513b2ef4ec82b120adb7a3b6c52533ef"
     },
     {
       "name": "passkey-create",
       "width": 586,
-      "height": 165,
-      "sha256": "2c229cc4cfe7bcaae60fd8ad5717e943aed24a25ca0dc5783aa371f51d3a10e8"
+      "height": 166,
+      "sha256": "bd4006af52865233817c1ba02b0edf941000845879dc077af203e10fe15b10e1"
+    },
+    {
+      "name": "cards",
+      "width": 1304,
+      "height": 768,
+      "sha256": "32edb37dc973f930ab892843a7682f2618b5a8526f750b35b385f2e9616af0cb"
+    },
+    {
+      "name": "card-editor",
+      "width": 521,
+      "height": 422,
+      "sha256": "7d4b0be101747366a78d41494ab01cfa9dd57796db3a450762e47cc73fa0d746"
     },
     {
       "name": "files",
       "width": 1304,
-      "height": 841,
-      "sha256": "097e1c9e8ab906958a3a5bd86334e8fa441a4477ddecde985490d26568347c3f"
+      "height": 768,
+      "sha256": "bf77f96685bc81a59b4813768298b29b9ce08b937405f9f1088164acb8a3ceea"
     },
     {
       "name": "file-import",
@@ -142,8 +154,8 @@
     {
       "name": "files-locked",
       "width": 1304,
-      "height": 841,
-      "sha256": "523742ca6359cd1dcdda27f83da7bc32438e406cd5b07e442ef6bb9cc8903481"
+      "height": 768,
+      "sha256": "318d585f272bd2654288ba118503fd8338261fa549c9c7c4cfb60450568ce1bf"
     },
     {
       "name": "package-password",
@@ -160,56 +172,56 @@
     {
       "name": "file-settings",
       "width": 711,
-      "height": 502,
-      "sha256": "0fe64adbd581994343b882b73ef33709ca837faa926bfea04ff28120c92388c4"
+      "height": 503,
+      "sha256": "0569fffc1d4ad34d703592fc0c2eefc22e8ef9f3613f203e26ebef16e4f80fbe"
     },
     {
       "name": "database-locked",
       "width": 1304,
-      "height": 841,
-      "sha256": "c8e75e7eecdc44f9a5e21f541bd26040611bf93551801a5ba3b2b697033572ee"
+      "height": 768,
+      "sha256": "c7d2651934bd62b0c9b511b0ceb0cef31de86a23baa2b34fa5aa238b3a19cc48"
     },
     {
       "name": "run",
       "width": 1304,
-      "height": 841,
-      "sha256": "b79e4efb3a997ae3f65a5b4642d289d260825bdbd2ab001d9ce60ee8953da6e7"
+      "height": 768,
+      "sha256": "4ab7edaa13f086449a07a087bb489c8cd4289bcd504cdd43e8287e0e9de91ab9"
     },
     {
       "name": "winget",
       "width": 1304,
-      "height": 841,
-      "sha256": "c11c83e43cb1a6645b77d1d5702e1689c643830376b4623e20484c2423ee4275"
+      "height": 768,
+      "sha256": "a10667d8b169f1e0e48405c4d5ba0fdc3e7cb441b5ffa713560aa60b82b87406"
     },
     {
       "name": "install",
       "width": 1304,
-      "height": 841,
-      "sha256": "174c9a89bc7de1e4087082a3a4af13307b70ef9a3a3adee97c05636d199672f6"
+      "height": 768,
+      "sha256": "2bd930bfdf24bd90c22e011f1c908fdc67d7d34f2f957a7395c061ea540c8a75"
     },
     {
       "name": "download",
       "width": 1304,
-      "height": 841,
-      "sha256": "106946a42f19fd8a65df2b6342b9ea29fe7c2c0d2f7555211d2f21d9397ec84c"
+      "height": 768,
+      "sha256": "3590f50d6d2ebec02b9264294f43f035cd2754a1abb44d16a1c214ef503afbbb"
     },
     {
       "name": "components",
       "width": 1160,
       "height": 650,
-      "sha256": "d82203a124342538f40833d5ddcddd86b71a886c07f3e35adb6e6f6af43273ed"
+      "sha256": "f2db1df844301abf729cde6e4874854576213ccb6f765d9f29c3f415ee2ac13a"
     },
     {
       "name": "export",
       "width": 588,
       "height": 317,
-      "sha256": "84d2f47cbc383d6f4c97e8852aa0d85963f73160b01ec4f5095855b72442786f"
+      "sha256": "bf2422184e9b88ae71b40a3b81f4d4d6378fb04387129c8b68d0c70e48587c3f"
     },
     {
       "name": "application-actions",
       "width": 1304,
-      "height": 841,
-      "sha256": "f456923603def026599712552cc99f5eef15e26d1cbd4a8c63bbea5ff5751b18"
+      "height": 768,
+      "sha256": "c3536b8b3c6fcd60d95a31cd58cba7f562b47b8de505eadcbd1140c4f15526df"
     }
   ]
 }

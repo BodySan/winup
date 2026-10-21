@@ -4,7 +4,7 @@ $taskRoot=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $taskSource=[IO.Path]::GetFullPath($Source)
 Add-Type -AssemblyName System.IO.Compression
 $taskItems=@()
-foreach($taskName in 'dependencies','design','docs','qa\desktop') {
+foreach($taskName in 'dependencies','design','docs','qa\desktop','qa\cards') {
  $taskBase=Join-Path $taskRoot $taskName
  foreach($taskFile in Get-ChildItem -LiteralPath $taskBase -File -Recurse) {
   $taskRelative=$taskFile.FullName.Substring($taskBase.Length+1)

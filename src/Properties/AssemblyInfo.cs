@@ -4,9 +4,9 @@ using System.Reflection;
 [assembly: AssemblyProduct("WinUp")]
 [assembly: AssemblyDescription("Менеджер паролей и программ")]
 [assembly: AssemblyCompany("")]
-[assembly: AssemblyVersion("2.0.1.0")]
-[assembly: AssemblyFileVersion("2.0.1.0")]
-[assembly: AssemblyInformationalVersion("2.0.1")]
+[assembly: AssemblyVersion("2.1.0.0")]
+[assembly: AssemblyFileVersion("2.1.0.0")]
+[assembly: AssemblyInformationalVersion("2.1")]
 // Целевая платформа явно: без атрибута сборка через csc («Собрать.cmd») работает в режиме совместимости с .NET 4.0
 // (TLS 1.0 по умолчанию и прочие старые умолчания). SDK-сборке генерацию атрибута отключает WinUp.csproj.
 [assembly: System.Runtime.Versioning.TargetFramework(".NETFramework,Version=v4.8", FrameworkDisplayName = ".NET Framework 4.8")]

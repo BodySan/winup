@@ -11,6 +11,7 @@ try{
  foreach($taskName in @('src/build.ps1','src/Properties/AssemblyInfo.cs','src/desktop/index.html','doc/Инструкция.html','tools/verify-app.ps1','build-ui.cjs','design/index.html','docs/manual-template.html','dependencies/webview2/lib/net462/Microsoft.Web.WebView2.Core.dll','dependencies/webview2/runtimes/win-x64/native/WebView2Loader.dll')){
   if(!$taskArchive.GetEntry($taskName)){throw "Required source archive entry missing: $taskName"}
  }
+ foreach($taskName in 'qa/cards/background-tests.cjs','qa/cards/StorageProbe.cs','src/BankCards.cs','src/desktop/cards.js') {if(!$taskArchive.GetEntry($taskName)){throw "Bank card source missing: $taskName"}}
  $taskGuide=[IO.StreamReader]::new($taskArchive.GetEntry('doc/Инструкция.html').Open())
  $taskHelp=[IO.StreamReader]::new($taskArchive.GetEntry('src/help.html').Open())
  try{if($taskGuide.ReadToEnd() -cne $taskHelp.ReadToEnd()){throw 'Archived manual differs from the application help.'}}

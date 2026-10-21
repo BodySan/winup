@@ -105,7 +105,7 @@ function item(x) {
 
 function navigation() {
   const nav = node("div", "nav");
-  nav.append(btn("Пароли", listView, true), btn("Коды 2FA", otpListView, true));
+  nav.append(btn("Пароли", listView, true), btn("Коды 2FA", otpListView, true), btn("Карты",cardListView,true));
   return nav;
 }
 
@@ -223,3 +223,15 @@ passkeys.addEventListener("change", async () => {
   document.getElementById("passkey-note").textContent = "Перезагрузите вкладку сайта, чтобы применить настройку.";
 });
 start();
+
+async function cardListView(){
+  show(navigation(),node('div','msg','Доступ к заполнению карт…'));const permissionEpoch=epoch;
+  const access=/Firefox\//.test(navigator.userAgent)?{permissions:['webNavigation'],data_collection:['financialAndPaymentInfo','personallyIdentifyingInfo']}:{permissions:['webNavigation']};
+  const granted=await chrome.permissions.request(access);if(permissionEpoch!==epoch)return;
+  if(!granted){show(navigation(),node('div','msg','Доступ к заполнению карт не разрешён. Пароли и коды 2FA доступны как прежде.'));return;}
+  show(navigation(),node('div','msg','Загрузка карт…'));const current=epoch;
+  const r=await send({type:'card-list'});if(current!==epoch)return;if(!r.ok)return problem(r);
+  const search=node('input','sr'),box=node('div'),feedback=node('div','msg');search.placeholder='Название или последние цифры…';
+  function renderCards(){box.textContent='';const q=search.value.toLocaleLowerCase();for(const card of r.items.filter(c=>(c.name+' '+c.brand+' '+c.lastFour).toLocaleLowerCase().includes(q))){const button=node('button','it');button.disabled=card.expired;button.append(node('b',null,card.name),node('span',null,card.brand+' · •••• '+card.lastFour+' · '+card.expiry+(card.invalid?' · проверьте данные в WinUp':card.expired?' · срок истёк':'')));button.addEventListener('click',async()=>{button.disabled=true;feedback.textContent='Подтвердите заполнение в окне WinUp.';const result=await send({type:'card-insert',id:card.id,tabId:tab?.id});if(result?.ok)window.close();else {feedback.textContent=({no_card_fields:'На странице не найдена однозначная форма оплаты. Щёлкните в поле номера карты и повторите.',insecure:'Откройте страницу оплаты по HTTPS.',denied:'Заполнение отменено.',page_changed:'Страница изменилась. Выберите карту ещё раз.',locked:'База заблокирована.',card_expired:'Срок действия карты истёк.'})[result?.error]||'Заполнить карту не удалось: '+(result?.error||'нет ответа');button.disabled=false;}});box.append(button);}if(!box.children.length)box.append(node('div','msg','Карты не найдены. Добавьте карту в WinUp.'));}
+  search.addEventListener('input',renderCards);show(navigation(),search,box,feedback);renderCards();
+}

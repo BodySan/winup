@@ -5,7 +5,7 @@ $src=if($Source) { [IO.Path]::GetFullPath($Source) } else { [IO.Path]::GetFullPa
 # executable service-worker cache after unpacked-extension refresh.
 $browserManifest=Get-Content "$src\browser\manifest.json" -Raw -Encoding UTF8 | ConvertFrom-Json
 $workerName="background-v$($browserManifest.version).js"
-Copy-Item -LiteralPath "$src\browser\background.js" -Destination "$src\browser\$workerName" -Force
+$worker=[IO.File]::ReadAllText("$src\browser\cards-background.js")+"`n"+[IO.File]::ReadAllText("$src\browser\background.js");[IO.File]::WriteAllText("$src\browser\$workerName",$worker,[Text.UTF8Encoding]::new($false))
 $browserManifest.background.service_worker=$workerName
 [IO.File]::WriteAllText("$src\browser\manifest.json",($browserManifest | ConvertTo-Json -Depth 12),[Text.UTF8Encoding]::new($false))
 $firefoxManifest=Get-Content "$src\browser\firefox-manifest.json" -Raw -Encoding UTF8 | ConvertFrom-Json
