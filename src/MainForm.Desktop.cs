@@ -35,7 +35,7 @@ namespace WinUp {
             desktopBrowsers=Browsers.Installed().Select(b=>b.Name).ToArray();
             foreach(TabPage page in tabs.TabPages) CollectDesktopControls(page,page.Text);
             if(MainMenuStrip!=null) foreach(ToolStripItem item in MainMenuStrip.Items) CollectDesktopMenu(item,"Меню");
-            foreach(var list in new[]{pwList,otpList,passkeyList,instList,portList,linkList,wgList,fileItems}) { IntPtr handle=list.Handle; }
+            foreach(var list in new[]{pwList,otpList,passkeyList,cardList,instList,portList,linkList,wgList,fileItems}) { IntPtr handle=list.Handle; }
             try { using(var input=Assembly.GetExecutingAssembly().GetManifestResourceStream("desktop/icon.ico")) if(input!=null) Icon=new Icon(input); } catch { }
             try { string path=Path.Combine(Paths.Data,"desktop-theme.txt"); if(File.Exists(path)&&File.ReadAllText(path)=="light")desktopTheme="light"; } catch { }
             desktopView=new WebView2 {Dock=DockStyle.Fill,DefaultBackgroundColor=Color.FromArgb(16,19,27)};
@@ -97,7 +97,7 @@ namespace WinUp {
             Uri uri;string name=null;
             if(Uri.TryCreate(args.Request.Uri,UriKind.Absolute,out uri)&&uri.Scheme=="https"&&uri.Host=="winup.local"&&uri.IsDefaultPort&&string.IsNullOrEmpty(uri.Query)) {
                 string candidate=uri.AbsolutePath.TrimStart('/');
-                if(new[]{"index.html","style.css","app.js","desktop.js","icon.svg"}.Contains(candidate))name=candidate;
+                if(new[]{"index.html","style.css","app.js","cards.js","desktop.js","icon.svg"}.Contains(candidate))name=candidate;
             }
             var stream=name==null?null:Assembly.GetExecutingAssembly().GetManifestResourceStream("desktop/"+name);
             if(stream==null){args.Response=core.Environment.CreateWebResourceResponse(new MemoryStream(),403,"Forbidden","Content-Type: text/plain\r\nCache-Control: no-store");return;}
@@ -151,6 +151,7 @@ namespace WinUp {
                     else if(command=="copy-account-otp")CopyTotp();
                     else if(command=="reveal")DesktopReveal(requestId);
                     else if(command=="copy-metadata")SecureClip.Copy(DesktopValue(request,"text"));
+                    else if(command=="card-action")CardAction(DesktopValue(request,"action"),DesktopValue(request,"card"),DesktopValue(request,"field"));
                     else if(command=="winget-search"){wgQuery.Text=DesktopValue(request,"query");await WgSearch();}
                     else if(command=="winget-mode"){string mode=DesktopValue(request,"mode");if(mode=="set")await WgShowSet();else if(mode=="updates")await WgUpgrades();else{wgQuery.Text=DesktopValue(request,"query");await WgSearch();}}
                     else if(command=="settings")DesktopSaveSettings(request);
@@ -187,10 +188,10 @@ namespace WinUp {
         void DesktopSelect(Dictionary<string,object> request) {
             string selected=DesktopValue(request,"selected"),otp=DesktopValue(request,"otp"),key=DesktopValue(request,"key"),app=DesktopValue(request,"app"),link=DesktopValue(request,"link");
             var checkedIds=new HashSet<string>(DesktopValues(request,"checked"));
-            foreach(var list in new[]{pwList,otpList,passkeyList,instList,portList,linkList,wgList})foreach(ListViewItem item in list.Items){
+            foreach(var list in new[]{pwList,otpList,passkeyList,cardList,instList,portList,linkList,wgList})foreach(ListViewItem item in list.Items){
                 string id="";var entry=item.Tag as LoginEntry;var code=item.Tag as OtpEntry;var program=item.Tag as AppItem;var address=item.Tag as LinkItem;var package=item.Tag as WingetRow;
-                if(entry!=null)id=entry.Id;else if(code!=null)id=code.Id;else if(program!=null)id=program.Id;else if(address!=null)id=address.Id;else if(package!=null)id=package.Id;
-                item.Selected=list==pwList?id==selected:list==otpList?id==otp:list==passkeyList?id==key:list==portList||list==instList?id==app:list==linkList?id==link:checkedIds.Contains(id);
+                if(entry!=null)id=entry.Id;else if(code!=null)id=code.Id;else if(program!=null)id=program.Id;else if(address!=null)id=address.Id;else if(package!=null)id=package.Id;else if(item.Tag is BankCard)id=((BankCard)item.Tag).Id;
+                item.Selected=list==cardList?id==DesktopValue(request,"card"):list==pwList?id==selected:list==otpList?id==otp:list==passkeyList?id==key:list==portList||list==instList?id==app:list==linkList?id==link:checkedIds.Contains(id);
                 if(list.CheckBoxes)item.Checked=checkedIds.Contains(id);
             }
             var files=new HashSet<string>(DesktopValues(request,"files"));foreach(ListViewItem item in fileItems.Items)item.Selected=files.Contains(item.Text);
@@ -230,6 +231,7 @@ namespace WinUp {
             var groups=vault==null?new List<AccountGroupInfo>():vault.AccountGroups();
             var entries=vault==null?new List<LoginEntry>():vault.Entries;
             var otp=vault==null?new List<OtpEntry>():vault.Otp;
+            var cards=vault==null?new object[0]:vault.Cards.Select(c=>(object)new{id=c.Id,name=c.Name,holder=c.Holder??"",lastFour=c.LastFour,brand=c.Brand,expiry=c.Expiry,expired=c.Expired,invalid=c.NeedsReview,hasCvv=c.UseCvv(s=>!string.IsNullOrEmpty(s))}).ToArray();
             var accounts=entries.Where(e=>e.Kind!="passkey").Select(e=>new{id=e.Id,name=e.Name,type=e.Kind,url=e.Target??"",loginUrl=e.LoginUrl??"",login=AccountOrganization.DisplayLogin(e),extraLogin=AccountOrganization.DisplayLogin(e,true),password="",category=AccountOrganization.Category(e,store.Templates),group=groups.Where(g=>g.Id==e.GroupId).Select(g=>g.Path).FirstOrDefault()??"",tags=e.Tags,otp=e.TwoFa=="link"&&otp.Any(o=>o.Id==e.OtpId)?e.OtpId:"",passkey=e.PasskeyId??"",browser=e.Browser??"",pinned=e.Pinned,note=e.Notes??"",app=e.AppTarget??"",args=e.Args??"",window=e.Window??"",delay=e.Delay,twoFa=e.TwoFa,autoEnter=e.AutoEnter,fields=new object[0],attachments=new object[0],history=new object[0],recovery=""}).ToArray();
             var codes=otp.Select(o=>{string code="";try{code=Totp.Code(o);}catch(FormatException){}return new{id=o.Id,name=o.Issuer,login=o.Account,note=o.Notes,period=o.Period,digits=o.Digits,algorithm=o.Algorithm,code=code,left=Totp.SecondsLeftFor(o.Period)};}).ToArray();
             var keys=entries.Where(e=>e.Kind=="passkey").Select(e=>new{id=e.Id,name=e.Name,rp=e.Target,login=e.Login,method="WinUp",created="",history=new object[0]}).ToArray();
@@ -240,7 +242,7 @@ namespace WinUp {
             var fileVaults=fileCatalog.Items.Cast<string>().Select(folder=>new{id=folder,path=folder,name=Path.GetFileName(folder),locked=fileVault==null||!fileVault.Open||fileVault.Folder!=folder,drive=fileVault!=null&&fileVault.Open&&fileVault.Folder==folder?(fileVault.MountPoint??""):"",@readonly=fileVault!=null&&fileVault.Folder==folder&&fileVault.ReadOnly,history=filePreferences.History,projectMode=filePreferences.ProjectMode}).ToArray();
             var files=fileVault==null||!fileVault.Open?new object[0]:fileItems.Items.Cast<ListViewItem>().Select(item=>(object)new{id=item.Text,name=item.Text,parent=fileDirectory,vault=fileVault.Folder,folder=item.Tag is bool&&(bool)item.Tag,size=item.SubItems[1].Text}).ToArray();
             var selection=new{passwords=SelectedEntry()==null?"":SelectedEntry().Id,otp=SelectedOtp()==null?"":SelectedOtp().Id,passkeys=passkeyList.SelectedItems.Count==0?"":((LoginEntry)passkeyList.SelectedItems[0].Tag).Id,run=portList.SelectedItems.Count==0?"":((AppItem)portList.SelectedItems[0].Tag).Id,install=instList.SelectedItems.Count==0?"":((AppItem)instList.SelectedItems[0].Tag).Id,download=SelectedLink()==null?"":SelectedLink().Id,checkedPasswords=pwList.CheckedItems.Cast<ListViewItem>().Select(item=>((LoginEntry)item.Tag).Id).ToArray(),checkedInstallers=instList.CheckedItems.Cast<ListViewItem>().Select(item=>((AppItem)item.Tag).Id).ToArray(),checkedPackages=wgList.CheckedItems.Cast<ListViewItem>().Select(item=>((WingetRow)item.Tag).Id).ToArray(),files=fileItems.SelectedItems.Cast<ListViewItem>().Select(item=>item.Text).ToArray()};
-            return new{locked=vault==null,baseExists=BaseExists(),database=Path.GetFileName(Paths.KdbxFile),accounts=accounts,otps=codes,passkeys=keys,groups=groups.Select(g=>g.Path).ToArray(),apps=apps,installers=installers,packages=packages,wingetMode=wgView=="upgrade"?"updates":wgView=="set"?"set":"all",links=store.Links.Select(l=>new{id=l.Id,name=l.Name,url=l.Url,description=l.Description}).ToArray(),vaults=fileVaults,files=files,fileVault=selectedFolder,path=fileDirectory,fileState=fileState.Text,status=status.Text,activity=pwLog.Lines.Take(200).ToArray(),browser=store.Settings.Browser,browsers=desktopBrowsers,extensionConnected=DesktopDependencies.OwnBrowserConnection(),theme=desktopTheme,busy=desktopExecuting||fileBusy||wgBusy||busyLogin||unlockBusy||installAuthorizing||appOperations>0,selection=selection,settings=new{tray=store.Settings.MinimizeToTray,autoLock=store.Settings.AutoLockMinutes,notify=store.Settings.FillNotify,backupFolder=store.Settings.BackupDir,backupKeep=store.Settings.BackupKeep},actions=desktopActions.Values.Select(a=>new{id=a.Id,section=a.Section,title=a.Title,enabled=a.Enabled,check=a.Item is ToolStripMenuItem?((ToolStripMenuItem)a.Item).Checked:false}).ToArray()};
+            return new{locked=vault==null,baseExists=BaseExists(),database=Path.GetFileName(Paths.KdbxFile),accounts=accounts,cards=cards,otps=codes,passkeys=keys,groups=groups.Select(g=>g.Path).ToArray(),apps=apps,installers=installers,packages=packages,wingetMode=wgView=="upgrade"?"updates":wgView=="set"?"set":"all",links=store.Links.Select(l=>new{id=l.Id,name=l.Name,url=l.Url,description=l.Description}).ToArray(),vaults=fileVaults,files=files,fileVault=selectedFolder,path=fileDirectory,fileState=fileState.Text,status=status.Text,activity=pwLog.Lines.Take(200).ToArray(),browser=store.Settings.Browser,browsers=desktopBrowsers,extensionConnected=DesktopDependencies.OwnBrowserConnection(),theme=desktopTheme,busy=desktopExecuting||fileBusy||wgBusy||busyLogin||unlockBusy||installAuthorizing||appOperations>0,selection=selection,settings=new{tray=store.Settings.MinimizeToTray,autoLock=store.Settings.AutoLockMinutes,notify=store.Settings.FillNotify,backupFolder=store.Settings.BackupDir,backupKeep=store.Settings.BackupKeep},actions=desktopActions.Values.Select(a=>new{id=a.Id,section=a.Section,title=a.Title,enabled=a.Enabled,check=a.Item is ToolStripMenuItem?((ToolStripMenuItem)a.Item).Checked:false}).ToArray()};
         }
     }
 }

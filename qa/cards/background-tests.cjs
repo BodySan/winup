@@ -1,0 +1,25 @@
+'use strict';
+const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict'),path=require('node:path');
+const root=path.resolve(__dirname,'../../src/browser');
+const tests=[];
+async function test(name,fn){await fn();tests.push({name,passed:true});}
+function setup(change={}){
+  const calls=[],writes=[],handlers=[],delivered=[];
+  const state={url:'https://shop.example/checkout',active:true,permission:true,locked:false,generation:7,denied:false,noNumber:false,redirect:false,frameChange:false,...change};
+  const frames=[{frameId:0,url:'https://shop.example/checkout',documentId:'shop-1'},{frameId:5,url:'https://pay.example/number',documentId:'number-1'},{frameId:6,url:'https://pay.example/cvv',documentId:'cvv-1'}];
+  let queried=0;
+  const chrome={runtime:{id:'own-extension',getURL:p=>'chrome-extension://own-extension/'+p,lastError:null,onMessage:{addListener:f=>handlers.push(f)},onConnect:{addListener:()=>{}},sendNativeMessage:(host,msg,done)=>{calls.push(msg);if(msg.type==='card-fill'){if(state.redirect)state.url='https://evil.example/';if(state.frameChange)frames[1].documentId='number-2';done(state.denied?{ok:false,error:'denied'}:{ok:true,generation:7,number:'4111111111111111',cvv:'923',holder:'TEST OWNER',month:12,year:2098,brand:'Visa'});}else done(msg.type==='status'?{ok:true,state:state.locked?'closed':'open',generation:state.generation}:{ok:true,items:[]});}},permissions:{contains:async()=>state.permission},storage:{local:{get:async()=>({token:'fixture-token'}),set:async value=>writes.push(value),remove:async()=>{}},session:{get:async()=>({}),set:async()=>{},remove:async()=>{}}},tabs:{get:async()=>({id:10,url:state.url,active:state.active}),onRemoved:{addListener:()=>{}},sendMessage:async(id,msg,options)=>{const frameId=options.frameId;if(msg.type==='cards-probe')return {ok:true,nonce:'nonce-'+frameId,fields:frameId===0?['cc-name']:frameId===5&&!state.noNumber?['cc-number']:['cc-csc'],actionOrigin:frameId===0?'https://shop.example':'https://pay.example'};delivered.push({frameId,msg:JSON.parse(JSON.stringify(msg))});return {ok:true,filled:1};}},webNavigation:{getAllFrames:async()=>{queried++;return JSON.parse(JSON.stringify(frames));}}};
+  const context=vm.createContext({chrome,navigator:{userAgent:'Chrome QA'},URL,TextEncoder,crypto:require('node:crypto').webcrypto,setInterval:()=>0,console});
+  vm.runInContext(fs.readFileSync(path.join(root,'cards-background.js'),'utf8')+'\n'+fs.readFileSync(path.join(root,'background.js'),'utf8'),context);
+  const send=(msg,sender={id:'own-extension',url:chrome.runtime.getURL('popup.html')})=>new Promise(resolve=>handlers[0](msg,sender,resolve));
+  return {state,calls,writes,delivered,send};
+}
+(async()=>{
+  await test('Content script cannot list or request a card',async()=>{const x=setup();for(const type of ['card-list','card-insert','card-fill'])assert.equal((await x.send({type,id:'card',tabId:10},{id:'own-extension',url:'https://evil.example',tab:{id:10},frameId:0})).ok,false);assert.equal(x.calls.length,0);});
+  await test('Optional consent is required before native requests',async()=>{const x=setup({permission:false});assert.equal((await x.send({type:'card-list'})).error,'consent_required');assert.equal(x.calls.length,0);});
+  await test('HTTP and inactive tabs receive no card data',async()=>{for(const change of [{url:'http://shop.example'},{url:'https://name:password@shop.example'},{active:false}]){const x=setup(change);assert.equal((await x.send({type:'card-insert',tabId:10,id:'card'})).ok,false);assert.equal(x.calls.length,0);}});
+  await test('No number field means no native secret request',async()=>{const x=setup({noNumber:true});assert.equal((await x.send({type:'card-insert',tabId:10,id:'card'})).error,'no_card_fields');assert.equal(x.calls.length,0);});
+  await test('Browser URLs override caller URL; split frames receive only required secrets',async()=>{const x=setup();assert.equal((await x.send({type:'card-insert',tabId:10,id:'card',url:'https://spoof.example'})).ok,true);const call=x.calls.find(c=>c.type==='card-fill');assert.equal(call.url,'https://shop.example/checkout');assert.deepEqual([...call.origins].sort(),['https://pay.example','https://shop.example']);assert.equal(x.delivered.find(f=>f.frameId===5).msg.card.number,'4111111111111111');assert.equal(x.delivered.find(f=>f.frameId===5).msg.card.cvv,'');assert.equal(x.delivered.find(f=>f.frameId===6).msg.card.number,'');assert.equal(x.delivered.find(f=>f.frameId===6).msg.card.cvv,'923');assert.equal(x.delivered.find(f=>f.frameId===0).msg.card.number,'');assert.equal(x.writes.length,0);});
+  for(const change of [{redirect:true},{frameChange:true},{locked:true},{generation:8},{denied:true}])await test('Navigation, frame replacement, lock or denial cancels delivery '+JSON.stringify(change),async()=>{const x=setup(change);assert.equal((await x.send({type:'card-insert',tabId:10,id:'card'})).ok,false);assert.equal(x.delivered.length,0);});
+  console.log(JSON.stringify({checks:tests.length,failed:0,tests}));
+})().catch(error=>{console.error(error);process.exitCode=1;});

@@ -553,7 +553,7 @@ namespace WinUp
 
     // Сервер именованного канала: принимает запросы моста, ответы готовит по протоколу расширения.
     // База и диалоги доступны только через Invoke в поток интерфейса.
-    class BrowserServer
+    partial class BrowserServer
     {
         MainForm owner;
         volatile bool stop;
@@ -756,11 +756,12 @@ namespace WinUp
             }
             if (type == "unlock") return Unlock(token);
 
-            if (type != "list" && type != "search" && type != "fill" && type != "otp-list" && type != "otp" && type != "otp-fill" && type != "otp-copy" &&
+            if (type != "card-list" && type != "card-fill" && type != "list" && type != "search" && type != "fill" && type != "otp-list" && type != "otp" && type != "otp-fill" && type != "otp-copy" &&
                 type != "passkey-create" && type != "passkey-get" && type != "passkey-cancel" && type != "save" &&
                 type != "login-claim" && type != "login-step" && type != "login-end") return Err("bad_request");
             if (!BrowserPair.IsPaired(token)) return Err("not_paired");
             if (type != "fill" && type != "otp-fill" && lookups.Hit(BrowserPair.HashToken(token)) > LookupsPerMinute) return Err("rate_limited");
+            if(type=="card-list"||type=="card-fill")return CardRequest(token,type,d);
 
             if (type.StartsWith("passkey-", StringComparison.Ordinal)) return PasskeyRequest(token, type, d);
             if(type.StartsWith("login-",StringComparison.Ordinal)) {

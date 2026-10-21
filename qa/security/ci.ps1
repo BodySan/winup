@@ -80,6 +80,8 @@ if($env:GITHUB_ACTIONS -eq 'true') {
     if($layoutProbe.ExitCode -ne 0 -or [IO.File]::ReadAllText("$Output\layout.txt") -notmatch 'PASS layout all'){throw 'Action layout checks failed'}
 }
 if($FunctionalOnly) {
+    & node "$PSScriptRoot\..\cards\background-tests.cjs"
+    if($LASTEXITCODE){throw 'Bank card extension regressions failed.'}
     & node "$PSScriptRoot\..\tests\passkey-focus-regression.cjs"
     if($LASTEXITCODE){throw 'Native passkey focus regression failed.'}
     & node "$PSScriptRoot\..\tests\passkey-visibility-regression.cjs"

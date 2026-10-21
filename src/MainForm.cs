@@ -107,6 +107,7 @@ namespace WinUp
             BuildPasswordTab();
             BuildCodesTab();
             BuildPasskeyTab();
+            BuildCardsTab();
             BuildFileVaultTab();
             BuildPortableTab();
             BuildWingetTab();
@@ -1268,15 +1269,7 @@ namespace WinUp
 
         void OpenHelp()
         {
-            var p = DesktopDependencies.BundledPath(Paths.Root,"Инструкция.html");
-            // Инструкция извлекается из exe в служебную папку данных.
-            if (!File.Exists(p))
-            {
-                try { Paths.CopyBundled("Инструкция.html", p); }
-                catch { }
-            }
-            if (!File.Exists(p)) { MessageBox.Show(this, "Файл инструкции не найден:\n" + p, "WinUp"); return; }
-            try { Process.Start(new ProcessStartInfo(p) { UseShellExecute = true }); }
+            try { var p=DesktopDependencies.EnsureDocument("Инструкция.html");Process.Start(new ProcessStartInfo(p) { UseShellExecute = true }); }
             catch (Exception ex) { MessageBox.Show(this, ex.Message, "WinUp"); }
         }
 
@@ -1773,6 +1766,7 @@ namespace WinUp
 
         void ShowLocked()
         {
+            RefreshCards();
             openPanel.Visible = false; lockedPanel.Visible = true;
             otpOpen.Visible = false; otpLocked.Visible = true; otpList.Items.Clear();
             if (!BaseExists())
@@ -1795,6 +1789,7 @@ namespace WinUp
 
         void ShowOpen()
         {
+            RefreshCards();
             lockedPanel.Visible = false; openPanel.Visible = true;
             otpLocked.Visible = false; otpOpen.Visible = true;
             RefreshEntries();

@@ -55,7 +55,7 @@ namespace WinUp {
         static T QaField<T>(Form form,string name)where T:class {return form.GetType().GetField(name,BindingFlags.Instance|BindingFlags.NonPublic).GetValue(form) as T;}
         void QaPalette(Form form){var bad=QaControls(form).Where(c=>!(c is Button)&&!(c is TabControl)&&!(c is ProgressBar)&&c.Enabled&&!(c is PictureBox)&&Appearance.Contrast(c.ForeColor,c.BackColor)<4.5).Select(c=>c.GetType().Name+":"+c.Text+" "+c.ForeColor+" / "+c.BackColor).ToArray();if(bad.Length>0)throw new Exception(string.Join("; ",bad));}
         async Task QaActionDialog(string script,string kind,Action<Form> action){string seen="",failure="";using(var timer=new Timer{Interval=100}){timer.Tick+=(s,e)=>{if(kind=="ExportDialog"){var prompt=Application.OpenForms.Cast<Form>().FirstOrDefault(f=>f.Visible&&f.GetType().Name=="PasswordPrompt");if(prompt!=null){QaSaveForm(prompt,"box","WinUp-QA-Only!2026-4zL8wR");return;}}foreach(Form f in Application.OpenForms.Cast<Form>().Where(f=>f!=this&&f.Visible&&f.GetType().Name==kind).ToArray()){timer.Stop();seen=kind;try{QaPalette(f);action(f);}catch(Exception ex){failure=ex.ToString();f.DialogResult=DialogResult.Cancel;f.Close();}}};timer.Start();await QaScript(script);for(int n=0;n<120&&seen=="";n++)await Task.Delay(50);timer.Stop();}if(failure!="")throw new Exception(failure);QaCheck("Native action and readable fields: "+kind,seen==kind);await QaWait("desktop.pending.size===0");}
-        void QaSaveForm(Form form,string field,string value){QaField<TextBox>(form,field).Text=value;((Button)form.AcceptButton).PerformClick();}
+        void QaSaveForm(Form form,string field,string value){QaField<TextBox>(form,field).Text=value;((Button)form.AcceptButton).PerformClick();if(form is BankCardDialog&&QaField<Label>(form,"feedback").Text!="")throw new Exception(QaField<Label>(form,"feedback").Text);}
         void QaNestedEdit(Form parent,string buttonTitle,string childKind,Action<Form> edit){string failure="",seen="";using(var timer=new Timer{Interval=70}){timer.Tick+=(s,e)=>{var child=Application.OpenForms.Cast<Form>().FirstOrDefault(f=>f.GetType().Name==childKind&&f.Visible);if(child==null)return;timer.Stop();seen=childKind;try{QaPalette(child);edit(child);}catch(Exception ex){failure=ex.ToString();child.DialogResult=DialogResult.Cancel;child.Close();}};timer.Start();QaControls(parent).OfType<Button>().First(b=>b.Text==buttonTitle).PerformClick();timer.Stop();}if(failure!=""||seen=="")throw new Exception("Nested dialog: "+childKind+" "+failure);}
         async Task QaSubfunctions(){
             await QaScript("navigate('passwords');state.selected='22222222222222222222222222222222';render()");
@@ -230,6 +230,7 @@ namespace WinUp {
                 dismiss.Tick+=(s,e)=>{EnumThreadWindows(GetCurrentThreadId(),(hwnd,arg)=>{var title=new System.Text.StringBuilder(256);GetWindowText(hwnd,title,title.Capacity);if(title.ToString()=="WinUp — файлы"){errorSeen=true;PostMessage(hwnd,0x0010,IntPtr.Zero,IntPtr.Zero);}return true;},IntPtr.Zero);};
                 dismiss.Start();await QaScript("A['file-open']({dataset:{id:'Проект'}})");await QaWait("desktop.pending.size===0");dismiss.Stop();
             }
+            File.WriteAllText(Path.Combine(Paths.Root,"failed-file-navigation.json"),desktopJson.Serialize(new{errorSeen=errorSeen,originalDirectory=originalDirectory,directory=fileDirectory,originalItems=originalItems,items=fileItems.Items.Cast<ListViewItem>().Select(i=>i.Text).ToArray(),open=fileVault!=null&&fileVault.Open,renderer=await QaScript("({path:state.path,files:state.files.map(f=>f.name),pending:[...desktop.pending],toasts:document.getElementById('toasts').textContent})")}));
             QaCheck("A failed folder change retains the previous directory and rows",errorSeen&&fileDirectory==originalDirectory&&fileItems.Items.Cast<ListViewItem>().Select(i=>i.Text).SequenceEqual(originalItems));
             await Task.Run(()=>fileVault.Call("mkdir","Проект"));RefreshFileItems();DesktopReply("folder-restored",null);await QaWait("state.files.length===2");
         }
@@ -252,6 +253,7 @@ namespace WinUp {
         internal async Task DesktopQa() {
             try {
                 for(int n=0;n<250&&(!desktopReady||desktopView.CoreWebView2==null);n++)await Task.Delay(80);
+                if(!desktopReady)File.WriteAllText(Path.Combine(Paths.Root,"webview-startup-error.txt"),pwLog.Text+"\n"+status.Text+"\n"+Environment.GetEnvironmentVariable("WEBVIEW2_BROWSER_EXECUTABLE_FOLDER"));
                 QaCheck("WebView2 starts",desktopReady);
                 QaCheck("Interface dependencies extract inside data",DesktopDependencies.Names.All(n=>File.Exists(Path.Combine(DesktopDependencies.Folder,n)))&&DesktopDependencies.Names.All(n=>!File.Exists(Path.Combine(Paths.Root,n))));
                 QaCheck("Managed interface libraries load from data",new[]{"Microsoft.Web.WebView2.Core","Microsoft.Web.WebView2.WinForms"}.All(n=>AppDomain.CurrentDomain.GetAssemblies().Any(a=>a.GetName().Name==n&&Proc.SameFile(a.Location,Path.Combine(DesktopDependencies.Folder,n+".dll")))));
@@ -269,6 +271,7 @@ namespace WinUp {
                 vault.Otp.Add(new OtpEntry{Id="44444444444444444444444444444444",Issuer="Учебный 2FA",Account="qa@example.invalid",Secret="JBSWY3DPEHPK3PXP",Digits=6,Period=30,Algorithm="SHA1"});
                 vault.Save();vault.Entries.Single(e=>e.Name=="Учебный аккаунт").OtpId=vault.Otp[0].Id;vault.Save();qaIds["11111111111111111111111111111111"]=vault.Entries.Single(e=>e.Name=="Учебный аккаунт").Id;qaIds["22222222222222222222222222222222"]=vault.Entries.Single(e=>e.Name=="Второй аккаунт").Id;qaIds["33333333333333333333333333333333"]=vault.Entries.Single(e=>e.Kind=="passkey").Id;qaIds["44444444444444444444444444444444"]=vault.Otp[0].Id;ShowOpen();RefreshPasskeys();DesktopReply("fixture",null);await QaWait("state.accounts.length===2");
                 if(Environment.GetCommandLineArgs().Contains("--otp-only")){await QaRepeatedOtp();return;}
+                await QaBankCards();if(Environment.GetCommandLineArgs().Contains("--cards-only"))return;
                 string snap=desktopJson.Serialize(DesktopSnapshot());File.WriteAllText(Path.Combine(Paths.Root,"snapshot.json"),snap);
                 QaCheck("Snapshot excludes secret material",!snap.Contains("QA-secret")&&!snap.Contains("JBSWY3D")&&!snap.Contains("WinUp-QA-Only"));
                 var referenceEntry=vault.Entries.First(e=>e.Kind!="passkey");string oldLogin=referenceEntry.Login,oldLogin2=referenceEntry.Login2;
@@ -331,5 +334,44 @@ namespace WinUp {
             finally{File.WriteAllText(Path.Combine(Paths.Root,"qa-results.json"),desktopJson.Serialize(desktopChecks));File.WriteAllText(Path.Combine(Paths.Root,"qa-done.txt"),DateTime.UtcNow.ToString("O"));Close();}
         }
         bool stateCheckFiles(string name){return fileItems.Items.Cast<ListViewItem>().Any(i=>i.Text==name);}
+    }
+}
+
+namespace WinUp {
+    partial class MainForm {
+        async System.Threading.Tasks.Task QaBankCards(){
+            string help=DesktopDependencies.BundledPath(Paths.Root,"Инструкция.html");Directory.CreateDirectory(Path.GetDirectoryName(help));File.WriteAllText(help,"STALE-DOCUMENT-QA");DesktopDependencies.EnsureDocument("Инструкция.html");QaCheck("Help refreshes a cached instruction from an older release",File.ReadAllText(help).Contains("<title>WinUp 2.1 — инструкция</title>")&&!File.ReadAllText(help).Contains("STALE-DOCUMENT-QA"));
+            await QaActionDialog("navigate('cards');A['card-add']()","BankCardDialog",f=>{
+                QaField<System.Windows.Forms.TextBox>(f,"name").Text="Учебная карта <b>";
+                QaField<System.Windows.Forms.TextBox>(f,"number").Text="4111 1111 1111 1111";
+                QaField<System.Windows.Forms.TextBox>(f,"holder").Text="TEST OWNER";
+                QaField<System.Windows.Forms.TextBox>(f,"cvv").Text="923";
+                QaField<System.Windows.Forms.NumericUpDown>(f,"month").Value=12;
+                QaField<System.Windows.Forms.NumericUpDown>(f,"year").Value=2098;
+                QaSaveForm(f,"notes","SYNTHETIC-CARD-NOTE");
+            });
+            await QaWait("state.cards.length===1&&desktop.pending.size===0");
+            QaCheck("Card editor adds actual encrypted record",vault.Cards.Count==1&&vault.Cards[0].UseNumber(n=>n=="4111111111111111")&&vault.Cards[0].UseCvv(c=>c=="923"));
+            string snapshot=desktopJson.Serialize(DesktopSnapshot());
+            QaCheck("Desktop snapshot excludes PAN and protected card note",!snapshot.Contains("4111111111111111")&&!snapshot.Contains("SYNTHETIC-CARD-NOTE"));
+            QaCheck("Card title is escaped and number stays masked",System.Convert.ToBoolean(await QaScript("!document.querySelector('.card-select b b')&&document.querySelector('.account-detail').textContent.includes('1111')&&!document.querySelector('.account-detail').textContent.includes('4111111111111111')")));
+            await QaScript("A['card-copy']({dataset:{field:'number'}})");await QaWait("desktop.pending.size===0");
+            QaCheck("Card number copies through secure clipboard",System.Windows.Forms.Clipboard.GetText()=="4111111111111111");SecureClip.ClearNow();
+            await QaScript("A['card-copy']({dataset:{field:'cvv'}})");await QaWait("desktop.pending.size===0");
+            QaCheck("CVV copies through secure clipboard",System.Windows.Forms.Clipboard.GetText()=="923");SecureClip.ClearNow();
+            using(var diagnostic=new Timer{Interval=2000}){diagnostic.Tick+=(s,e)=>{File.WriteAllText(Path.Combine(Paths.Root,"card-dialog-state.txt"),string.Join("\n",Application.OpenForms.Cast<Form>().Select(f=>f.GetType().Name+": "+f.Text)));EnumThreadWindows(GetCurrentThreadId(),(hwnd,arg)=>{var title=new System.Text.StringBuilder(256);GetWindowText(hwnd,title,title.Capacity);File.AppendAllText(Path.Combine(Paths.Root,"card-dialog-state.txt"),"\nWindow: "+title);return true;},IntPtr.Zero);};diagnostic.Start();await QaActionDialog("callNative('Изменить карту',{},'Карты')","BankCardDialog",f=>QaSaveForm(f,"holder","CHANGED HOLDER"));diagnostic.Stop();}
+            QaCheck("Native action menu edits selected card without losing secrets",vault.Cards[0].Holder=="CHANGED HOLDER"&&vault.Cards[0].UseNumber(n=>n=="4111111111111111")&&vault.Cards[0].UseCvv(c=>c=="923")&&vault.Cards[0].UseNotes(n=>n=="SYNTHETIC-CARD-NOTE"));
+            await QaActionDialog("A['card-add']()","BankCardDialog",f=>{QaField<TextBox>(f,"name").Text="Invalid duplicate";QaField<TextBox>(f,"number").Text="4111111111111112";((Button)f.AcceptButton).PerformClick();QaCheck("Invalid PAN stays in editor with actionable feedback",f.DialogResult==DialogResult.None&&QaField<Label>(f,"feedback").Text.Contains("контрольная")&&QaField<TextBox>(f,"number").Text=="4111111111111112");QaField<TextBox>(f,"number").Text="4111111111111111";((Button)f.AcceptButton).PerformClick();QaCheck("Duplicate PAN is rejected before adding record",f.DialogResult==DialogResult.None&&QaField<Label>(f,"feedback").Text.Contains("уже сохранена"));f.DialogResult=DialogResult.Cancel;f.Close();});
+            QaCheck("Cancelling invalid duplicate leaves one card",vault.Cards.Count==1);
+            await QaScript("A['card-copy']({dataset:{field:'holder'}})");await QaWait("desktop.pending.size===0");QaCheck("Holder copy uses currently edited value",Clipboard.GetText()=="CHANGED HOLDER");SecureClip.ClearNow();
+            await QaScript("A['card-copy']({dataset:{field:'expiry'}})");await QaWait("desktop.pending.size===0");QaCheck("Expiry copy uses saved month and year",Clipboard.GetText()=="12/98");SecureClip.ClearNow();
+            await QaScript("navigate('cards');window.scrollTo(0,document.documentElement.scrollHeight)");await Task.Delay(100);QaCheck("Card actions and fields fit scrolling panel",Convert.ToBoolean(await QaScript("(()=>{const c=document.querySelector('.card-detail'),a=c.querySelector('.detail-actions').getBoundingClientRect();return getComputedStyle(c).display==='flex'&&a.top>=0&&a.bottom<=innerHeight&&document.documentElement.scrollWidth<=innerWidth})()")));using(var image=System.IO.File.Create(System.IO.Path.Combine(Paths.Root,"desktop-cards.png")))await desktopView.CoreWebView2.CapturePreviewAsync(Microsoft.Web.WebView2.Core.CoreWebView2CapturePreviewImageFormat.Png,image);
+            string scenario=System.IO.File.ReadAllText(System.IO.Path.Combine(Paths.Root,"card-form-scenarios.js"));
+            await desktopView.CoreWebView2.ExecuteScriptAsync(scenario);
+            using(var stream=ComponentResources.Open("browser/cards-form.js"))using(var reader=new System.IO.StreamReader(stream))await desktopView.CoreWebView2.ExecuteScriptAsync(reader.ReadToEnd());
+            object[] results=(object[])await QaScript("(()=>{try{return cardQaRun()}catch(error){return [...cardFormResults,{name:error.message,passed:false}]}})()");
+            foreach(System.Collections.Generic.Dictionary<string,object> row in results)QaCheck("Payment DOM: "+row["name"],(bool)row["passed"]);
+            await QaScript("navigate('passwords')");
+        }
     }
 }

@@ -57,9 +57,9 @@ namespace WinUp {
         }
         int RestoreDeletedCore(PwEntry entry,bool related){
             bool otp=GetStr(entry,TrashKind)=="otp";string id=entry.Uuid.ToHexString(),links=GetStr(entry,TrashLinks);int count=1;
-            if(ActiveRecord(id,otp)!=null)throw new IOException("Запись с этим идентификатором уже существует.");
+            if(ActiveRecord(id,otp)!=null||!otp&&CardRecords().Any(c=>c.Uuid.ToHexString()==id))throw new IOException("Запись с этим идентификатором уже существует.");
             if(related&&!otp){foreach(var refId in new[]{GetStr(entry,"WinUp.OtpRef"),GetStr(entry,"WinUp.PasskeyRef")}.Where(s=>!string.IsNullOrEmpty(s))){var match=Trash(false).Entries.FirstOrDefault(e=>e.Uuid.ToHexString()==refId);if(match!=null)count+=RestoreDeletedCore(match,false);}}
-            entry.ParentGroup.Entries.Remove(entry);var group=otp?FindOtpGroup(true):FindAccountGroup(GetStr(entry,"WinUp.DeletedGroup"))??db.RootGroup;group.AddEntry(entry,true);
+            entry.ParentGroup.Entries.Remove(entry);var group=otp?FindOtpGroup(true):GetStr(entry,"WinUp.Kind")=="card"?CardGroup(true):FindAccountGroup(GetStr(entry,"WinUp.DeletedGroup"))??db.RootGroup;group.AddEntry(entry,true);
             entry.Strings.Remove("WinUp.DeletedGroup");
             entry.Strings.Remove(TrashKind);entry.Strings.Remove(TrashTime);entry.Strings.Remove(TrashLinks);entry.LocationChanged=DateTime.UtcNow;entry.Touch(true,false);
             if(otp&&!string.IsNullOrEmpty(links))foreach(var refId in links.Split(',')){var linked=ActiveRecord(refId,false);if(linked!=null&&GetStr(linked,"WinUp.TwoFa")=="ask"&&string.IsNullOrEmpty(GetStr(linked,"WinUp.OtpRef"))){linked.CreateBackup(db);SetStr(linked,"WinUp.TwoFa","link");SetStr(linked,"WinUp.OtpRef",id);linked.Touch(true,false);}}

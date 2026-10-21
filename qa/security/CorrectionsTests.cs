@@ -15,7 +15,7 @@ namespace WinUp {
             Ui(delegate {
                 NewVault(false); BrowserPair.Save(token,"Synthetic corrections test");
                 var tabs=(TabControl)typeof(MainForm).GetField("tabs",Private).GetValue(form);
-                Check("requested-tab-order",string.Join("|",tabs.TabPages.Cast<TabPage>().Select(t=>t.Text))=="Пароли|2FA|Ключи доступа|Файлы|Запуск|WinGet|Установка|Скачать","actual MainForm tabs");
+                Check("requested-tab-order",string.Join("|",tabs.TabPages.Cast<TabPage>().Select(t=>t.Text))=="Пароли|2FA|Ключи доступа|Карты|Файлы|Запуск|WinGet|Установка|Скачать","actual MainForm tabs");
                 var e=form.VaultNow.Entries[0]; e.Kind="both"; e.Login2="sandbox@example.com"; e.AppTarget="%WINDIR%\\notepad.exe"; e.RecoveryCodes=codes;e.LoginUrl="https://example.com/login";
                 using(var dialog=new EntryDialog(e.Copy(),new AppStore(),false,form.VaultNow.Otp,form.VaultNow.Entries)) {
                     var pw=(TextBox)typeof(EntryDialog).GetField("pass",Private).GetValue(dialog);
@@ -264,7 +264,7 @@ namespace WinUp {
                 }; cancel.Start();
                 try {
                     foreach(var test in new[] {
-                        new[] {"Ключи доступа","Добавить ключ…"},new[] {"Файлы","Создать хранилище"},
+                        new[] {"Ключи доступа","Добавить ключ…"},new[] {"Карты","Добавить карту"},new[] {"Файлы","Создать хранилище"},
                         new[] {"Файлы","Добавить существующее"},new[] {"Файлы","Открыть"},
                         new[] {"Файлы","Зашифровать файлы…"},new[] {"Файлы","Зашифровать папку…"},new[] {"Файлы","Расшифровать пакет…"},new[] {"Файлы","Добавить файлы"},
                         new[] {"Файлы","Добавить папку"},new[] {"Файлы","В Проводнике"},new[] {"Файлы","Новая папка"}

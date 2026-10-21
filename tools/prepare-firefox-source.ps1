@@ -4,7 +4,7 @@ $manifest=Get-Content -LiteralPath (Join-Path $source 'firefox-manifest.json') -
 $root=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\firefox-submission'))
 $stage=Join-Path $root ('source-'+$manifest.version)
 New-Item -ItemType Directory -Force -Path $stage | Out-Null
-$names=@($manifest.content_scripts|ForEach-Object {$_.js})+@($manifest.web_accessible_resources|ForEach-Object {$_.resources})+@('background.js','firefox-manifest.json','popup.html','popup.js','icon16.png','icon32.png','icon48.png','icon128.png')
+$names=@($manifest.content_scripts|ForEach-Object {$_.js})+@($manifest.web_accessible_resources|ForEach-Object {$_.resources})+@('cards-background.js','background.js','firefox-manifest.json','popup.html','popup.js','icon16.png','icon32.png','icon48.png','icon128.png')
 foreach($name in $names|Select-Object -Unique){Copy-Item -LiteralPath (Join-Path $source $name) -Destination (Join-Path $stage $name) -Force}
 Copy-Item -LiteralPath (Join-Path $PSScriptRoot '..\doc\EXTENSION-PRIVACY-RU.md') -Destination (Join-Path $stage 'PRIVACY.md') -Force
 Copy-Item -LiteralPath (Join-Path $PSScriptRoot '..\src\licenses\WinUp-GPL.txt') -Destination (Join-Path $stage 'LICENSE.txt') -Force
