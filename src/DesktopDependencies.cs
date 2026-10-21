@@ -44,5 +44,15 @@ namespace WinUp {
             return Assembly.LoadFrom(Path.Combine(Folder,name));
         }
         internal static string BundledPath(string root,string name){return Names.Contains(name)?Path.Combine(root,"data","runtime","webview2",name):Path.Combine(root,"data","docs",name);}
+        internal static string EnsureDocument(string name){
+            if(name!="Инструкция.html"&&name!="THIRD-PARTY.md")throw new IOException("Неизвестный встроенный документ.");
+            string target=BundledPath(Paths.Root,name);SafePaths.NoReparseParents(target);
+            using(var source=Paths.OpenBundled(name))using(var memory=new MemoryStream()){
+                if(source==null)throw new IOException("Документ отсутствует в сборке: "+name);
+                source.CopyTo(memory);byte[] bytes=memory.ToArray();
+                if(!File.Exists(target)||!File.ReadAllBytes(target).SequenceEqual(bytes))Paths.AtomicWrite(target,bytes);
+            }
+            return target;
+        }
     }
 }

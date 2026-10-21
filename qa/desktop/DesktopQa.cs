@@ -340,6 +340,7 @@ namespace WinUp {
 namespace WinUp {
     partial class MainForm {
         async System.Threading.Tasks.Task QaBankCards(){
+            string help=DesktopDependencies.BundledPath(Paths.Root,"Инструкция.html");Directory.CreateDirectory(Path.GetDirectoryName(help));File.WriteAllText(help,"STALE-DOCUMENT-QA");DesktopDependencies.EnsureDocument("Инструкция.html");QaCheck("Help refreshes a cached instruction from an older release",File.ReadAllText(help).Contains("<title>WinUp 2.1 — инструкция</title>")&&!File.ReadAllText(help).Contains("STALE-DOCUMENT-QA"));
             await QaActionDialog("navigate('cards');A['card-add']()","BankCardDialog",f=>{
                 QaField<System.Windows.Forms.TextBox>(f,"name").Text="Учебная карта <b>";
                 QaField<System.Windows.Forms.TextBox>(f,"number").Text="4111 1111 1111 1111";
