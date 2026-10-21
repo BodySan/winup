@@ -58,7 +58,7 @@ namespace WinUp {
                         Check("delivery-passkey-system-choice",dialog.UseWindows && dialog.DialogResult==DialogResult.Ignore,"explicit system-provider choice preserves native WebAuthn");
                     }
                     var tabs=(TabControl)typeof(MainForm).GetField("tabs",Private).GetValue(form);
-                    Check("delivery-tab-order",string.Join("|",tabs.TabPages.Cast<TabPage>().Select(x=>x.Text))=="Пароли|2FA|Ключи доступа|Файлы|Запуск|WinGet|Установка|Скачать","requested order");
+                    Check("delivery-tab-order",string.Join("|",tabs.TabPages.Cast<TabPage>().Select(x=>x.Text))=="Пароли|2FA|Ключи доступа|Карты|Файлы|Запуск|WinGet|Установка|Скачать","requested order");
                 });
                 CorrectionUiButtons();MainButtonSweep();InstallerQueueUiTests();BrowserLoginJobTests();
                 DeliveryLongPasskeyChallenge();
