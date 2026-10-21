@@ -376,7 +376,7 @@ namespace WinUp {
                     Console.WriteLine("PASS layout "+page.Text+" at "+size+" listHeight="+list.Height);
                 }
             }
-            Console.WriteLine("PASS layout all "+checkedButtons+" action placements reachable; eight tabs at both window sizes");
+            Console.WriteLine("PASS layout all "+checkedButtons+" action placements reachable; nine tabs at both window sizes");
         }
         static void ReadOnlyProbe(string root){
             string folder=Path.Combine(root,"vault"),source=Path.Combine(root,"file.txt");File.WriteAllText(source,"Synthetic read-only");
