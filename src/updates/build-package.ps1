@@ -2,7 +2,7 @@
       [string]$ProtectedKey,[string]$Source)
 $ErrorActionPreference='Stop'
 Add-Type -AssemblyName System.Security
-if(!$ProtectedKey) { $ProtectedKey=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..\.release-private\component-signing.dpapi')) }
+if(!$ProtectedKey) { $ProtectedKey=Join-Path ([Environment]::GetFolderPath('LocalApplicationData')) 'WinUp-release-signing\component-signing.dpapi' }
 if($Sequence -lt 1 -or $Sequence -gt [int]::MaxValue) { throw 'Sequence must be 1..2147483647 and increase for each release.' }
 $src=if($Source) { [IO.Path]::GetFullPath($Source) } else { [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..')) }
 & "$PSScriptRoot\prepare.ps1" -Source $src
