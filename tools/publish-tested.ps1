@@ -1,7 +1,7 @@
 ﻿param([string]$Gh='gh',[string]$ProtectedKey,[string]$Repository='BodySan/winup',[switch]$Refresh,[switch]$PrepareOnly,[long]$TestRunId)
 $ErrorActionPreference='Stop'
 $root=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
-if(!$ProtectedKey) { $ProtectedKey=Join-Path $root '.release-private\component-signing.dpapi' }
+if(!$ProtectedKey) { $ProtectedKey=Join-Path ([Environment]::GetFolderPath('LocalApplicationData')) 'WinUp-release-signing\component-signing.dpapi' }
 if(!(Test-Path -LiteralPath $ProtectedKey)) { throw 'The local release signing key is absent. Use the original Windows account and its protected key backup.' }
 $envSet=$false
 try {
