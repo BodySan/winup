@@ -16,7 +16,7 @@ foreach ($file in Get-ChildItem "$src\browser" -File) {
 $sources = @((Get-ChildItem $src -Filter '*.cs').FullName) + "$src\Properties\AssemblyInfo.cs"
 $common += "/resource:$src\file-engine\file-engine.zip,file-engine.zip", "/resource:$src\file-engine\file-engine.json,file-engine.json"
 $common += "/resource:$src\file-engine\winfsp.msi,winfsp.msi"
-foreach ($module in 'WinUp.PasskeyEngine','BouncyCastle.Cryptography','CBOR','Numbers') { $common += "/resource:$src\lib\$module.dll,$module.dll" }
+foreach ($module in 'WinUp.PasskeyEngine','BouncyCastle.Cryptography','CBOR','Numbers','zxing') { $common += "/resource:$src\lib\$module.dll,$module.dll" }
 $common += "/r:$src\lib\WinUp.PasskeyEngine.dll"
 $common += "/resource:$src\public-suffix-list.dat,public-suffix-list.dat"
 $common += "/resource:$src\updates\components.json,components.json","/resource:$src\updates\publisher.xml,component-publisher.xml"

@@ -289,7 +289,8 @@
     const user = kind === "otp" ? null : (kind === "user" ? field : pw ? userFor(pw) : null);
     const otp = kind === "otp" ? field : Array.from(sc.querySelectorAll("input")).find(e => visible(e) && isOtp(e)) || null;
     return { url: location.href, field, kind, form, action: form ? form.action : null, pw, user, otp,
-      targets: [pw, user, otp].filter(Boolean).map(el => ({ el, type: el.type, form: el.form })) };
+      targets: [pw, user, otp].filter(Boolean).map(el => ({ el, type: el.type, form: el.form,
+        id: el.id || '', name: el.name || '', autocomplete: el.getAttribute('autocomplete') || '' })) };
   }
   function contextValid(c) {
     return location.href === c.url && visible(c.field) && kindOf(c.field) === c.kind &&
@@ -309,19 +310,30 @@
 
   function apply(r, c) {
     if (!contextValid(c)) return false;
+    // Re-rendering a controlled field after our own input event is normal. Only
+    // rebind an unambiguous, identically identified input in the ORIGINAL form.
+    // Never reuse credentials after navigation, action changes or form replacement.
+    function target(original) {
+      if(location.href!==c.url || c.form && (c.form.isConnected===false || c.form.action!==c.action)) return null;
+      const t=c.targets.find(t=>t.el===original);if(!t)return null;
+      if(visible(original)&&original.type===t.type&&original.form===t.form)return original;
+      if(!c.form||(!t.id&&!t.name))return null;
+      const matches=Array.from(c.form.querySelectorAll('input')).filter(el=>visible(el)&&el.type===t.type&&el.form===c.form&&
+        (el.id||'')===t.id&&(el.name||'')===t.name&&(el.getAttribute('autocomplete')||'')===t.autocomplete);
+      return matches.length===1?matches[0]:null;
+    }
     const { pw, user, otp } = c;
     if (c.kind === "otp") { if (r.otp) setValue(c.field, r.otp); return true; }
     if (user && (r.login || r.login2)) setValue(user, loginFor(user,r));
-    // input/change handlers may synchronously replace the form or navigate.
-    if (!contextValid(c)) return false;
+    if(location.href!==c.url || c.form && (c.form.isConnected===false || c.form.action!==c.action))return false;
     if(window===window.top&&(r.login||r.login2)){
       savedLogin=user?.value||r.login||r.login2;
       send({type:'save-login',login:savedLogin});
     }
-    if (pw && r.password) setValue(pw, r.password);
-    if (!contextValid(c)) return false;
-    if (otp && r.otp) setValue(otp, r.otp);
-    const last = pw || user || c.field;
+    let last=user;
+    if (pw && r.password) {const field=target(pw);if(!field)return false;setValue(field,r.password);last=field;}
+    if (otp && r.otp) {const field=target(otp);if(!field)return false;setValue(field,r.otp);last=field;}
+    last=last&&last.isConnected?last:c.field;
     if (last) last.focus();
     return true;
   }

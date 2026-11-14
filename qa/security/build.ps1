@@ -24,7 +24,7 @@ foreach($file in Get-ChildItem "$src\desktop" -File){$common += "/resource:$($fi
 $common += "/win32icon:$src\desktop\icon.ico"
 $common += "/resource:$src\file-engine\file-engine.zip,file-engine.zip", "/resource:$src\file-engine\file-engine.json,file-engine.json"
 $common += "/resource:$src\file-engine\winfsp.msi,winfsp.msi"
-foreach ($module in 'WinUp.PasskeyEngine','BouncyCastle.Cryptography','CBOR','Numbers') { $common += "/resource:$src\lib\$module.dll,$module.dll" }
+foreach ($module in 'WinUp.PasskeyEngine','BouncyCastle.Cryptography','CBOR','Numbers','zxing') { $common += "/resource:$src\lib\$module.dll,$module.dll" }
 $common += "/r:$src\lib\WinUp.PasskeyEngine.dll"
 $common += "/resource:$src\public-suffix-list.dat,public-suffix-list.dat"
 $common += "/resource:$src\updates\components.json,components.json","/resource:$src\updates\publisher.xml,component-publisher.xml"
@@ -84,6 +84,8 @@ if ($LASTEXITCODE) { throw 'File UI probe build failed' }
 BuildCsvExportProbe
 & $csc @common '/target:exe' '/main:WinUp.AdvancedWorkflowProbe' "/out:$Output\AdvancedWorkflowProbe.exe" @sources "$PSScriptRoot\AdvancedWorkflowProbe.cs"
 if ($LASTEXITCODE) { throw 'Advanced workflow probe build failed' }
+& $csc @common '/target:exe' '/main:WinUp.NotesCodesProbe' "/out:$Output\NotesCodesProbe.exe" @sources "$PSScriptRoot\..\desktop\NotesCodesProbe.cs"
+if ($LASTEXITCODE) { throw 'Notes and code image probe build failed' }
 BuildSystemProviderProbe
 if($HostNativeReview){BuildHostNativeReview}
 & $csc @common '/target:exe' '/main:WinUp.AdvancedUiProbe' "/out:$Output\AdvancedUiProbe.exe" @sources "$PSScriptRoot\AdvancedUiProbe.cs"

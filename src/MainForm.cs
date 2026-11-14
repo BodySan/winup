@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
@@ -103,11 +103,13 @@ namespace WinUp
             BuildUpdateBanner(); // до меню: верхние панели раскладываются от последней добавленной, меню остаётся выше плашки
             BuildMenu();
             tray = new TrayIcon(ShowFromTray, delegate { LockVaultCore(true); PwLog("База паролей, 2FA и ключей доступа заблокирована; файловое хранилище не закрывалось."); },
-                                delegate { ShowFromTray(); SelectTab("Пароли"); if (vault == null) Unlock(); }, Close,CloseFileVaultSafely,LockVault);
+                                delegate { ShowFromTray(); SelectTab("Пароли"); if (vault == null) Unlock(); }, Close,CloseFileVaultSafely,LockVault,delegate {OpenNotes();});
             BuildPasswordTab();
             BuildCodesTab();
             BuildPasskeyTab();
             BuildCardsTab();
+            BuildNotesTab();
+            BuildCodeImagesTab();
             BuildFileVaultTab();
             BuildPortableTab();
             BuildWingetTab();
@@ -1766,7 +1768,7 @@ namespace WinUp
 
         void ShowLocked()
         {
-            RefreshCards();
+            RefreshCards(); RefreshNotes();
             openPanel.Visible = false; lockedPanel.Visible = true;
             otpOpen.Visible = false; otpLocked.Visible = true; otpList.Items.Clear();
             if (!BaseExists())
@@ -1789,7 +1791,7 @@ namespace WinUp
 
         void ShowOpen()
         {
-            RefreshCards();
+            RefreshCards(); RefreshNotes();
             lockedPanel.Visible = false; openPanel.Visible = true;
             otpLocked.Visible = false; otpOpen.Visible = true;
             RefreshEntries();
@@ -1855,9 +1857,11 @@ namespace WinUp
             SecureClip.ClearNow();
             // 3. Окна с секретами (ILockableDialog) закрываются до затирания; обход — по копии
             //    списка: Close() меняет Application.OpenForms во время перебора.
+            notesLocking=true;
             foreach (var f in Application.OpenForms.Cast<Form>().ToList())
                 if (f != this && f is ILockableDialog)
                     try { f.Close(); } catch { }
+            notesLocking=false;
             // 4. Затирание ключа и секретов.
             if (vault != null) { vault.Lock(); vault = null; }
             RefreshSystemPasskeyCache();

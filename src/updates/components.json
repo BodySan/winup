@@ -2,8 +2,8 @@
   "schema": 1,
   "api": 6,
   "sequence": 0,
-  "minApp": "2.1.0.0",
-  "maxApp": "2.1.999.999",
+  "minApp": "2.2.0.0",
+  "maxApp": "2.2.999.999",
   "versions": {
     "cryptofs": "2.8.0",
     "cryptolib": "2.2.0",
@@ -16,7 +16,7 @@
     "numbers": "1.8.2",
     "age": "1.3.2",
     "files": "1.3",
-    "browser": "1.7.0",
+    "browser": "1.8.0",
     "psl": "2026-10-06_07-09-37_UTC"
   },
   "files": {
@@ -33,8 +33,8 @@
       "sha256": "073a70e00f77423e34bed98b86e600def93393ba5822204fac57a29324db9f7a"
     },
     "system-passkeys/WinUp.Passkeys.msix": {
-      "size": 3799,
-      "sha256": "eb3637afed13a8a3243802af527435d3d8cabe3b7fa63a6cd709485f36d10d12"
+      "size": 6531,
+      "sha256": "637db8a724f330084d76aac4b226460a23010dc2db70e60c916763be8d978b11"
     },
     "system-passkeys/WinUp.Passkeys.cer": {
       "size": 1012,
@@ -42,7 +42,7 @@
     },
     "system-passkeys/package.json": {
       "size": 166,
-      "sha256": "19672882bda82341abf5619d37293fa2624bd9b651bb24ec9b3aa00dd9bacd18"
+      "sha256": "00a9c104b4d17e46d4e281c78e1b944e6d991efb362e592799b89b875582d989"
     },
     "system-passkeys/Logo.png": {
       "size": 2460,
@@ -54,7 +54,7 @@
     },
     "system-passkeys/WinUp.PasskeyProvider.exe": {
       "size": 47104,
-      "sha256": "b863e46d74760a2dcb1cb7f6fcfff39e2eafced49c7f0be10f99cd59a1fd7e06"
+      "sha256": "9ad471a011f11a66713dacb9bf5b780866837cf4afa41e78e72a84e8a91bfdd7"
     },
     "WinUp.PasskeyEngine.dll": {
       "size": 14336,
@@ -77,8 +77,8 @@
       "sha256": "737075296d578aabae00a5871219abc6af1153b0eb3182bad04e533942b44cce"
     },
     "THIRD-PARTY.md": {
-      "size": 12784,
-      "sha256": "e1d944b72d71d6f3407e9a6792de7a525172e44038e19e65b2358bee5e3a45e2"
+      "size": 13041,
+      "sha256": "9d9c1f58aa3b888af54adbc08c89dbac37bdb8c4b250cc3d75bb50911ae505d5"
     },
     "browser/autologin.js": {
       "size": 11889,
@@ -120,6 +120,10 @@
       "size": 14473,
       "sha256": "13e3c690dd888abd41b48159e17c9c3abad39ca92275ae674451d08236792de1"
     },
+    "browser/background-v1.8.0.js": {
+      "size": 14473,
+      "sha256": "13e3c690dd888abd41b48159e17c9c3abad39ca92275ae674451d08236792de1"
+    },
     "browser/background.js": {
       "size": 11512,
       "sha256": "486405f43bb772b3462e95bda2c0ae524455672838638fae1c686c526e25059e"
@@ -133,12 +137,12 @@
       "sha256": "3286b2a95b8914e487221a9622bea3a2b6e7108062d04eda15c70ef4fda8c21b"
     },
     "browser/content.js": {
-      "size": 27256,
-      "sha256": "29058afd3549cc91cd76415284a8fc7772d08bd59e53aad6dc40ff0a420937a8"
+      "size": 28371,
+      "sha256": "350e55a96c81b513ed47046b4bbe7511647617eb93667bf497bed46f493a0d37"
     },
     "browser/firefox-manifest.json": {
       "size": 2334,
-      "sha256": "dde91af03a766ef98c1c2dd7ce3d0a47a8aa5ef87dc087dd509b2cbba5c03d90"
+      "sha256": "14f80f88f98154d3e743b9d6d0d9ccbd29820b81d23bc479a56c67e4eac091d8"
     },
     "browser/icon128.png": {
       "size": 2460,
@@ -162,7 +166,7 @@
     },
     "browser/manifest.json": {
       "size": 2374,
-      "sha256": "9d92095505ac5643f69ff1d0d73b4035eaf0cc36a826855726efa2d7466e5326"
+      "sha256": "262869160c4f318cca3f42ded2950b5db3efc3f8fff95374014d84f1c5bb192c"
     },
     "browser/passkey-relay.js": {
       "size": 1964,
@@ -181,8 +185,8 @@
       "sha256": "c0536027704869d3b8ee395025e9b163d0b7caeb18abee7059e3a908e8e0b5aa"
     },
     "browser/winup-firefox.xpi": {
-      "size": 62179,
-      "sha256": "2d81e7a12eac85cfc9f8576dee97aed13b81267ae27fa1416f128d4b093bc618"
+      "size": 63830,
+      "sha256": "74076fee786151f1c16540f24ece127888b58059c019b257bd1db8e16f2fa3de"
     },
     "licenses/age.txt": {
       "size": 1516,
@@ -259,6 +263,10 @@
     "licenses/WinUp-GPL.txt": {
       "size": 35141,
       "sha256": "589ed823e9a84c56feb95ac58e7cf384626b9cbf4fda2a907bc36e103de1bad2"
+    },
+    "licenses/ZXing-Net-Apache-2.0.txt": {
+      "size": 11358,
+      "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
     }
   }
 }

@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "WinUp — пароли",
-  "version": "1.7.0",
+  "version": "1.8.0",
   "description": "Пароли, карты, коды 2FA и ключи доступа из зашифрованной базы WinUp.",
   "permissions": [
     "nativeMessaging",
@@ -10,7 +10,7 @@
   ],
   "background": {
     "scripts": [
-      "background-v1.7.0.js"
+      "background-v1.8.0.js"
     ]
   },
   "action": {

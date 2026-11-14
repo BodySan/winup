@@ -33,6 +33,13 @@ $process=Start-Process @harnessOptions
 if(!$process.WaitForExit(600000)) { $process.Kill();[void]$process.WaitForExit(5000);throw "Test harness timeout. Read $Output\runtime.txt" }
 if($process.ExitCode -or [IO.File]::ReadAllText("$Output\runtime.txt") -notmatch 'TOTAL failures=0') { throw "Tests failed. Read $Output\runtime.txt" }
 if($env:GITHUB_ACTIONS -eq 'true') {
+    $notesLab='C:\WinUpAudit\notes-qa-'+[Guid]::NewGuid().ToString('N').Substring(0,8)
+    New-Item -ItemType Directory -Path $notesLab|Out-Null
+    Copy-Item -LiteralPath "$Output\NotesCodesProbe.exe","$Source\lib\zxing.dll","$Output\Microsoft.Web.WebView2.Core.dll","$Output\Microsoft.Web.WebView2.WinForms.dll","$Output\WebView2Loader.dll" -Destination $notesLab
+    $notes=Start-Process -FilePath "$notesLab\NotesCodesProbe.exe" -WindowStyle Hidden -PassThru -RedirectStandardOutput "$Output\notes-codes.txt" -RedirectStandardError "$Output\notes-codes-errors.txt"
+    [void]$notes.Handle
+    if(!$notes.WaitForExit(120000)){$notes.Kill();throw 'Notes and code images timeout'}
+    if($notes.ExitCode -ne 0 -or [IO.File]::ReadAllText("$Output\notes-codes.txt") -notmatch 'RESULT passed=\d+ failed=0'){throw 'Notes and code images failed'}
     $fileLab='C:\WinUpAudit\fci-'+[Guid]::NewGuid().ToString('N').Substring(0,8)
     New-Item -ItemType Directory $fileLab|Out-Null
     Copy-Item -LiteralPath "$Output\Microsoft.Web.WebView2.Core.dll","$Output\Microsoft.Web.WebView2.WinForms.dll","$Output\WebView2Loader.dll" -Destination $fileLab

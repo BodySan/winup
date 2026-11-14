@@ -70,7 +70,7 @@ namespace WinUp
         bool credentialsLocked=true,filesOpen;
         readonly ToolStripMenuItem unlockItem = new ToolStripMenuItem("Открыть базу паролей...");
 
-        public TrayIcon(Action show, Action lockVault, Action unlock, Action exit,Action lockFiles=null,Action lockAll=null)
+        public TrayIcon(Action show, Action lockVault, Action unlock, Action exit,Action lockFiles=null,Action lockAll=null,Action notes=null)
         {
             var menu = new ContextMenuStrip();
             var openItem = new ToolStripMenuItem("Открыть WinUp") { Font = new Font(SystemFonts.MenuFont, FontStyle.Bold) };
@@ -82,6 +82,7 @@ namespace WinUp
             var exitItem = new ToolStripMenuItem("Выход");
             exitItem.Click += (s, e) => exit();
             menu.Items.AddRange(new ToolStripItem[] { openItem, lockItem, filesLockItem,allLockItem,unlockItem, new ToolStripSeparator(), exitItem });
+            if(notes!=null){var noteItem=new ToolStripMenuItem("Заметки");noteItem.Click+=(s,e)=>notes();menu.Items.Insert(1,noteItem);}
             icon.ContextMenuStrip = menu;
             icon.MouseClick += (s, e) => { if (e.Button == MouseButtons.Left) show(); };
             icon.MouseDoubleClick += (s, e) => { if (e.Button == MouseButtons.Left) show(); };

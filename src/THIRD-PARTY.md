@@ -139,3 +139,6 @@
 - Источник: https://www.nuget.org/packages/Microsoft.Web.WebView2/1.0.4258.31
 - Условия использования SDK: файл licenses/WebView2.txt, включённый в программу.
 - Microsoft Edge WebView2 Runtime устанавливается и обновляется средствами Microsoft.
+
+## ZXing.Net 0.16.11
+QR and barcode generation, Apache-2.0. Official package: https://www.nuget.org/packages/ZXing.Net/0.16.11 . Package SHA-256: 7d39234d668e558b3d374d18116ed57021d7c0df482801f1e1db4f1db9314ec3. License: licenses/ZXing-Net-Apache-2.0.txt.
