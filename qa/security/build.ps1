@@ -86,6 +86,8 @@ BuildCsvExportProbe
 if ($LASTEXITCODE) { throw 'Advanced workflow probe build failed' }
 & $csc @common '/target:exe' '/main:WinUp.NotesCodesProbe' "/out:$Output\NotesCodesProbe.exe" @sources "$PSScriptRoot\..\desktop\NotesCodesProbe.cs"
 if ($LASTEXITCODE) { throw 'Notes and code image probe build failed' }
+& $csc @common '/target:exe' '/main:WinUp.QrDensityProbe' "/out:$Output\QrDensityProbe.exe" @sources "$PSScriptRoot\..\desktop\QrDensityProbe.cs"
+if ($LASTEXITCODE) { throw 'QR density probe build failed' }
 BuildSystemProviderProbe
 if($HostNativeReview){BuildHostNativeReview}
 & $csc @common '/target:exe' '/main:WinUp.AdvancedUiProbe' "/out:$Output\AdvancedUiProbe.exe" @sources "$PSScriptRoot\AdvancedUiProbe.cs"
