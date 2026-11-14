@@ -53,6 +53,16 @@ const snapshot={locked:false,baseExists:true,database:'qa-only.kdbx',browser:'',
       }
       assert.equal(await page.evaluate(()=>{const button=document.createElement('button');button.className='button primary';button.disabled=true;button.textContent='Disabled';document.querySelector('#modal-body').append(button);const style=getComputedStyle(button),luminance=color=>color.match(/[\d.]+/g).slice(0,3).map(Number).map(channel=>channel/255).map(channel=>channel<=.04045?channel/12.92:((channel+.055)/1.055)**2.4).reduce((sum,channel,index)=>sum+channel*[.2126,.7152,.0722][index],0),foreground=luminance(style.color),background=luminance(style.backgroundColor),contrast=(Math.max(foreground,background)+.05)/(Math.min(foreground,background)+.05),readable=contrast>=4.5&&style.opacity==='1';button.remove();return readable;}),true,`${theme} disabled primary meets 4.5:1 contrast`);
     }
+    await page.evaluate(()=>{closeModal();state.notes=[{id:'note1',title:'<Заметка>',modified:'Сегодня'}];state.vaultLocked=false;navigate('notes');});
+    assert.equal(await page.locator('#content').textContent().then(t=>t.includes('<Заметка>')),true);
+    assert.equal(await page.locator('#content script').count(),0);
+    await page.locator('[data-action="note-open"][data-id="note1"]').click();
+    assert.equal(await page.evaluate(()=>window.qaRequests.at(-1).command),'notes-open');
+    await page.evaluate(()=>{desktop.pending.clear();desktop.requests.clear();navigate('codes');});
+    await page.locator('#content [data-action="code-image"]').click();
+    assert.equal(await page.evaluate(()=>window.qaRequests.at(-1).command),'code-image');
+    await page.evaluate(()=>{desktop.pending.clear();desktop.requests.clear();state.vaultLocked=true;state.notes=[];navigate('notes');});
+    assert.equal(await page.locator('#content').textContent().then(t=>!t.includes('<Заметка>')),true);
     assert.deepEqual(errors,[]);
     console.log('PASS: 12 browser regressions and 10 layout/theme checks, no native operations, no JavaScript errors.');
   }finally{await browser.close();}

@@ -10,7 +10,7 @@ $args=@('/nologo','/target:winexe','/platform:anycpu','/langversion:5','/unsafe+
     '/r:System.Web.Extensions.dll','/r:System.Security.dll','/r:System.IO.Compression.dll','/r:System.IO.Compression.FileSystem.dll')
 foreach($name in 'defaults.json','help.html','THIRD-PARTY.md','public-suffix-list.dat') { $args += "/resource:$src\$name,$name" }
 $args += "/resource:$src\updates\components.json,components.json","/resource:$src\updates\publisher.xml,component-publisher.xml"
-foreach($name in 'KeePassLib','WinUp.PasskeyEngine','BouncyCastle.Cryptography','CBOR','Numbers') { $args += "/resource:$src\lib\$name.dll,$name.dll" }
+foreach($name in 'KeePassLib','WinUp.PasskeyEngine','BouncyCastle.Cryptography','CBOR','Numbers','zxing') { $args += "/resource:$src\lib\$name.dll,$name.dll" }
 foreach($file in Get-ChildItem "$src\browser" -File | Where-Object { $_.Extension -in '.json','.js','.html','.png' -or $_.Name -eq 'winup-firefox.xpi' }) { $args += "/resource:$($file.FullName),browser/$($file.Name)" }
 foreach($name in 'file-engine.zip','file-engine.json','winfsp.msi') { $args += "/resource:$src\file-engine\$name,$name" }
 foreach($file in Get-ChildItem "$src\licenses" -File) { $args += "/resource:$($file.FullName),licenses/$($file.Name)" }

@@ -15,7 +15,7 @@ namespace WinUp {
             Ui(delegate {
                 NewVault(false); BrowserPair.Save(token,"Synthetic corrections test");
                 var tabs=(TabControl)typeof(MainForm).GetField("tabs",Private).GetValue(form);
-                Check("requested-tab-order",string.Join("|",tabs.TabPages.Cast<TabPage>().Select(t=>t.Text))=="Пароли|2FA|Ключи доступа|Карты|Файлы|Запуск|WinGet|Установка|Скачать","actual MainForm tabs");
+                Check("requested-tab-order",string.Join("|",tabs.TabPages.Cast<TabPage>().Select(t=>t.Text))=="Пароли|2FA|Ключи доступа|Карты|Заметки|QR / штрихкод|Файлы|Запуск|WinGet|Установка|Скачать","actual MainForm tabs");
                 var e=form.VaultNow.Entries[0]; e.Kind="both"; e.Login2="sandbox@example.com"; e.AppTarget="%WINDIR%\\notepad.exe"; e.RecoveryCodes=codes;e.LoginUrl="https://example.com/login";
                 using(var dialog=new EntryDialog(e.Copy(),new AppStore(),false,form.VaultNow.Otp,form.VaultNow.Entries)) {
                     var pw=(TextBox)typeof(EntryDialog).GetField("pass",Private).GetValue(dialog);

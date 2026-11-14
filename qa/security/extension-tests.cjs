@@ -146,6 +146,15 @@ async function main() {
   const sync = page(), sc = sync.audit.fillContext(sync.pw);
   sync.user.onDispatch = () => sync.location.href = 'https://example.com/changed-by-input';
   check('synchronous-input-navigation-stops-password', !sync.audit.apply(credentials(), sc) && sync.pw.value === '' && sync.otp.value === '');
+  const reactive=page(), reactiveContext=reactive.audit.fillContext(reactive.pw);let replacement;
+  reactive.user.onDispatch=()=>{reactive.form.fields.filter(f=>f.type==='password').forEach(f=>f.isConnected=false);replacement=new reactive.HTMLInputElement('password','password');replacement.id=reactive.pw.id;replacement.name=reactive.pw.name;replacement.form=reactive.form;reactive.form.fields=[reactive.user,replacement,reactive.otp];};
+  check('controlled-form-rerender-fills-equivalent-password',reactive.audit.apply(credentials(),reactiveContext)&&replacement.value==='SYNTHETIC-PASSWORD');
+  const hiddenUser=page(), hiddenContext=hiddenUser.audit.fillContext(hiddenUser.user);hiddenUser.user.onDispatch=()=>hiddenUser.user.hidden=true;
+  check('username-hiding-after-input-does-not-cancel-password',hiddenUser.audit.apply(credentials(),hiddenContext)&&hiddenUser.pw.value==='SYNTHETIC-PASSWORD');
+  const switched=page(), switchedContext=switched.audit.fillContext(switched.pw);switched.user.onDispatch=()=>switched.form.action='https://attacker.example/';
+  check('controlled-input-form-action-change-still-blocked',!switched.audit.apply(credentials(),switchedContext)&&switched.pw.value==='');
+  const ambiguous=page(), ambiguousContext=ambiguous.audit.fillContext(ambiguous.pw);ambiguous.user.onDispatch=()=>{ambiguous.pw.isConnected=false;const clones=[0,1].map(()=>{const e=new ambiguous.HTMLInputElement('password',ambiguous.pw.name);e.form=ambiguous.form;return e;});ambiguous.form.fields=[ambiguous.user,...clones,ambiguous.otp];};
+  check('ambiguous-rerendered-password-is-not-filled',!ambiguous.audit.apply(credentials(),ambiguousContext)&&ambiguous.form.fields.filter(e=>e.type==='password').every(e=>e.value===''));
   const popup = page(); let outcome;
   popup.listener({ type: 'fillFromPopup', id: 'test' }, { id: 'our-extension' }, r => outcome = r);
   popup.location.href = 'https://example.com/new'; const result = credentials(); popup.respond(result); await Promise.resolve(); await Promise.resolve();

@@ -370,13 +370,13 @@ namespace WinUp {
                     }
                     area.AutoScrollPosition=System.Drawing.Point.Empty;Application.DoEvents();
                     if(size.Width==1080&&area.VerticalScroll.Visible)throw new Exception(page.Text+": full-size actions unnecessarily scroll");
-                    var list=Descendants(page).OfType<ListView>().First(v=>v.Visible);
+                    Control list=page.Text=="Заметки"?(Control)Descendants(page).OfType<ListBox>().First(v=>v.Visible):page.Text=="QR / штрихкод"?Descendants(page).OfType<Label>().First(v=>v.Visible&&object.Equals(v.Tag,"code-help")):(Control)Descendants(page).OfType<ListView>().First(v=>v.Visible);
                     if(list.Height<110)throw new Exception(page.Text+": record list too small "+list.Height);
                     if(size.Width==1080){using(var image=new System.Drawing.Bitmap(form.Width,form.Height)){form.DrawToBitmap(image,new System.Drawing.Rectangle(System.Drawing.Point.Empty,form.Size));image.Save(Path.Combine(shots,"117-"+tabs.SelectedIndex+".png"));}}
                     Console.WriteLine("PASS layout "+page.Text+" at "+size+" listHeight="+list.Height);
                 }
             }
-            Console.WriteLine("PASS layout all "+checkedButtons+" action placements reachable; nine tabs at both window sizes");
+            Console.WriteLine("PASS layout all "+checkedButtons+" action placements reachable; all tabs at both window sizes");
         }
         static void ReadOnlyProbe(string root){
             string folder=Path.Combine(root,"vault"),source=Path.Combine(root,"file.txt");File.WriteAllText(source,"Synthetic read-only");
