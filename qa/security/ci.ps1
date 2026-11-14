@@ -40,6 +40,11 @@ if($env:GITHUB_ACTIONS -eq 'true') {
     [void]$notes.Handle
     if(!$notes.WaitForExit(120000)){$notes.Kill();throw 'Notes and code images timeout'}
     if($notes.ExitCode -ne 0 -or [IO.File]::ReadAllText("$Output\notes-codes.txt") -notmatch 'RESULT passed=\d+ failed=0'){throw 'Notes and code images failed'}
+    Copy-Item -LiteralPath "$Output\QrDensityProbe.exe" -Destination $notesLab
+    $qr=Start-Process -FilePath "$notesLab\QrDensityProbe.exe" -WindowStyle Hidden -PassThru -RedirectStandardOutput "$Output\qr-density.txt" -RedirectStandardError "$Output\qr-density-errors.txt"
+    [void]$qr.Handle
+    if(!$qr.WaitForExit(30000)){$qr.Kill();throw 'QR density check timed out'}
+    if($qr.ExitCode -ne 0 -or [IO.File]::ReadAllText("$Output\qr-density.txt") -notmatch 'RESULT passed=\d+ failed=0'){throw 'QR density checks failed'}
     $fileLab='C:\WinUpAudit\fci-'+[Guid]::NewGuid().ToString('N').Substring(0,8)
     New-Item -ItemType Directory $fileLab|Out-Null
     Copy-Item -LiteralPath "$Output\Microsoft.Web.WebView2.Core.dll","$Output\Microsoft.Web.WebView2.WinForms.dll","$Output\WebView2Loader.dll" -Destination $fileLab
