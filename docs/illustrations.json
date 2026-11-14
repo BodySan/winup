@@ -1,5 +1,5 @@
 {
-  "images": 37,
+  "images": 40,
   "files": [
     {
       "name": "passwords",
@@ -78,6 +78,12 @@
       "width": 610,
       "height": 435,
       "sha256": "d44bc9f758f47d5283a91f61adb22da740de0d9bcd42a983dfc821269dec53d8"
+    },
+    {
+      "name": "recovery-window",
+      "width": 489,
+      "height": 447,
+      "sha256": "3070e7b252b28f2f2512610c6c927ce27b3d7fb6a2ca88d4fec2bcfa557e10af"
     },
     {
       "name": "protected-fields",
@@ -222,6 +228,18 @@
       "width": 1304,
       "height": 768,
       "sha256": "c3536b8b3c6fcd60d95a31cd58cba7f562b47b8de505eadcbd1140c4f15526df"
+    },
+    {
+      "name": "notes-window",
+      "width": 880,
+      "height": 640,
+      "sha256": "658be7f78c0cd93f5fa94ac4845204b29c294592402a5cbd844502692ccc021d"
+    },
+    {
+      "name": "code-window",
+      "width": 760,
+      "height": 690,
+      "sha256": "a5c97a2755179e11afbfbb653818defb5c7a98295ae94adbc498fac81f6ae792"
     }
   ]
 }

@@ -5,7 +5,7 @@ using System.Linq;
 using KeePassLib;
 using KeePassLib.Security;
 namespace WinUp {
-    public sealed class SecureNoteInfo { public string Id,Title; public DateTime Modified; }
+    public sealed class SecureNoteInfo { public string Id {get;set;} public string Title {get;set;} public DateTime Modified {get;set;} }
     public sealed partial class KdbxStore {
         PwGroup NoteGroup(bool create){var group=db.RootGroup.Groups.FirstOrDefault(g=>g.CustomData.Get("WinUp.Notes")=="1");if(group==null&&create){group=new PwGroup(true,true,"Заметки",PwIcon.Note);group.CustomData.Set("WinUp.Notes","1");db.RootGroup.AddGroup(group,true);}return group;}
         IEnumerable<PwEntry> NoteRecords(){return WalkGroups(db.RootGroup).Where(g=>!Under(g,Trash(false))).SelectMany(g=>g.Entries).Where(e=>GetStr(e,"WinUp.Kind")=="note");}

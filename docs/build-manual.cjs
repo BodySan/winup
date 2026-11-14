@@ -1,6 +1,9 @@
 const fs = require('node:fs'), path = require('node:path'), crypto = require('node:crypto');
 const uiRoot = path.resolve(__dirname, '..'), assets = path.join(__dirname, 'screens');
 const captions = {
+  'notes-window':'Отдельное окно заметок: поиск, заголовок, текст и состояние автосохранения.',
+  'code-window':'Генератор QR-кодов и штрихкодов: формат, данные, предпросмотр и сохранение PNG.',
+  'recovery-window':'Резервные коды аккаунта в отдельном списке.',
   passwords: 'Пароли: список аккаунтов, фильтры, карточка и команды выбранной записи.',
   'passwords-light': 'Главное окно в светлой теме.',
   'sticky-account': 'Карточка аккаунта остаётся видимой в конце длинного списка.',
